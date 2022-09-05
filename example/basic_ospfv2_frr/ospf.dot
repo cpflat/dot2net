@@ -1,0 +1,19 @@
+digraph  {
+
+	r1[class="router"];
+	r2[class="router"];
+	r3[class="router"];
+	r4[class="router"];
+	s1[class="server"];
+	s3[class="server"];
+	s4[class="server"];
+
+	r1->r2[dir="none"];
+	r1->r3[dir="none"];
+	r2->r4[dir="none"];
+	r3->r4[dir="none"];
+	s1->r1[dir="none"];
+	s3->r3[dir="none"];
+	s4->r4[dir="none"];
+
+}

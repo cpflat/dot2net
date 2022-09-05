@@ -1,0 +1,30 @@
+global:
+  ippool: 10.0.0.0/16
+  ipprefix: 24
+  iploopback: 10.255.0.0/24
+  path: local
+
+nodes:
+  - name: default
+    numbered: [ip, as]
+    attr:
+      image: slankdev/frr
+    config:
+      - template: 
+          - /usr/lib/frr/frr start
+
+connections:
+  - name: default
+    type: direct
+    numbered: [ip]
+    config:
+      - node: default
+        target: local
+        template:
+          - ip addr add {{ipnet}} dev net
+      - node: default
+        target: frr
+        template: 
+          - router bgp {{node.as}}
+          - bgp router-id {{node.loopback}}
+          - neighbor {{opp.ipadddr}} remote-as {{node.as}}           

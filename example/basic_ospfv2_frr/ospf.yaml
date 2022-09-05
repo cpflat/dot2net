@@ -1,0 +1,38 @@
+global:
+  ippool: 10.0.0.0/16
+  ipprefix: 30
+  iploopback: 10.255.0.0/24
+  path: local
+
+nodeclass:
+  - name: router
+    numbered: [ip]
+    attr:
+      image: slankdev/frr
+    config:
+      - target: local
+        template: 
+          - /usr/lib/frr/frr start
+  - name: server
+    numbered: [ip]
+    attr:
+      image: slankdev/ubuntu:18.04
+
+connectionclass:
+  - name: default
+    type: direct
+    numbered: [ip, ip]
+    config:
+      - target: local
+        template:
+          - ip addr add {{ .ipaddr }}/30 dev {{ .name }}
+      - node: router
+        target: frr
+        template: 
+          - router ospf
+          - network {{ .ipnet }} area 0
+      - node: server
+        target: local
+        template:
+          - ip route replace default via {{ .opp_ipaddr }}
+
