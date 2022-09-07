@@ -10,7 +10,7 @@ It automatically generates some numbers, such as IP addresses, AS numbers, etc, 
 
 ## Build
 
-    docker run --rm -i -t -v $PWD:/v -w /v golang:1.18 go build
+    docker run --rm -i -t -v $PWD:/v -w /v golang:1.19 go build
 
 
 ## Generate specification file
@@ -70,8 +70,8 @@ Also, if "all" classes are defined, they affects all possible objects (nodes or 
         n1[label="value=120"];
         n2[label="@n2"];
         n3[label="@n3"];
-        n4[label="@target=n3"]
-        n5[label="@target=n2"]
+        n4[label="@target=n3"];
+        n5[label="@target=n2"];
     }
 
 Class labels have a limited namespace (see subsection "Variable replacers"),
@@ -103,7 +103,7 @@ They are specified inline (anyclass.config.template) or in external files (anycl
 
 ## Variable replacers
 
-Config templates of dot2tinet basically follow [text/template](https://pkg.go.dev/text/template>) notation.
+Config templates of dot2tinet basically follow [text/template](https://pkg.go.dev/text/template) notation.
 The number replacers can be available only when the corresponding number classifiers are specified in "anyclass.numbered" of the class.
 The available numbers in the templates are following.
 
