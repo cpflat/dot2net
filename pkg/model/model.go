@@ -23,7 +23,10 @@ const DefaultInterfacePrefix string = "net"
 
 const ClassAll string = "all"         // all nodes/interfaces/connections
 const ClassDefault string = "default" // all empty nodes/interfaces/connections
+const PlaceLabelPrefix string = "@"
+const ValueLabelSeparator string = "="
 
+const NumberSeparator string = "_"
 const NumberPrefixNode string = "node_"
 const NumberPrefixOppositeInterface string = "opp_"
 const NumberPrefixOppositeNode string = "oppnode_"
@@ -66,12 +69,49 @@ func (cfg *Config) ConnectionClassByName(name string) (*ConnectionClass, bool) {
 	return cc, ok
 }
 
-func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool) []string {
-	cnt := len(given)
+func (cfg *Config) classifyLabels(given []string) parsedLabels {
+	pl := parsedLabels{}
+	pl.ValueLabels = map[string]string{}
+	pl.MetaValueLabels = map[string]string{}
+	for _, label := range given {
+		if label == "" {
+		} else if strings.HasPrefix(label, PlaceLabelPrefix) {
+			if strings.Contains(label, ValueLabelSeparator) {
+				// with "@" and include "=" -> MetaValueLabel
+				sep := strings.SplitN(strings.TrimPrefix(label, PlaceLabelPrefix), ValueLabelSeparator, 2)
+				mvlabel := sep[0]
+				value := sep[1]
+				pl.MetaValueLabels[mvlabel] = value
+			} else {
+				// with "@" -> PlaceLabel
+				plabel := strings.TrimPrefix(label, PlaceLabelPrefix)
+				pl.PlaceLabels = append(pl.PlaceLabels, plabel)
+			}
+		} else {
+			if strings.Contains(label, ValueLabelSeparator) {
+				// include "=" -> ValueLabel
+				sep := strings.SplitN(label, ValueLabelSeparator, 2)
+				vlabel := sep[0]
+				value := sep[1]
+				pl.ValueLabels[vlabel] = value
+			} else {
+				// ClassLabel
+				pl.ClassLabels = append(pl.ClassLabels, label)
+			}
+		}
+	}
+	return pl
+}
+
+func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool) parsedLabels {
+	pl := cfg.classifyLabels(given)
+	classLabels := pl.ClassLabels
+
+	cnt := len(classLabels)
 	if hasAll {
 		cnt = cnt + 1
 	}
-	if len(given) == 0 && hasDefault {
+	if len(classLabels) == 0 && hasDefault {
 		cnt = cnt + 1
 	}
 	classes := make([]string, 0, cnt)
@@ -79,29 +119,31 @@ func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool)
 	if hasAll {
 		classes = append(classes, ClassAll)
 	}
-	if len(given) == 0 {
+	if len(classLabels) == 0 {
 		if hasDefault {
 			classes = append(classes, ClassDefault)
 		}
 	} else {
-		classes = append(classes, given...)
+		classes = append(classes, classLabels...)
 	}
-	return classes
+
+	pl.ClassLabels = classes
+	return pl
 }
 
-func (cfg *Config) getValidNodeClasses(given []string) []string {
+func (cfg *Config) getValidNodeClasses(given []string) parsedLabels {
 	_, hasAllNodeClass := cfg.nodeClassMap[ClassAll]
 	_, hasDefaultNodeClass := cfg.nodeClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllNodeClass, hasDefaultNodeClass)
 }
 
-func (cfg *Config) getValidInterfaceClasses(given []string) []string {
+func (cfg *Config) getValidInterfaceClasses(given []string) parsedLabels {
 	_, hasAllInterfaceClass := cfg.interfaceClassMap[ClassAll]
 	_, hasDefaultInterfaceClass := cfg.interfaceClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllInterfaceClass, hasDefaultInterfaceClass)
 }
 
-func (cfg *Config) getValidConnectionClasses(given []string) []string {
+func (cfg *Config) getValidConnectionClasses(given []string) parsedLabels {
 	_, hasAllConnectionClass := cfg.connectionClassMap[ClassAll]
 	_, hasDefaultConnectionClass := cfg.connectionClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllConnectionClass, hasDefaultConnectionClass)
@@ -166,6 +208,13 @@ type ConnectionConfigTemplate struct {
 	parsedTemplate *template.Template
 }
 
+type parsedLabels struct {
+	ClassLabels     []string
+	PlaceLabels     []string
+	ValueLabels     map[string]string
+	MetaValueLabels map[string]string
+}
+
 type NetworkModel struct {
 	Nodes       []Node
 	Connections []Connection
@@ -181,7 +230,7 @@ func (nm *NetworkModel) NodeByName(name string) (*Node, bool) {
 type Node struct {
 	Name            string
 	Interfaces      []Interface
-	Classes         []string
+	Labels          parsedLabels
 	Numbered        []string
 	Numbers         map[string]string
 	RelativeNumbers map[string]string
@@ -190,13 +239,8 @@ type Node struct {
 	interfaceMap map[string]*Interface
 }
 
-func (n *Node) InterfaceByName(name string) (*Interface, bool) {
-	iface, ok := n.interfaceMap[name]
-	return iface, ok
-}
-
 func (n *Node) HasClass(name string) bool {
-	for _, cls := range n.Classes {
+	for _, cls := range n.Labels.ClassLabels {
 		if cls == name {
 			return true
 		}
@@ -225,7 +269,7 @@ func (n *Node) HasIPLoopback() bool {
 type Interface struct {
 	Name            string
 	Node            *Node
-	Classes         []string
+	Labels          parsedLabels
 	Numbered        []string
 	Numbers         map[string]string
 	RelativeNumbers map[string]string
@@ -248,9 +292,9 @@ func (iface *Interface) addNumber(key, val string) {
 }
 
 type Connection struct {
-	Src     *Interface
-	Dst     *Interface
-	Classes []string
+	Src    *Interface
+	Dst    *Interface
+	Labels parsedLabels
 }
 
 func convertLineFeed(str, lcode string) string {
@@ -428,7 +472,7 @@ func BuildNetworkModel(cfg *Config, nd *NetworkDiagram) (nm *NetworkModel, err e
 func buildSkeleton(cfg *Config, nd *NetworkDiagram) (*NetworkModel, error) {
 	nm := NetworkModel{}
 	allNodes := nd.AllNodes()
-	allEdges := nd.AllEdges()
+	allEdges := nd.AllLines()
 
 	ifaceCounter := map[string]int{}
 	for _, e := range allEdges {
@@ -446,12 +490,12 @@ func buildSkeleton(cfg *Config, nd *NetworkDiagram) (*NetworkModel, error) {
 		node.Name = n.Name // Set DOTID, overwritten later if nodeautoname = true
 		nm.nodeMap[node.Name] = &nm.Nodes[i]
 		node.Interfaces = make([]Interface, 0, ifaceCounter[n.Name])
-		node.Classes = cfg.getValidNodeClasses(n.Classes)
+		node.Labels = cfg.getValidNodeClasses(n.Classes)
 		node.Numbers = map[string]string{}
 		node.RelativeNumbers = map[string]string{}
 		node.interfaceMap = map[string]*Interface{}
 
-		if len(node.Classes) == 0 {
+		if len(node.Labels.ClassLabels) == 0 {
 			return nil, fmt.Errorf("set default nodeclass to leave nodes unlabeled")
 		}
 	}
@@ -462,42 +506,57 @@ func buildSkeleton(cfg *Config, nd *NetworkDiagram) (*NetworkModel, error) {
 		if !ok {
 			return nil, fmt.Errorf("inconsistent DiagramEdge")
 		}
+		if _, ok := srcNode.interfaceMap[e.SrcName]; ok {
+			// Existing named interface
+			return nil, fmt.Errorf("duplicated interface names")
+		}
+		// New interface
 		srcNode.Interfaces = append(srcNode.Interfaces, Interface{})
 		srcIf := &srcNode.Interfaces[len(srcNode.Interfaces)-1]
 		if e.SrcName != "" {
+			// New named interface
 			srcIf.Name = e.SrcName
 			srcNode.interfaceMap[srcIf.Name] = srcIf
 		}
-		srcIf.Classes = cfg.getValidInterfaceClasses(e.SrcClasses)
 		srcIf.Node = srcNode
 		srcIf.Numbers = map[string]string{}
 		srcIf.RelativeNumbers = map[string]string{}
+		srcIf.Labels = cfg.getValidInterfaceClasses(e.SrcClasses)
 
 		dstNode, ok := nm.NodeByName(e.To().(*DiagramNode).Name)
 		if !ok {
 			return nil, fmt.Errorf("inconsistent DiagramEdge")
 		}
+		if _, ok := dstNode.interfaceMap[e.DstName]; ok {
+			// Existing named interface
+			return nil, fmt.Errorf("duplicated interface names")
+		}
+		// New interface
 		dstNode.Interfaces = append(dstNode.Interfaces, Interface{})
 		dstIf := &dstNode.Interfaces[len(dstNode.Interfaces)-1]
 		if e.DstName != "" {
+			// New named interface
 			dstIf.Name = e.DstName
 			dstNode.interfaceMap[dstIf.Name] = dstIf
 		}
-		dstIf.Classes = cfg.getValidInterfaceClasses(e.DstClasses)
 		dstIf.Node = dstNode
 		dstIf.Numbers = map[string]string{}
 		dstIf.RelativeNumbers = map[string]string{}
+		dstIf.Labels = cfg.getValidInterfaceClasses(e.DstClasses)
 
-		srcIf.Opposite = dstIf
+		srcIf.Opposite = dstIf // TODO opposite -> method function?
 		dstIf.Opposite = srcIf
 
 		conn := Connection{Src: srcIf, Dst: dstIf}
-		conn.Classes = cfg.getValidConnectionClasses(e.Classes)
+		conn.Labels = cfg.getValidConnectionClasses(e.Classes)
+		if len(conn.Labels.PlaceLabels) > 0 {
+			return nil, fmt.Errorf("connection cannot have placeLabels")
+		}
 		nm.Connections = append(nm.Connections, conn)
 		srcIf.Connection = &nm.Connections[len(nm.Connections)-1]
 		dstIf.Connection = &nm.Connections[len(nm.Connections)-1]
 
-		if (len(srcIf.Classes) == 0 || len(dstIf.Classes) == 0) && len(conn.Classes) == 0 {
+		if (len(srcIf.Labels.ClassLabels) == 0 || len(dstIf.Labels.ClassLabels) == 0) && len(conn.Labels.ClassLabels) == 0 {
 			return nil, fmt.Errorf("set default interfaceclass or connectionclass to leave edges unlabeled")
 		}
 	}
@@ -509,21 +568,21 @@ func assignNodeNames(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 	nodePrefixes := map[string][]*Node{}
 	for i, node := range nm.Nodes {
 		checked := false
-		for _, cls := range node.Classes {
+		for _, cls := range node.Labels.ClassLabels {
 			nc, ok := cfg.NodeClassByName(cls)
 			if !ok {
-				return nil, fmt.Errorf("invalid NodeClass name")
+				return nil, fmt.Errorf("invalid NodeClass name %+v", cls)
 			}
 			if nc.Prefix != "" {
 				if checked {
-					return nil, fmt.Errorf("duplicated node name prefix (classes %+v)", node.Classes)
+					return nil, fmt.Errorf("duplicated node name prefix (classes %+v)", node.Labels.ClassLabels)
 				} else {
 					checked = true
 					nodePrefixes[nc.Prefix] = append(nodePrefixes[nc.Prefix], &nm.Nodes[i])
 				}
 			}
 			if !checked {
-				return nil, fmt.Errorf("unnamed node without node name prefix (classes %+v)", node.Classes)
+				return nil, fmt.Errorf("unnamed node without node name prefix (classes %+v)", node.Labels.ClassLabels)
 			}
 		}
 	}
@@ -543,14 +602,14 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) (*NetworkModel, error) 
 
 	for _, conn := range nm.Connections {
 		checked := false
-		for _, cls := range conn.Classes {
+		for _, cls := range conn.Labels.ClassLabels {
 			cc, ok := cfg.ConnectionClassByName(cls)
 			if !ok {
-				return nil, fmt.Errorf("invalid InterfaceClass name")
+				return nil, fmt.Errorf("invalid InterfaceClass name %+v", cls)
 			}
 			if cc.Prefix != "" {
 				if checked {
-					return nil, fmt.Errorf("duplicated interface name prefix (connection classes %+v)", conn.Classes)
+					return nil, fmt.Errorf("duplicated interface name prefix (connection classes %+v)", conn.Labels.ClassLabels)
 				}
 				checked = true
 				if conn.Src.Name == "" {
@@ -577,14 +636,14 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) (*NetworkModel, error) 
 				continue
 			}
 			checked := false
-			for _, cls := range iface.Classes {
+			for _, cls := range iface.Labels.ClassLabels {
 				ic, ok := cfg.InterfaceClassByName(cls)
 				if !ok {
-					return nil, fmt.Errorf("invalid InterfaceClass name")
+					return nil, fmt.Errorf("invalid InterfaceClass name %+v", cls)
 				}
 				if ic.Prefix != "" {
 					if checked {
-						return nil, fmt.Errorf("duplicated interface name prefix (classes %+v)", node.Classes)
+						return nil, fmt.Errorf("duplicated interface name prefix (classes %+v)", node.Labels.ClassLabels)
 						// } else if ifacePrefixes[node.Name][iface.Name] != "" {
 						// TODO show warnings
 						// InterfaceClass prefix is prior to ConnectionClass prefix
@@ -648,10 +707,10 @@ Numbered of Interfaces will be affected from both InterfaceClasses and Connectio
 func checkNumbered(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 	for i, node := range nm.Nodes {
 		nodeNumberedSet := map[string]struct{}{}
-		for _, cls := range node.Classes {
+		for _, cls := range node.Labels.ClassLabels {
 			nc, ok := cfg.nodeClassMap[cls]
 			if !ok {
-				return nil, fmt.Errorf("invalid NodeClass name %v", cls)
+				return nil, fmt.Errorf("invalid NodeClass name %+v", cls)
 			}
 			for _, num := range nc.Numbered {
 				nodeNumberedSet[num] = struct{}{}
@@ -665,10 +724,10 @@ func checkNumbered(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 
 		for j, iface := range node.Interfaces {
 			ifaceNumberedSet := map[string]struct{}{}
-			for _, cls := range iface.Classes {
+			for _, cls := range iface.Labels.ClassLabels {
 				ic, ok := cfg.interfaceClassMap[cls]
 				if !ok {
-					return nil, fmt.Errorf("invalid InterfaceClass name %v", cls)
+					return nil, fmt.Errorf("invalid InterfaceClass name %+v", cls)
 				}
 				for _, num := range ic.Numbered {
 					ifaceNumberedSet[num] = struct{}{}
@@ -692,10 +751,10 @@ func checkNumbered(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 			dstNumberedSet[num] = struct{}{}
 		}
 
-		for _, cls := range conn.Classes {
+		for _, cls := range conn.Labels.ClassLabels {
 			cc, ok := cfg.connectionClassMap[cls]
 			if !ok {
-				return nil, fmt.Errorf("invalid ConnectionClass name %v", cls)
+				return nil, fmt.Errorf("invalid ConnectionClass name %+v", cls)
 			}
 			for _, num := range cc.Numbered {
 				srcNumberedSet[num] = struct{}{}
@@ -761,9 +820,27 @@ func assignNumbers(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 		case NumberIP:
 			// Assigned by AssignIPAddresses, ignore
 		default:
-			// TODO aasign customized numbers
+			// TODO assign customized numbers
 			fmt.Printf("cnt %v", cnt)
 			return nil, fmt.Errorf("not implemented")
+		}
+	}
+
+	// set values in ValueLabels
+	for i, node := range nm.Nodes {
+		for k, v := range node.Labels.ValueLabels {
+			nm.Nodes[i].addNumber(k, v) // overwrite
+		}
+		for j, iface := range node.Interfaces {
+			for k, v := range iface.Labels.ValueLabels {
+				nm.Nodes[i].Interfaces[j].addNumber(k, v)
+			}
+		}
+	}
+	for _, conn := range nm.Connections {
+		for k, v := range conn.Labels.ValueLabels {
+			conn.Src.addNumber(k, v)
+			conn.Dst.addNumber(k, v)
 		}
 	}
 
@@ -771,41 +848,115 @@ func assignNumbers(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 }
 
 func formatNumbers(nm *NetworkModel) (*NetworkModel, error) {
+	// Search global namespace with placelabels
+	globalNumbers := map[string]string{}
+	numbersForAlias := map[string]map[string]string{}
+	for _, node := range nm.Nodes {
+		if len(node.Labels.PlaceLabels) > 0 {
+			for _, plabel := range node.Labels.PlaceLabels {
+				if _, exists := numbersForAlias[plabel]; exists {
+					return nil, fmt.Errorf("duplicated PlaceLabels %+v", plabel)
+				}
+				numbersForAlias[plabel] = map[string]string{}
+
+				for k, v := range node.Numbers {
+					num := plabel + NumberSeparator + k
+					globalNumbers[num] = v
+					numbersForAlias[plabel][k] = v
+				}
+			}
+		}
+
+		for _, iface := range node.Interfaces {
+			if len(iface.Labels.PlaceLabels) > 0 {
+				for _, plabel := range iface.Labels.PlaceLabels {
+					if _, exists := numbersForAlias[plabel]; exists {
+						return nil, fmt.Errorf("duplicated PlaceLabels %+v", plabel)
+					}
+					numbersForAlias[plabel] = map[string]string{}
+
+					for k, v := range iface.Numbers {
+						num := plabel + NumberSeparator + k
+						globalNumbers[num] = v
+						numbersForAlias[plabel][k] = v
+					}
+				}
+			}
+		}
+	}
+
 	for i, node := range nm.Nodes {
+
 		// node self
 		for num, val := range node.Numbers {
 			nm.Nodes[i].RelativeNumbers[num] = val
 		}
 
+		// global namespace of PlaceLabels
+		for k, v := range globalNumbers {
+			nm.Nodes[i].RelativeNumbers[k] = v
+		}
+
+		// alias of MetaValueLabels
+		if len(node.Labels.MetaValueLabels) > 0 {
+			for mvlabel, target := range node.Labels.MetaValueLabels {
+				if _, ok := numbersForAlias[target]; !ok {
+					return nil, fmt.Errorf("invalid MetaValueLabel for PlaceLabel %+v", target)
+				}
+				for k, v := range numbersForAlias[target] {
+					num := mvlabel + NumberSeparator + k
+					nm.Nodes[i].RelativeNumbers[num] = v
+				}
+			}
+		}
+
 		for j, iface := range node.Interfaces {
-			target := nm.Nodes[i].Interfaces[j]
 
 			// interface self
 			for num, val := range iface.Numbers {
-				target.RelativeNumbers[num] = val
+				nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = val
 			}
 
 			// node of interface
 			for nodenum, val := range node.Numbers {
 				num := NumberPrefixNode + nodenum
-				target.RelativeNumbers[num] = val
+				nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = val
 			}
 
 			// opposite interface
 			oppIf := iface.Opposite
 			for oppnum, val := range oppIf.Numbers {
 				num := NumberPrefixOppositeInterface + oppnum
-				target.RelativeNumbers[num] = val
+				nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = val
 			}
 
 			// node of opposite interface
 			oppNode := oppIf.Node
 			for oppnnum, val := range oppNode.Numbers {
 				num := NumberPrefixOppositeNode + oppnnum
-				target.RelativeNumbers[num] = val
+				nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = val
+			}
+
+			// global namespace of PlaceLabels
+			for k, v := range globalNumbers {
+				nm.Nodes[i].Interfaces[j].RelativeNumbers[k] = v
+			}
+
+			// alias of MetaValueLabels
+			if len(iface.Labels.MetaValueLabels) > 0 {
+				for mvlabel, target := range iface.Labels.MetaValueLabels {
+					if _, ok := numbersForAlias[target]; !ok {
+						return nil, fmt.Errorf("invalid MetaValueLabel for PlaceLabel %+v", target)
+					}
+					for k, v := range numbersForAlias[target] {
+						num := mvlabel + NumberSeparator + k
+						nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = v
+					}
+				}
 			}
 		}
 	}
+
 	return nm, nil
 }
 
@@ -1013,7 +1164,7 @@ func generateConfig(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 		configBlocks := []string{}
 		configTarget := []string{}
 		configPriority := []int{}
-		for _, cls := range node.Classes {
+		for _, cls := range node.Labels.ClassLabels {
 			nc, ok := cfg.nodeClassMap[cls]
 			if !ok {
 				return nil, fmt.Errorf("undefined NodeClass name %v", cls)
@@ -1030,7 +1181,7 @@ func generateConfig(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 		}
 
 		for _, iface := range node.Interfaces {
-			for _, cls := range iface.Classes {
+			for _, cls := range iface.Labels.ClassLabels {
 				ic, ok := cfg.interfaceClassMap[cls]
 				if !ok {
 					return nil, fmt.Errorf("undefined InterfaceClass name %v", cls)
@@ -1049,7 +1200,7 @@ func generateConfig(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
 				}
 			}
 
-			for _, cls := range iface.Connection.Classes {
+			for _, cls := range iface.Connection.Labels.ClassLabels {
 				cc, ok := cfg.connectionClassMap[cls]
 				if !ok {
 					return nil, fmt.Errorf("undefined ConnectionClass name %v", cls)

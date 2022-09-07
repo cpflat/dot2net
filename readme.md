@@ -26,8 +26,10 @@ It automatically generates some numbers, such as IP addresses, AS numbers, etc, 
         n1->n2;
     }
 
+The DOT files are considered as a "directed multigraph", which means that it allows multiple lines between a pair of nodes.
 A node corresponds to a device node (a container or a bridge),
-and an edge corresponds to a connection between two nodes.
+and a line corresponds to a connection between two nodes.
+
 If all links have same meanings (and configurations), the DOT file only needs node name labels.
 
     digraph  {
@@ -39,7 +41,9 @@ If all links have same meanings (and configurations), the DOT file only needs no
 Interface names can be specified in port fields if needed
 (It may cause warnings in other usages such as dot commands).
 
-    digraph  {
+## Class labels
+
+    digraph {
         n1;
         n2[label="a"];
         n3[class="a"];
@@ -56,8 +60,41 @@ There are 3 kinds of classes.
 For example in the above DOT, the interface of n2 connected with n3 belongs to two Interface Classes, b and c.
 The definition of these classes are defined in the config file.
 
+
 If no labels are given, they refer "default" classes if exists.
 Also, if "all" classes are defined, they affects all possible objects (nodes or interfaces).
+
+## Extended labels
+
+    digraph {
+        n1[label="value=120"];
+        n2[label="@n2"];
+        n3[label="@n3"];
+        n4[label="@target=n3"]
+        n5[label="@target=n2"]
+    }
+
+Class labels have a limited namespace (see subsection "Variable replacers"),
+which covers the node itself (for Node Class) or the opposite interfaces against the connection (for Interface and Connection Class).
+For complecated or asymmetrical network configurations, there exist three kinds of extended labels.
+These labels can also be specified in the DOT fields same as the Class labels,
+and they can be mixed with Class labels or other labels if appropriately separated (with ";" or ",").
+
+Value labels directly specifiy variables that can be used in the config templates.
+The format separates variable name and the corresponding value with "=".
+For example, {{ .value }} will be replacerd with 120 on the config template of node n1.
+The value specified with Value label is only available in namespase of the specified object
+(for example, "value" is available on templates of node n1, but NOT available on templates of the interfaces of node n1).
+
+Place labels make the object referrable from any other objects.
+The format has a prefix "@".
+For example, any nodes or interfaces can embed IPAddress of n2 with {{ .n2_ipaddr }}.
+Place labels cannot exist on Connections (only available on Nodes or Interfaces).
+
+Meta Value labels define aliases to Place labels. 
+The format also has a prefix "@", and the alias name and existing Place label name is separated with "=".
+For example, {{ .target_name }} is replaced with "n3" on n4, and "n2" on n5.
+
 
 # Config templates
 
@@ -104,13 +141,3 @@ you can set priority values for config templates.
 If priority value is larger, the config blocks will be on the head of merged configuration.
 The default value of priority is 0,
 which means you can also set negative values to place configs on the tail.
-
-
-# TODO
-
-- Add examples
-- Add more supported NUMBERs
-- l2vpn support (multi layered graph)
-- source routing support (beacon labels)
-- Config format check
-

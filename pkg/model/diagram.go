@@ -9,25 +9,27 @@ import (
 	"gonum.org/v1/gonum/graph"
 	"gonum.org/v1/gonum/graph/encoding"
 	"gonum.org/v1/gonum/graph/encoding/dot"
-	"gonum.org/v1/gonum/graph/simple"
+
+	// "gonum.org/v1/gonum/graph/simple"
+	"gonum.org/v1/gonum/graph/multi"
 )
 
 var SEPARATOR *regexp.Regexp
 
 type NetworkDiagram struct {
-	*simple.DirectedGraph
+	*multi.DirectedGraph
 }
 
 func newNetworkDiagram() *NetworkDiagram {
-	return &NetworkDiagram{DirectedGraph: simple.NewDirectedGraph()}
+	return &NetworkDiagram{DirectedGraph: multi.NewDirectedGraph()}
 }
 
 func (nd *NetworkDiagram) NewNode() graph.Node {
 	return &DiagramNode{Node: nd.DirectedGraph.NewNode()}
 }
 
-func (nd *NetworkDiagram) NewEdge(from, to graph.Node) graph.Edge {
-	return &DiagramEdge{Edge: nd.DirectedGraph.NewEdge(from, to)}
+func (nd *NetworkDiagram) NewLine(from, to graph.Node) graph.Line {
+	return &DiagramLine{Line: nd.DirectedGraph.NewLine(from, to)}
 }
 
 func (nd *NetworkDiagram) AllNodes() []*DiagramNode {
@@ -41,14 +43,17 @@ func (nd *NetworkDiagram) AllNodes() []*DiagramNode {
 	return nodes
 }
 
-func (nd *NetworkDiagram) AllEdges() []*DiagramEdge {
+func (nd *NetworkDiagram) AllLines() []*DiagramLine {
 	iterEdges := nd.Edges()
-	edges := make([]*DiagramEdge, 0, iterEdges.Len())
+	lines := make([]*DiagramLine, 0, iterEdges.Len())
 	for iterEdges.Next() {
-		e := iterEdges.Edge().(*DiagramEdge)
-		edges = append(edges, e)
+		e := iterEdges.Edge()
+		iterLines := nd.Lines(e.From().ID(), e.To().ID())
+		for iterLines.Next() {
+			lines = append(lines, iterLines.Line().(*DiagramLine))
+		}
 	}
-	return edges
+	return lines
 }
 
 func NetworkDiagramFromDotFile(filepath string) (*NetworkDiagram, error) {
@@ -57,7 +62,7 @@ func NetworkDiagramFromDotFile(filepath string) (*NetworkDiagram, error) {
 		return nil, err
 	}
 	dst := newNetworkDiagram()
-	if err = dot.Unmarshal([]byte(src), dst); err != nil {
+	if err = dot.UnmarshalMulti([]byte(src), dst); err != nil {
 		return nil, err
 	}
 	return dst, nil
@@ -90,8 +95,8 @@ func (n *DiagramNode) String() string {
 	return n.Name
 }
 
-type DiagramEdge struct {
-	graph.Edge
+type DiagramLine struct {
+	graph.Line
 	SrcName    string
 	DstName    string
 	Classes    []string
@@ -99,7 +104,7 @@ type DiagramEdge struct {
 	DstClasses []string
 }
 
-func (e *DiagramEdge) SetAttribute(attr encoding.Attribute) error {
+func (e *DiagramLine) SetAttribute(attr encoding.Attribute) error {
 	switch attr.Key {
 	case "label":
 		e.Classes = parseClasses(attr.Value)
@@ -115,12 +120,12 @@ func (e *DiagramEdge) SetAttribute(attr encoding.Attribute) error {
 	return nil
 }
 
-func (e *DiagramEdge) SetFromPort(port, compass string) error {
+func (e *DiagramLine) SetFromPort(port, compass string) error {
 	e.SrcName = port
 	return nil
 }
 
-func (e *DiagramEdge) SetToPort(port, compass string) error {
+func (e *DiagramLine) SetToPort(port, compass string) error {
 	e.DstName = port
 	return nil
 }

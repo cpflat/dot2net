@@ -151,7 +151,7 @@ func GetSpecification(cfg *model.Config, nm *model.NetworkModel) (string, error)
 
 func getNode(cfg *model.Config, n model.Node) (Node, error) {
 	mapper := map[string]interface{}{}
-	for _, cls := range n.Classes {
+	for _, cls := range n.Labels.ClassLabels {
 		nc, ok := cfg.NodeClassByName(cls)
 		if !ok {
 			return Node{}, fmt.Errorf("invalid NodeClass name %v", cls)
@@ -159,7 +159,7 @@ func getNode(cfg *model.Config, n model.Node) (Node, error) {
 		for key, val := range nc.Attributes {
 			if _, ok := mapper[key]; ok {
 				// key already exists -> duplicated
-				return Node{}, fmt.Errorf("duplicated Attribute %v in classes %v", key, n.Classes)
+				return Node{}, fmt.Errorf("duplicated Attribute %v in classes %v", key, n.Labels.ClassLabels)
 			} else {
 				mapper[key] = val
 			}
@@ -182,7 +182,7 @@ func getInterface(cfg *model.Config, i model.Interface) (Interface, error) {
 	iface := Interface{Name: i.Name, Args: i.Node.Name + "#" + i.Name}
 
 	connectionType := ""
-	for _, cls := range i.Connection.Classes {
+	for _, cls := range i.Connection.Labels.ClassLabels {
 		cc, ok := cfg.ConnectionClassByName(cls)
 		if !ok {
 			return Interface{}, fmt.Errorf("invalid ConnectionClass name %v", cls)
@@ -191,12 +191,12 @@ func getInterface(cfg *model.Config, i model.Interface) (Interface, error) {
 			if connectionType == "" {
 				connectionType = cc.Type
 			} else {
-				return Interface{}, fmt.Errorf("duplicated type in ConnectionClasses %v", i.Connection.Classes)
+				return Interface{}, fmt.Errorf("duplicated type in ConnectionClasses %v", i.Connection.Labels.ClassLabels)
 			}
 		}
 	}
 	interfaceType := ""
-	for _, cls := range i.Classes {
+	for _, cls := range i.Labels.ClassLabels {
 		ic, ok := cfg.InterfaceClassByName(cls)
 		if !ok {
 			return Interface{}, fmt.Errorf("invalid InterfaceClass name %v", cls)
@@ -205,7 +205,7 @@ func getInterface(cfg *model.Config, i model.Interface) (Interface, error) {
 			if interfaceType == "" {
 				interfaceType = ic.Type
 			} else {
-				return Interface{}, fmt.Errorf("duplicated type in InterfaceClasses %v", i.Classes)
+				return Interface{}, fmt.Errorf("duplicated type in InterfaceClasses %v", i.Labels.ClassLabels)
 			}
 		}
 	}
