@@ -1,0 +1,34 @@
+digraph  {
+	spine1[class="router"];
+	spine2[class="router"];
+	leaf1[class="router"];
+	leaf2[class="router"];
+	leaf3[class="router"];
+	leaf4[class="router"];
+	sv1[class="server"];
+	sv2[class="server"];
+	sv3[class="server"];
+	sv4[class="server"];
+	sv5[class="server"];
+	sv6[class="server"];
+	sv7[class="server"];
+	sv8[class="server"];
+
+	spine1:dn1->leaf1:up1[dir="none", class="ipnet=10.0.0.0/24"];
+	spine1:dn2->leaf2:up1[dir="none", class="ipnet=10.0.1.0/24"];
+	spine1:dn3->leaf3:up1[dir="none", class="ipnet=10.0.2.0/24"];
+	spine1:dn4->leaf4:up1[dir="none", class="ipnet=10.0.3.0/24"];
+	spine2:dn1->leaf1:up2[dir="none", class="ipnet=10.0.4.0/24"];
+	spine2:dn2->leaf2:up2[dir="none", class="ipnet=10.0.5.0/24"];
+	spine2:dn3->leaf3:up2[dir="none", class="ipnet=10.0.6.0/24"];
+	spine2:dn4->leaf4:up2[dir="none", class="ipnet=10.0.7.0/24"];
+	
+	leaf1:dn1->sv1[dir="none"];
+	leaf1:dn2->sv2[dir="none"];
+	leaf2:dn1->sv3[dir="none"];
+	leaf2:dn2->sv4[dir="none"];
+	leaf3:dn1->sv5[dir="none"];
+	leaf3:dn2->sv6[dir="none"];
+	leaf4:dn1->sv7[dir="none"];
+	leaf4:dn2->sv8[dir="none"];
+}

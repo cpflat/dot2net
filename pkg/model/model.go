@@ -2,8 +2,6 @@ package model
 
 import (
 	"fmt"
-	"math"
-	"net/netip"
 	"os"
 	"path/filepath"
 	"sort"
@@ -34,6 +32,7 @@ const NumberPrefixOppositeNode string = "oppnode_"
 const NumberReplacerName string = "name"
 const NumberReplacerIPAddress string = "ipaddr"
 const NumberReplacerIPNetwork string = "ipnet"
+const NumberReplacerIPPrefixLength string = "iplen"
 const NumberReplacerIPLoopback string = "loopback"
 
 const NumberIP string = "ip"
@@ -257,6 +256,15 @@ func (n *Node) addNumber(key, val string) {
 	// fmt.Printf("NUMBER %+v %+v=%+v\n", n.Name, key, val)
 }
 
+func (n *Node) GivenIPLoopback() (string, bool) {
+	for k, v := range n.Labels.ValueLabels {
+		if k == NumberReplacerIPLoopback {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 func (n *Node) HasIPLoopback() bool {
 	for _, num := range n.Numbered {
 		if num == NumberIP {
@@ -277,9 +285,27 @@ type Interface struct {
 	Opposite        *Interface
 }
 
+func (iface *Interface) GivenIPAddress() (string, bool) {
+	for k, v := range iface.Labels.ValueLabels {
+		if k == NumberReplacerIPAddress {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 func (iface *Interface) IsIPAware() bool {
 	for _, num := range iface.Numbered {
 		if num == NumberIP {
+			return true
+		}
+	}
+	return false
+}
+
+func (iface *Interface) hasNumberKey(key string) bool {
+	for _, num := range iface.Numbered {
+		if num == key {
 			return true
 		}
 	}
@@ -295,6 +321,15 @@ type Connection struct {
 	Src    *Interface
 	Dst    *Interface
 	Labels parsedLabels
+}
+
+func (conn *Connection) GivenIPNetwork() (string, bool) {
+	for k, v := range conn.Labels.ValueLabels {
+		if k == NumberReplacerIPNetwork {
+			return v, true
+		}
+	}
+	return "", false
 }
 
 func convertLineFeed(str, lcode string) string {
@@ -440,7 +475,7 @@ func BuildNetworkModel(cfg *Config, nd *NetworkDiagram) (nm *NetworkModel, err e
 		return nil, err
 	}
 
-	nm, err = assignIPAddresses(cfg, nm)
+	nm, err = assignIPNumbers(cfg, nm)
 	if err != nil {
 		return nil, err
 	}
@@ -696,6 +731,18 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) (*NetworkModel, error) 
 		}
 	}
 
+	return nm, nil
+}
+
+func assignIPNumbers(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
+	nm, err := assignIPLoopbacks(cfg, nm, NumberIP)
+	if err != nil {
+		return nil, err
+	}
+	nm, err = assignIPAddresses(cfg, nm, NumberIP)
+	if err != nil {
+		return nil, err
+	}
 	return nm, nil
 }
 
@@ -958,205 +1005,6 @@ func formatNumbers(nm *NetworkModel) (*NetworkModel, error) {
 	}
 
 	return nm, nil
-}
-
-func assignIPAddresses(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {
-	// search ip loopbacks
-	allLoopbacks := []*Node{}
-	for i, node := range nm.Nodes {
-		if node.HasIPLoopback() {
-			allLoopbacks = append(allLoopbacks, &nm.Nodes[i])
-		}
-	}
-
-	// search networks
-	allNetworkInterfaces := [][]*Interface{}
-	checked := map[*Connection]struct{}{} // set alternative
-	for i, conn := range nm.Connections {
-		if _, ok := checked[&nm.Connections[i]]; ok {
-			break
-		}
-		checked[&nm.Connections[i]] = struct{}{}
-		networkInterfaces := []*Interface{}
-		todo := []*Interface{conn.Dst, conn.Src} // stack (Last In First Out)
-		for len(todo) > 0 {
-			iface := todo[len(todo)-1]
-			todo = todo[:len(todo)-1] // pop iface from todo
-			if iface.IsIPAware() {
-				// ip aware -> network ends
-				networkInterfaces = append(networkInterfaces, iface)
-			} else {
-				// ip unaware -> search adjacent interfaces
-				for _, nextIf := range iface.Node.Interfaces {
-					if _, ok := checked[nextIf.Connection]; ok {
-						// already checked network, something wrong
-						return nil, fmt.Errorf("IPaddress assignment algorithm panic")
-					}
-					checked[nextIf.Connection] = struct{}{}
-					if nextIf.Name == iface.Name {
-						// ignore iface itself
-					} else if nextIf.IsIPAware() {
-						// ip aware -> network ends
-						networkInterfaces = append(networkInterfaces, iface)
-					} else {
-						// ip unaware -> search adjacent connection
-						oppIf := nextIf.Opposite
-						todo = append(todo, oppIf)
-					}
-				}
-			}
-		}
-		allNetworkInterfaces = append(allNetworkInterfaces, networkInterfaces)
-	}
-
-	// assign loopback addresses to nodes
-	loopbackrange, err := netip.ParsePrefix(cfg.GlobalSettings.IPLoopbackRange)
-	if err != nil {
-		return nil, err
-	}
-	addrs, err := getIPAddr(loopbackrange, len(allLoopbacks))
-	if err != nil {
-		return nil, err
-	}
-	for i, node := range allLoopbacks {
-		node.addNumber(NumberReplacerIPLoopback, addrs[i].String())
-	}
-
-	// assign network addresses to networks
-	poolrange, err := netip.ParsePrefix(cfg.GlobalSettings.IPAddrPool)
-	if err != nil {
-		return nil, err
-	}
-	bits := cfg.GlobalSettings.IPNetPrefixLength
-	cnt := len(allNetworkInterfaces)
-	pool, err := getIPAddrPool(poolrange, bits, cnt)
-	if err != nil {
-		return nil, err
-	}
-
-	// assign ip addressees to interfaces
-	for netid, networkInterfaces := range allNetworkInterfaces {
-		net := pool[netid]
-		addrs, err := getIPAddr(net, len(networkInterfaces))
-		if err != nil {
-			return nil, err
-		}
-		for ifid, iface := range networkInterfaces {
-			iface.addNumber(NumberReplacerIPAddress, addrs[ifid].String())
-			iface.addNumber(NumberReplacerIPNetwork, net.String())
-		}
-	}
-
-	return nm, nil
-}
-
-/*
-getIPAddrPool generates set of prefixes
-
-Arguments:
-
-	poolrange: Source IP address space range
-	bits: Prefix length of prefixes to generate
-	cnt: Number of prefixes to generate. If 0 or smaller, all possible prefixes are returned.
-*/
-func getIPAddrPool(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix, error) {
-	pbits := poolrange.Bits()
-	err_too_small := fmt.Errorf("IPAddrPoolRange is too small")
-
-	if pbits > bits { // pool range is smaller
-		return nil, err_too_small
-	} else if pbits == bits {
-		if cnt > 1 {
-			return nil, err_too_small
-		} else {
-			return []netip.Prefix{poolrange}, nil
-		}
-	} else { // pbits < bits
-		// calculate number of prefixes to generate
-		potential := int(math.Pow(2, float64(bits-pbits)))
-		if cnt <= 0 {
-			cnt = potential
-		} else if cnt > potential {
-			return nil, err_too_small
-		}
-		var pool = make([]netip.Prefix, 0, cnt)
-
-		// add first prefix
-		new_prefix := netip.PrefixFrom(poolrange.Addr(), bits)
-		pool = append(pool, new_prefix)
-
-		// calculate following prefixes
-		current_slice := poolrange.Addr().AsSlice()
-		for i := 0; i < cnt-1; i++ { // pool addr index
-			byte_idx := bits / 8
-			byte_increase := int(math.Pow(2, float64(8-bits%8)))
-			for byte_idx > 0 { // byte index to modify
-				tmp_sum := int(current_slice[byte_idx]) + byte_increase
-				if tmp_sum >= 256 {
-					current_slice[byte_idx] = byte(tmp_sum - 256)
-					byte_idx = byte_idx - 1
-					byte_increase = 1
-				} else {
-					current_slice[byte_idx] = byte(tmp_sum)
-					break
-				}
-			}
-			new_addr, ok := netip.AddrFromSlice(current_slice)
-			if ok {
-				new_prefix = netip.PrefixFrom(new_addr, bits)
-				pool = append(pool, new_prefix)
-			} else {
-				return pool, fmt.Errorf("format error in address pool calculation")
-			}
-		}
-		return pool, nil
-	}
-
-}
-
-func getIPAddr(pool netip.Prefix, cnt int) ([]netip.Addr, error) {
-	var potential int
-	err_too_small := fmt.Errorf("addr pool is too small")
-
-	// calculate number of addresses to generate
-	if pool.Addr().Is4() {
-		// IPv4: skip network address and broadcast address
-		potential = int(math.Pow(2, float64(32-pool.Bits()))) - 2
-	} else {
-		// IPv6: skip network address
-		potential = int(math.Pow(2, float64(128-pool.Bits()))) - 1
-	}
-	if cnt <= 0 {
-		cnt = potential
-	} else if cnt > potential {
-		return nil, err_too_small
-	}
-
-	// generate addresses
-	var addrs = make([]netip.Addr, 0, cnt)
-	current_addr := pool.Addr()
-	for i := 0; i < cnt; i++ { // pool addr index
-		current_addr = current_addr.Next()
-		addrs = append(addrs, current_addr)
-	}
-	return addrs, nil
-}
-
-func getASNumber(cnt int) ([]int, error) {
-	var asnumbers = make([]int, 0, cnt)
-	if cnt <= 535 {
-		for i := 0; i < cnt; i++ {
-			asnumbers = append(asnumbers, 65001+i)
-		}
-	} else if cnt <= 1024 {
-		for i := 0; i < cnt; i++ {
-			asnumbers = append(asnumbers, 64512+i)
-		}
-	} else { // cnt > 1024
-		// currently returns error
-		return nil, fmt.Errorf("requested more than 1024 private AS numbers")
-	}
-	return asnumbers, nil
 }
 
 func generateConfig(cfg *Config, nm *NetworkModel) (*NetworkModel, error) {

@@ -33,14 +33,14 @@ connectionclass:
         target: frr
         template: 
           - int {{ .name }}
-          - ip addr {{ .ipaddr }}/30
+          - ip addr {{ .ipaddr }}/{{ .iplen }}
           - router bgp {{ .node_as }}
           - neighbor {{ .opp_ipaddr }} remote-as {{ .oppnode_as }}
       - node: server
         target: frr
         template:
           - int {{ .name }}
-          - ip addr {{ .ipaddr }}/30
+          - ip addr {{ .ipaddr }}/{{ .iplen }}
           - router bgp {{ .node_as }}
           - neighbor {{ .opp_ipaddr }} remote-as external
           - network {{ .ipnet }}

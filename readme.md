@@ -6,6 +6,12 @@ and config templates.
 It automatically generates some numbers, such as IP addresses, AS numbers, etc, to be embedded in the config.
 
 
+# Overview
+
+![flow](image/flow.png)
+
+
+
 # Usage
 
 ## Build
@@ -59,7 +65,6 @@ There are 3 kinds of classes.
 - Connection Class: Specified in "label" of edges. It just means two ends of interfaces have same configuration.
 For example in the above DOT, the interface of n2 connected with n3 belongs to two Interface Classes, b and c.
 The definition of these classes are defined in the config file.
-
 
 If no labels are given, they refer "default" classes if exists.
 Also, if "all" classes are defined, they affects all possible objects (nodes or interfaces).
