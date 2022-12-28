@@ -35,7 +35,9 @@ const NumberReplacerIPNetwork string = "ipnet"
 const NumberReplacerIPPrefixLength string = "iplen"
 const NumberReplacerIPLoopback string = "loopback"
 
-const NumberIP string = "ip"
+const NumberIP string = "ip" // available for both v4 and v6
+const NumberIPv4 string = "ipv4"
+const NumberIPv6 string = "ipv6"
 const NumberAS string = "as"
 
 const TargetLocal string = "local"
@@ -149,11 +151,19 @@ func (cfg *Config) getValidConnectionClasses(given []string) parsedLabels {
 }
 
 type GlobalSettings struct {
-	IPAddrPool        string `yaml:"ippool" mapstructure:"ippool"`
-	IPNetPrefixLength int    `yaml:"ipprefix" mapstructure:"ipprefix"`
-	IPLoopbackRange   string `yaml:"iploopback" mapstructure:"iploopback"`
-	PathSpecification string `yaml:"path" mapstructure:"path"`
-	NodeAutoName      bool   `yaml:"nodeautoname" mapstructure:"nodeautoname"`
+	IPAddrPool          string `yaml:"ippool" mapstructure:"ippool"`
+	IPNetPrefixLength   int    `yaml:"ipprefix" mapstructure:"ipprefix"`
+	IPLoopbackRange     string `yaml:"iploopback" mapstructure:"iploopback"`
+	IPv4AddrPool        string `yaml:"ipv4pool" mapstructure:"ipv4pool"`
+	IPv4NetPrefixLength int    `yaml:"ipv4prefix" mapstructure:"ipv4prefix"`
+	IPv4LoopbackRange   string `yaml:"ipv4loopback" mapstructure:"ipv4loopback"`
+	IPv6AddrPool        string `yaml:"ipv6pool" mapstructure:"ipv6pool"`
+	IPv6NetPrefixLength int    `yaml:"ipv6prefix" mapstructure:"ipv6prefix"`
+	IPv6LoopbackRange   string `yaml:"ipv6loopback" mapstructure:"ipv6loopback"`
+	PathSpecification   string `yaml:"path" mapstructure:"path"`
+	NodeAutoName        bool   `yaml:"nodeautoname" mapstructure:"nodeautoname"`
+
+	ClabAttr map[string]interface{} `yaml:"clab" mapstructure:"clab"` // containerlab attributes
 }
 
 type NodeClass struct {
@@ -161,8 +171,9 @@ type NodeClass struct {
 	Prefix          string               `yaml:"prefix" mapstructure:"prefix"` // prefix of auto-naming
 	Numbered        []string             `yaml:"numbered,flow" mapstructure:"numbered,flow"`
 	ConfigTemplates []NodeConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
-	// tinet attributes
-	Attributes map[string]interface{} `yaml:"attr" mapstructure:"attr"`
+
+	TinetAttr map[string]interface{} `yaml:"tinet" mapstructure:"tinet"` // tinet attributes
+	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`   // containerlab attributes
 }
 
 type NodeConfigTemplate struct {

@@ -7,7 +7,7 @@ global:
 nodeclass:
   - name: router
     numbered: [ip]
-    attr:
+    tinet:
       image: slankdev/frr
     config:
       - target: local

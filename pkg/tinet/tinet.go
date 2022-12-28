@@ -1,4 +1,4 @@
-package output
+package tinet
 
 import (
 	"encoding/json"
@@ -107,19 +107,19 @@ type Test struct {
 	Cmds []Cmd `yaml:"cmds" mapstructure:"cmds"`
 }
 
-func GetSpecification(cfg *model.Config, nm *model.NetworkModel) (string, error) {
+func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) {
 	tn := Tn{}
 
 	for _, n := range nm.Nodes {
-		node, err := getNode(cfg, n)
+		node, err := getTinetNode(cfg, n)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 		ifaces := []Interface{}
 		for _, i := range n.Interfaces {
-			iface, err := getInterface(cfg, i)
+			iface, err := getTinetInterface(cfg, i)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 			ifaces = append(ifaces, iface)
 		}
@@ -143,20 +143,20 @@ func GetSpecification(cfg *model.Config, nm *model.NetworkModel) (string, error)
 
 	bytes, err := yaml.Marshal(tn)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return string(bytes), nil
+	return bytes, nil
 }
 
-func getNode(cfg *model.Config, n model.Node) (Node, error) {
+func getTinetNode(cfg *model.Config, n model.Node) (Node, error) {
 	mapper := map[string]interface{}{}
 	for _, cls := range n.Labels.ClassLabels {
 		nc, ok := cfg.NodeClassByName(cls)
 		if !ok {
 			return Node{}, fmt.Errorf("invalid NodeClass name %v", cls)
 		}
-		for key, val := range nc.Attributes {
+		for key, val := range nc.TinetAttr {
 			if _, ok := mapper[key]; ok {
 				// key already exists -> duplicated
 				return Node{}, fmt.Errorf("duplicated Attribute %v in classes %v", key, n.Labels.ClassLabels)
@@ -169,16 +169,16 @@ func getNode(cfg *model.Config, n model.Node) (Node, error) {
 	node := Node{}
 	bytes, err := json.Marshal(mapper)
 	if err != nil {
-		return Node{}, nil
+		return Node{}, err
 	}
 	err = json.Unmarshal(bytes, &node)
 	if err != nil {
-		return Node{}, nil
+		return Node{}, err
 	}
 	return node, nil
 }
 
-func getInterface(cfg *model.Config, i model.Interface) (Interface, error) {
+func getTinetInterface(cfg *model.Config, i model.Interface) (Interface, error) {
 	iface := Interface{Name: i.Name, Args: i.Node.Name + "#" + i.Name}
 
 	connectionType := ""

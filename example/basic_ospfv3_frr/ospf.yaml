@@ -12,7 +12,7 @@ nodeclass:
           - bash -c "enable_seg6_router.py | sh"
   - name: router
     numbered: [ip]
-    attr:
+    tinet:
       image: slankdev/frr
     config:
       - target: frr
@@ -21,7 +21,7 @@ nodeclass:
           - ospf6 router-id {{ .loopback }}
   - name: server
     numbered: [ip]
-    attr:
+    tinet:
       image: slankdev/ubuntu:18.04
 
 connectionclass:

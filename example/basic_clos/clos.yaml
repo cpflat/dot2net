@@ -7,7 +7,7 @@ global:
 nodeclass:
   - name: all
     numbered: [ip, as]
-    attr:
+    tinet:
       image: slankdev/frr
     config:
       - target: local

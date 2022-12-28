@@ -16,7 +16,7 @@ It automatically generates some numbers, such as IP addresses, AS numbers, etc, 
 
 ## Build
 
-    docker run --rm -i -t -v $PWD:/v -w /v golang:1.19 go build
+    docker run --rm -i -t -v $PWD:/v -w /v golang:1.18 go build
 
 
 ## Generate specification file
@@ -146,3 +146,8 @@ you can set priority values for config templates.
 If priority value is larger, the config blocks will be on the head of merged configuration.
 The default value of priority is 0,
 which means you can also set negative values to place configs on the tail.
+
+
+## TODO
+
+- Multiple dot input (simple merge)
