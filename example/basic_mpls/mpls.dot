@@ -1,0 +1,21 @@
+digraph  {
+
+	c0[class="server"];
+	c1[class="server"];
+	r0[class="router"];
+	r1[class="router"];
+	r2[class="router"];
+	r3[class="router"];
+	r4[class="router"];
+	r5[class="router"];
+
+	c0->r0[dir="none", label="ip_net=192.168.0.0/24", headlabel="@c0,ip_addr=192.168.0.2,ip_addr2=192.168.0.20", taillabel="ip_addr=192.168.0.1"];
+	c1->r1[dir="none", label="ip_net=192.168.1.0/24", headlabel="@c1,ip_addr=192.168.1.2,ip_addr2=192.168.1.20", taillabel="ip_addr=192.168.1.1"];
+	r0->r2[dir="none", headlabel="to_c1,encap,mpls=100,@target=c1", taillabel="to_c0"];
+	r1->r3[dir="none", headlabel="to_c0,encap,mpls=200,@target=c0", taillabel="to_c1"];
+	r2->r4[dir="none", headlabel="decap,mpls=100,@target=c1", taillabel="to_c0"];
+	r2->r5[dir="none", headlabel="to_c1", taillabel="to_c0"];
+	r3->r4[dir="none", headlabel="decap,mpls=200,@target=c0", taillabel="to_c1"];
+	r3->r5[dir="none", headlabel="to_c0", taillabel="to_c1"];
+
+}

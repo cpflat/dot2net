@@ -1,12 +1,17 @@
 global:
-  ippool: 10.0.0.0/16
-  ipprefix: 24
-  iploopback: 10.255.0.0/24
   path: local
+
+ipspace:
+  - name: ip
+    range: 10.0.0.0/16
+    prefix: 24
+    loopback_range: 10.255.0.0/24
+    default_aware: true
+    default_connect: true
 
 nodeclass:
   - name: default
-    numbered: [ip, as]
+    numbered: [as]
     tinet:
       image: slankdev/frr
     config:
@@ -16,18 +21,17 @@ nodeclass:
       - target: frr
         template:
           - router bgp {{ .as }}
-          - bgp router-id {{ .loopback }}
+          - bgp router-id {{ .ip_loopback }}
 
 connectionclass:
   - name: default
     type: direct
-    numbered: [ip]
     config:
       - node: default
         target: local
         template:
-          - ip addr add {{ .ipaddr }}/24 dev {{ .name }}
+          - ip addr add {{ .ip_addr }}/24 dev {{ .name }}
       - node: default
         target: frr
         template: 
-          - neighbor {{ .opp_ipaddr }} remote-as {{ .oppnode_as }}           
+          - neighbor {{ .opp_ip_addr }} remote-as {{ .oppnode_as }}           

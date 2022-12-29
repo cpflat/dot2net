@@ -140,7 +140,7 @@ func CmdNumber(c *cli.Context) error {
 		sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 		for _, num := range keys {
 			val := node.RelativeNumbers[num]
-			fmt.Printf("%+v %+v=%+v\n", node.Name, num, val)
+			lines = append(lines, fmt.Sprintf("%+v {{ .%+v }} = %+v", node.Name, num, val))
 		}
 
 		for _, iface := range node.Interfaces {
@@ -152,7 +152,7 @@ func CmdNumber(c *cli.Context) error {
 
 			for _, num := range keys {
 				val := iface.RelativeNumbers[num]
-				lines = append(lines, fmt.Sprintf("%+v.%+v %+v=%+v\n", node.Name, iface.Name, num, val))
+				lines = append(lines, fmt.Sprintf("%+v.%+v {{ .%+v }} = %+v", node.Name, iface.Name, num, val))
 			}
 		}
 	}

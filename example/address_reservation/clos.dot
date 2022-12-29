@@ -14,14 +14,14 @@ digraph  {
 	sv7[class="server"];
 	sv8[class="server"];
 
-	spine1:dn1->leaf1:up1[dir="none", class="ipnet=10.0.0.0/24"];
-	spine1:dn2->leaf2:up1[dir="none", class="ipnet=10.0.1.0/24"];
-	spine1:dn3->leaf3:up1[dir="none", class="ipnet=10.0.2.0/24"];
-	spine1:dn4->leaf4:up1[dir="none", class="ipnet=10.0.3.0/24"];
-	spine2:dn1->leaf1:up2[dir="none", class="ipnet=10.0.4.0/24"];
-	spine2:dn2->leaf2:up2[dir="none", class="ipnet=10.0.5.0/24"];
-	spine2:dn3->leaf3:up2[dir="none", class="ipnet=10.0.6.0/24"];
-	spine2:dn4->leaf4:up2[dir="none", class="ipnet=10.0.7.0/24"];
+	spine1:dn1->leaf1:up1[dir="none", class="ip_net=10.0.0.0/24"];
+	spine1:dn2->leaf2:up1[dir="none", class="ip_net=10.0.1.0/24"];
+	spine1:dn3->leaf3:up1[dir="none", class="ip_net=10.0.2.0/24"];
+	spine1:dn4->leaf4:up1[dir="none", class="ip_net=10.0.3.0/24"];
+	spine2:dn1->leaf1:up2[dir="none", class="ip_net=10.0.4.0/24"];
+	spine2:dn2->leaf2:up2[dir="none", class="ip_net=10.0.5.0/24"];
+	spine2:dn3->leaf3:up2[dir="none", class="ip_net=10.0.6.0/24"];
+	spine2:dn4->leaf4:up2[dir="none", class="ip_net=10.0.7.0/24"];
 	
 	leaf1:dn1->sv1[dir="none"];
 	leaf1:dn2->sv2[dir="none"];

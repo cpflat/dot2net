@@ -1,8 +1,13 @@
 global:
-  ippool: fd00:1234::/32
-  ipprefix: 64
-  iploopback: 10.255.0.0/24
   path: local
+
+ipspace:
+  - name: ip
+    range: fd00:1234::/32
+    prefix: 64
+    loopback_range: 10.255.0.0/24
+    default_aware: true
+    default_connect: true
 
 nodeclass:
   - name: all
@@ -11,27 +16,24 @@ nodeclass:
         template:
           - bash -c "enable_seg6_router.py | sh"
   - name: router
-    numbered: [ip]
     tinet:
       image: slankdev/frr
     config:
       - target: frr
         template: 
           - router ospf
-          - ospf6 router-id {{ .loopback }}
+          - ospf6 router-id {{ .ip_loopback }}
   - name: server
-    numbered: [ip]
     tinet:
       image: slankdev/ubuntu:18.04
 
 connectionclass:
   - name: default
     type: direct
-    numbered: [ip, ip]
     config:
       - target: local
         template:
-          - ip -6 addr add {{ .ipaddr }}/64 dev {{ .name }}
+          - ip -6 addr add {{ .ip_addr }}/{{ .ip_plen}} dev {{ .name }}
       - node: router
         target: frr
         template: 
@@ -40,5 +42,5 @@ connectionclass:
       - node: server
         target: local
         template:
-          - ip -6 route replace default via {{ .opp_ipaddr }}
+          - ip -6 route replace default via {{ .opp_ip_addr }}
 

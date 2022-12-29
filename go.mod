@@ -3,6 +3,7 @@ module github.com/cpflat/dot2tinet
 go 1.18
 
 require (
+	github.com/deckarep/golang-set/v2 v2.1.0
 	github.com/goccy/go-yaml v1.9.5
 	github.com/urfave/cli/v2 v2.11.1
 	gonum.org/v1/gonum v0.11.0

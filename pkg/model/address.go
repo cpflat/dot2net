@@ -5,6 +5,8 @@ import (
 	"math"
 	"net/netip"
 	"strconv"
+
+	mapset "github.com/deckarep/golang-set/v2"
 )
 
 // A netSegment store information for address allocation.
@@ -19,11 +21,11 @@ type netSegment struct {
 	bits    int          // default (automatically assigned) prefix length
 }
 
-func (seg *netSegment) checkConnection(conn *Connection) error {
-	if val, ok := conn.GivenIPNetwork(); ok {
+func (seg *netSegment) checkConnection(conn *Connection, ipspace IPSpaceDefinition) error {
+	if val, ok := conn.GivenIPNetwork(ipspace); ok {
 		prefix, err := netip.ParsePrefix(val)
 		if err != nil {
-			return err
+			return fmt.Errorf("invalid given ipprefix (%v)", val)
 		}
 		if seg.bound {
 			// check consistency with other reserved connections
@@ -39,17 +41,17 @@ func (seg *netSegment) checkConnection(conn *Connection) error {
 	return nil
 }
 
-func (seg *netSegment) checkInterface(iface *Interface, layer string) (bool, error) {
-	if val, ok := iface.GivenIPAddress(); ok {
+func (seg *netSegment) checkInterface(iface *Interface, ipspace IPSpaceDefinition) (bool, error) {
+	if val, ok := iface.GivenIPAddress(ipspace); ok {
 		addr, err := netip.ParseAddr(val)
 		if err != nil {
-			return false, err
+			return false, fmt.Errorf("invalid given ipaddr (%v)", val)
 		}
 		seg.rifaces = append(seg.rifaces, iface)
 		seg.raddrs = append(seg.raddrs, addr)
 		seg.bound = true
 		return true, nil // ip aware (manually specified)
-	} else if iface.hasNumberKey(layer) {
+	} else if iface.IPAware.Contains(ipspace.Name) {
 		seg.uifaces = append(seg.uifaces, iface)
 		seg.count++
 		return true, nil // ip aware (unspecified)
@@ -89,22 +91,28 @@ type netSegments struct {
 	count    int // number of unbound segments
 }
 
-func searchNetworkSegments(nm *NetworkModel, pool *ipPool, layer string) (*netSegments, error) {
+func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace IPSpaceDefinition) (*netSegments, error) {
 	segs := netSegments{pool: pool}
 
-	checked := map[*Connection]struct{}{} // set alternative
+	checked := mapset.NewSet[*Connection]()
 	for i, conn := range nm.Connections {
+
+		// skip connections out of IPSpace
+		if !conn.IPSpaces.Contains(ipspace.Name) {
+			break
+		}
+
 		// skip connections that is already checked
-		if _, ok := checked[&nm.Connections[i]]; ok {
+		if checked.Contains(&nm.Connections[i]) {
 			break
 		}
 
 		seg := netSegment{bits: pool.bits}
 
 		// check connection
-		checked[&nm.Connections[i]] = struct{}{}
+		checked.Add(&nm.Connections[i])
 		// reserve specified network address on connection
-		if err := seg.checkConnection(&conn); err != nil {
+		if err := seg.checkConnection(&conn, ipspace); err != nil {
 			return nil, err
 		}
 
@@ -116,31 +124,36 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, layer string) (*netSe
 			todo = todo[:len(todo)-1]
 
 			// check interface
-			ipaware, err := seg.checkInterface(iface, layer)
+			ipaware, err := seg.checkInterface(iface, ipspace)
 			if err != nil {
 				return nil, err
 			} else if !ipaware {
 				// ip unaware -> search adjacent interfaces
 				for _, nextIf := range iface.Node.Interfaces {
 
-					if _, ok := checked[nextIf.Connection]; ok {
-						// already checked connection, something wrong
-						return nil, fmt.Errorf("network segment search algorithm panic")
-					}
-
 					// pass iface itself
 					if nextIf.Name == iface.Name {
 						continue
 					}
 
+					// skip connections (and end interfaces) out of IPSpace
+					if !nextIf.Connection.IPSpaces.Contains(ipspace.Name) {
+						continue
+					}
+
+					if checked.Contains(nextIf.Connection) {
+						// already checked connection, something wrong
+						return nil, fmt.Errorf("network segment search algorithm panic")
+					}
+
 					// check connection
-					checked[nextIf.Connection] = struct{}{}
-					if err := seg.checkConnection(&conn); err != nil {
+					checked.Add(nextIf.Connection)
+					if err := seg.checkConnection(&conn, ipspace); err != nil {
 						return nil, err
 					}
 
 					// check interface
-					ipaware, err := seg.checkInterface(&nextIf, layer)
+					ipaware, err := seg.checkInterface(&nextIf, ipspace)
 					if err != nil {
 						return nil, err
 					}
@@ -165,6 +178,11 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, layer string) (*netSe
 			segs.count++
 		}
 		segs.segments = append(segs.segments, seg)
+
+		// sanity check
+		if len(seg.rifaces)+len(seg.uifaces) <= 0 {
+			return nil, fmt.Errorf("searchNetworkSegment panic: no %v-aware interfaces in a segment", ipspace.Name)
+		}
 	}
 	return &segs, nil
 }
@@ -376,19 +394,19 @@ func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix,
 	}
 }
 
-func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, layer string) ([]*Node, int, error) {
+func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, ipspace IPSpaceDefinition) ([]*Node, int, error) {
 	// search ip loopbacks
 	allLoopbacks := []*Node{}
 	cnt := 0
 	for i, node := range nm.Nodes {
 		// check specified (reserved) loopback address -> reserve
-		if val, ok := node.GivenIPLoopback(); ok {
+		if val, ok := node.GivenIPLoopback(ipspace); ok {
 			addr, err := netip.ParseAddr(val)
 			if err != nil {
-				return nil, 0, err
+				return nil, 0, fmt.Errorf("invalid given iploopback (%v)", val)
 			}
 			pool.reserveAddr(addr)
-		} else if node.HasIPLoopback() {
+		} else if node.IPAware.Contains(ipspace.Name) {
 			// ip aware -> add the node to list
 			// count as node with unspecified loopback
 			allLoopbacks = append(allLoopbacks, &nm.Nodes[i])
@@ -399,232 +417,80 @@ func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, layer string) ([]*Node, i
 	return allLoopbacks, cnt, nil
 }
 
-func assignIPLoopbacks(cfg *Config, nm *NetworkModel, layer string) (*NetworkModel, error) {
-	poolrange, err := netip.ParsePrefix(cfg.GlobalSettings.IPLoopbackRange)
+func assignIPLoopbacks(cfg *Config, nm *NetworkModel, ipspace IPSpaceDefinition) error {
+	poolrange, err := netip.ParsePrefix(ipspace.LoopbackRange)
 	if err != nil {
-		return nm, err
+		return fmt.Errorf("invalid ipspace loopback_range (%v)", ipspace.LoopbackRange)
 	}
 	pool, err := initIPPool(poolrange, poolrange.Addr().BitLen())
 	if err != nil {
-		return nm, err
+		return err
 	}
 
-	allLoopbacks, cnt, err := searchIPLoopbacks(nm, pool, layer)
+	allLoopbacks, cnt, err := searchIPLoopbacks(nm, pool, ipspace)
 	if err != nil {
-		return nm, err
+		return err
 	}
 	prefixes, err := pool.getAvailablePrefix(cnt)
 	if err != nil {
-		return nm, err
+		return err
 	}
 	for i, node := range allLoopbacks {
 		addr := prefixes[i].Addr()
-		node.addNumber(NumberReplacerIPLoopback, addr.String())
+		node.addNumber(ipspace.IPLoopbackReplacer(), addr.String())
 	}
 
-	return nm, nil
+	return nil
 }
 
-//func searchSubNetworks(nm *NetworkModel, pool *ipPool, layer string) ([][]*Interface, []bool, []int, error) {
-//	allNetworkInterfaces := [][]*Interface{}
-//	bounds := []bool{}
-//	counts := []int{}
-//	checked := map[*Connection]struct{}{} // set alternative
-//	for i, conn := range nm.Connections {
-//		// skip connections that is already checked
-//		if _, ok := checked[&nm.Connections[i]]; ok {
-//			break
-//		}
-//
-//		bound := false
-//		cnt := 0
-//		checked[&nm.Connections[i]] = struct{}{}
-//
-//		// reserve specified network address on connection
-//		if val, ok := conn.GivenIPNetwork(); ok {
-//			prefix, err := netip.ParsePrefix(val)
-//			if err != nil {
-//				return nil, nil, err
-//			}
-//			err = pool.reservePrefix(prefix)
-//			if err != nil {
-//				return nil, nil, err
-//			}
-//		}
-//
-//		// search subnet
-//		networkInterfaces := []*Interface{}
-//		todo := []*Interface{conn.Dst, conn.Src} // stack (Last In First Out)
-//		for len(todo) > 0 {
-//			// pop iface from todo
-//			iface := todo[len(todo)-1]
-//			todo = todo[:len(todo)-1]
-//
-//			if val, ok := iface.GivenIPAddress(); ok {
-//				// specified address (ip aware) -> network ends
-//				networkInterfaces = append(networkInterfaces, iface)
-//				// reserve specified IP address on Interface
-//				addr, err := netip.ParseAddr(val)
-//				if err != nil {
-//					return nil, nil, err
-//				}
-//				err = pool.reserveAddr(addr)
-//				if err != nil {
-//					return nil, nil, err
-//				}
-//				bound = true
-//			} else if iface.hasNumberKey(layer) {
-//				// ip aware -> network ends
-//				// count as interface without specified ip address
-//				networkInterfaces = append(networkInterfaces, iface)
-//				cnt ++
-//			} else {
-//				// ip unaware -> search adjacent interfaces
-//				for _, nextIf := range iface.Node.Interfaces {
-//					if _, ok := checked[nextIf.Connection]; ok {
-//						// already checked network, something wrong
-//						return nil, nil, fmt.Errorf("Subnetwork search algorithm panic")
-//					}
-//					checked[nextIf.Connection] = struct{}{}
-//					if nextIf.Name == iface.Name {
-//						// ignore iface itself
-//					} else if val, ok := iface.GivenIPAddress(); ok {
-//						// specified address (ip aware) -> network ends
-//						networkInterfaces = append(networkInterfaces, iface)
-//						// reserve specified IP address on Interface
-//						addr, err := netip.ParseAddr(val)
-//						if err != nil {
-//							return nil, nil, err
-//						}
-//						err = pool.reserveAddr(addr)
-//						if err != nil {
-//							return nil, nil, err
-//						}
-//						bound = true
-//					} else if nextIf.IsIPAware() {
-//						// ip aware -> network ends
-//						networkInterfaces = append(networkInterfaces, iface)
-//						// count as interface without specified ip address
-//						cnt ++
-//					} else {
-//						// ip unaware -> search adjacent connection
-//						oppIf := nextIf.Opposite
-//						todo = append(todo, oppIf)
-//					}
-//				}
-//			}
-//		}
-//		allNetworkInterfaces = append(allNetworkInterfaces, networkInterfaces)
-//		bounds = append(bounds, bound)
-//		counts = append(counts, cnt)
-//	}
-//	return allNetworkInterfaces, bounds, counts, nil
-//}
-
-func assignIPAddresses(cfg *Config, nm *NetworkModel, layer string) (*NetworkModel, error) {
-	poolrange, err := netip.ParsePrefix(cfg.GlobalSettings.IPAddrPool)
+func assignIPAddresses(cfg *Config, nm *NetworkModel, ipspace IPSpaceDefinition) error {
+	poolrange, err := netip.ParsePrefix(ipspace.AddrRange)
 	if err != nil {
-		return nm, err
+		return fmt.Errorf("invalid ipspace range (%v)", ipspace.AddrRange)
 	}
-	pool, err := initIPPool(poolrange, cfg.GlobalSettings.IPNetPrefixLength)
+	pool, err := initIPPool(poolrange, ipspace.DefaultPrefixLength)
 	if err != nil {
-		return nm, err
+		return err
 	}
 
-	segs, err := searchNetworkSegments(nm, pool, layer)
+	segs, err := searchNetworkSegments(nm, pool, ipspace)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	prefixes, err := segs.pool.getAvailablePrefix(segs.count)
 	if err != nil {
-		return nm, err
+		return err
 	}
 	for _, seg := range segs.segments {
 		if !seg.bound {
 			if len(prefixes) <= 0 {
-				return nil, fmt.Errorf("address reservation panic")
+				return fmt.Errorf("address reservation panic")
 			}
 			// pop prefixes
 			seg.prefix = prefixes[0]
 			prefixes = prefixes[1:]
 		}
 		addrs, err := getIPAddr(seg.prefix, len(seg.uifaces), seg.raddrs)
-		// TODO avoid reserved addrs
 		if err != nil {
-			return nil, err
+			return err
 		}
 		for i, iface := range seg.uifaces {
-			iface.addNumber(NumberReplacerIPAddress, addrs[i].String())
-			iface.addNumber(NumberReplacerIPNetwork, seg.prefix.String())
-			iface.addNumber(NumberReplacerIPPrefixLength, strconv.Itoa(seg.prefix.Bits()))
+			iface.addNumber(ipspace.IPAddressReplacer(), addrs[i].String())
+			iface.addNumber(ipspace.IPNetworkReplacer(), seg.prefix.String())
+			iface.addNumber(ipspace.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
 		}
 		for i, iface := range seg.rifaces {
-			iface.addNumber(NumberReplacerIPAddress, seg.raddrs[i].String())
-			iface.addNumber(NumberReplacerIPNetwork, seg.prefix.String())
-			iface.addNumber(NumberReplacerIPPrefixLength, strconv.Itoa(seg.prefix.Bits()))
+			iface.addNumber(ipspace.IPAddressReplacer(), seg.raddrs[i].String())
+			iface.addNumber(ipspace.IPNetworkReplacer(), seg.prefix.String())
+			iface.addNumber(ipspace.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
 		}
 	}
 
 	if len(prefixes) > 0 {
-		return nil, fmt.Errorf("address reservation panic")
+		return fmt.Errorf("address reservation panic")
 	}
-	return nm, nil
+	return nil
 }
-
-//func getIPAddrPool(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix, error) {
-//	pbits := poolrange.Bits()
-//	err_too_small := fmt.Errorf("IPAddrPoolRange is too small")
-//
-//	if pbits > bits { // pool range is smaller
-//		return nil, err_too_small
-//	} else if pbits == bits {
-//		if cnt > 1 {
-//			return nil, err_too_small
-//		} else {
-//			return []netip.Prefix{poolrange}, nil
-//		}
-//	} else { // pbits < bits
-//		// calculate number of prefixes to generate
-//		potential := int(math.Pow(2, float64(bits-pbits)))
-//		if cnt <= 0 {
-//			cnt = potential
-//		} else if cnt > potential {
-//			return nil, err_too_small
-//		}
-//		var pool = make([]netip.Prefix, 0, cnt)
-//
-//		// add first prefix
-//		new_prefix := netip.PrefixFrom(poolrange.Addr(), bits)
-//		pool = append(pool, new_prefix)
-//
-//		// calculate following prefixes
-//		current_slice := poolrange.Addr().AsSlice()
-//		for i := 0; i < cnt-1; i++ { // pool addr index
-//			byte_idx := bits / 8
-//			byte_increase := int(math.Pow(2, float64(8-bits%8)))
-//			for byte_idx > 0 { // byte index to modify
-//				tmp_sum := int(current_slice[byte_idx]) + byte_increase
-//				if tmp_sum >= 256 {
-//					current_slice[byte_idx] = byte(tmp_sum - 256)
-//					byte_idx = byte_idx - 1
-//					byte_increase = 1
-//				} else {
-//					current_slice[byte_idx] = byte(tmp_sum)
-//					break
-//				}
-//			}
-//			new_addr, ok := netip.AddrFromSlice(current_slice)
-//			if ok {
-//				new_prefix = netip.PrefixFrom(new_addr, bits)
-//				pool = append(pool, new_prefix)
-//			} else {
-//				return pool, fmt.Errorf("format error in address pool calculation")
-//			}
-//		}
-//		return pool, nil
-//	}
-//
-//}
 
 func getIPAddr(pool netip.Prefix, cnt int, reserved []netip.Addr) ([]netip.Addr, error) {
 	var potential int
