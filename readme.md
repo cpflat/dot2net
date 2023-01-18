@@ -4,7 +4,7 @@ Dot2tinet generates configuration files for large-scale emulation networks
 from a network topology (in DOT language) and configuration template (in YAML).
 It automatically calculate and assign required parameters such as IP addresses to be embedded in the config,
 so you only need to modify the topology graph when you want to chenge the network layout.
-Dot2tinet currently supports [TiNET]((https://github.com/tinynetwork/tinet))
+Dot2tinet currently supports [TiNET](https://github.com/tinynetwork/tinet)
 and [Containerlab](https://containerlab.dev/) as an emulation network platform. 
 
 
@@ -72,18 +72,18 @@ Interface names can be specified in port fields if needed
 
     digraph {
         n1;
-        n2[label="a"];
+        n2[xlabel="a"];
         n3[class="a"];
         n1->n2[label="b"];
         n2->n3[headlabel="b;c"];
     }
 
-Nodes or edges of different configuration can be specified with classes.
-The classes can be specified like tags; There can be multiple tags for one node or edge (separated with ";" or ",").
+Nodes or links of different configuration can be specified with classes.
+The classes can be specified like tags; There can be multiple tags for one node or link (separated with ";" or ",").
 There are 3 kinds of classes.
-- Node Class: Specified in "label" or "class" of nodes.
-- Interface Class: Specified in "headlabel" or "taillabel" of edges.
-- Connection Class: Specified in "label" of edges. It just means two ends of interfaces have same configuration.
+- Node Class: Specified in "xlabel", "class", "conf", or "info" of nodes.
+- Interface Class: "headlabel", "headclass", "headconf", or "headinfo" specifies arrow-head-side interface class of the link. "taillabel", "tailclass", "tailconf", or "tailinfo" specified arrow-tail-side interface class of the link.
+- Connection Class: Specified in "label", "class", "conf", or "info" of links. It just means two ends of interfaces have same configuration.
 For example in the above DOT, the interface of n2 connected with n3 belongs to two Interface Classes, b and c.
 The definition of these classes are defined in the config file.
 
