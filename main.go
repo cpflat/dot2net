@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	name        = "dot2tinet"
-	description = "Generate tinet specification from DOT files"
+	dir         = "dot2tinet"
+	description = "Generate configuration file for large-scale emulation networks from DOT files"
 )
 
 var (
@@ -25,13 +25,14 @@ func main() {
 
 func newApp() *cli.App {
 	app := cli.NewApp()
-	app.Name = name
+	app.Name = dir
 	app.Version = Version
 	app.Usage = description
 	app.Authors = []*cli.Author{
 		{
-			Name:  "Satoru Kobayashi",
-			Email: "sat@3at.work",
+			Name: "Satoru Kobayashi",
+			// Email: "sat@3at.work",
+			Email: "sat@okayama-u.ac.jp",
 		},
 	}
 	app.Commands = commands

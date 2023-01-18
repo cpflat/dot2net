@@ -19,6 +19,7 @@ const PathSpecificationDefault string = "default" // search files from working d
 const PathSpecificationLocal string = "local"     // search files from the directory with config file
 
 const DefaultInterfacePrefix string = "net"
+const ManagementInterfaceName string = "mgmt"
 
 const ClassAll string = "all"         // all nodes/interfaces/connections
 const ClassDefault string = "default" // all empty nodes/interfaces/connections
@@ -38,9 +39,6 @@ const IPAddressReplacerFooter string = "addr"
 const IPNetworkReplacerFooter string = "net"
 const IPPrefixLengthReplacerFooter string = "plen"
 
-const NumberIP string = "ip" // available for both v4 and v6
-const NumberIPv4 string = "ipv4"
-const NumberIPv6 string = "ipv6"
 const NumberAS string = "as"
 
 const DummyIPSpace string = "dummy"
@@ -48,7 +46,12 @@ const DummyIPSpace string = "dummy"
 const TargetLocal string = "local"
 const TargetFRR string = "frr"
 
+const OutputTinet string = "tinet"
+const OutputClab string = "clab"
+const OutputAsis string = "command"
+
 type Config struct {
+	Name               string              `yaml:"name" mapstructure:"name"`
 	GlobalSettings     GlobalSettings      `yaml:"global" mapstructure:"global"`
 	IPSpaceDefinitions []IPSpaceDefinition `yaml:"ipspace" mapstructure:"ipspace"`
 	NodeClasses        []NodeClass         `yaml:"nodeclass,flow" mapstructure:"nodes,flow"`
@@ -59,6 +62,7 @@ type Config struct {
 	nodeClassMap         map[string]*NodeClass
 	interfaceClassMap    map[string]*InterfaceClass
 	connectionClassMap   map[string]*ConnectionClass
+	mgmtIPSpace          *IPSpaceDefinition
 	localDir             string
 }
 
@@ -82,8 +86,12 @@ func (cfg *Config) ConnectionClassByName(name string) (*ConnectionClass, bool) {
 	return cc, ok
 }
 
+func (cfg *Config) GetManagementIPSpace() *IPSpaceDefinition {
+	return cfg.mgmtIPSpace
+}
+
 func (cfg *Config) IPSpaceNames() []string {
-	names := make([]string, len(cfg.IPSpaceDefinitions), 0)
+	names := make([]string, 0, len(cfg.IPSpaceDefinitions))
 	for _, ipspace := range cfg.IPSpaceDefinitions {
 		names = append(names, ipspace.Name)
 	}
@@ -193,6 +201,10 @@ func (cfg *Config) getValidConnectionClasses(given []string) parsedLabels {
 type GlobalSettings struct {
 	PathSpecification string `yaml:"path" mapstructure:"path"`
 	NodeAutoName      bool   `yaml:"nodeautoname" mapstructure:"nodeautoname"`
+	// If mgmt_ipspace is given, specified ipspace is used only for management network (connection with host machine)
+	ManagementIPSpace string `yaml:"mgmt_ipspace" mapstructure:"mgmt_ipspace"`
+	// If mgmt_name is given, used for management interface name as is
+	ManagementInterfaceName string `yaml:"mgmt_name" mapstructure:"mgmt_name"`
 
 	ClabAttr map[string]interface{} `yaml:"clab" mapstructure:"clab"` // containerlab attributes
 }
@@ -202,6 +214,9 @@ type IPSpaceDefinition struct {
 	AddrRange           string `yaml:"range" mapstructure:"range"`
 	LoopbackRange       string `yaml:"loopback_range" mapstructure:"loopback_range"`
 	DefaultPrefixLength int    `yaml:"prefix" mapstructure:"prefix"`
+	// gateway is used only for management network or external network
+	// the address is avoided in automated IPaddress assignment
+	ExternalGateway string `yaml:"gateway" mapstructure:"gateway"`
 	// If default_aware is true, classes without ipaware field are considered as aware of this IPSpace
 	DefaultAware bool `yaml:"default_aware" mapstructure:"default_aware"`
 	// If default_connect is true, ConnectionClasses without ipspaces field are considered as connected on this IPSpace
@@ -225,59 +240,82 @@ func (ipspace *IPSpaceDefinition) IPLoopbackReplacer() string {
 }
 
 type NodeClass struct {
+	// A node can have only one "primary" node class.
+	// Unprimary node classes only have "name", "numbered" and "config". Other attributes are ignored.
 	Name            string               `yaml:"name" mapstructure:"name"`
-	Prefix          string               `yaml:"prefix" mapstructure:"prefix"`   // prefix of auto-naming
+	Primary         bool                 `yaml:"primary" mapstructure:"primary"`
 	IPAware         []string             `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces for loopback
 	Numbered        []string             `yaml:"numbered,flow" mapstructure:"numbered,flow"`
 	ConfigTemplates []NodeConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 
-	TinetAttr map[string]interface{} `yaml:"tinet" mapstructure:"tinet"` // tinet attributes
-	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`   // containerlab attributes
+	// Following attributes are valid only on primary interface classes.
+	Prefix        string                 `yaml:"prefix" mapstructure:"prefix"`                 // prefix of auto-naming
+	MgmtInterface string                 `yaml:"mgmt_interface" mapstructure:"mgmt_interface"` // InterfaceClass name for mgmt
+	TinetAttr     map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`                   // tinet attributes
+	ClabAttr      map[string]interface{} `yaml:"clab" mapstructure:"clab"`                     // containerlab attributes
 }
 
 type NodeConfigTemplate struct {
-	Target         string   `yaml:"target" mapstructure:"target"` // config type, such as "shell", "frr", etc.
-	Priority       int      `yaml:"priority" mapstructure:"priority"`
-	Template       []string `yaml:"template" mapstructure:"template"`
-	Filepath       string   `yaml:"filepath" mapstructure:"filepath"`
+	Output   []string `yaml:"output,flow" mapstructure:"output,flow"` // add config only for included output
+	Target   string   `yaml:"target" mapstructure:"target"`           // config type, such as "shell", "frr", etc.
+	Priority int      `yaml:"priority" mapstructure:"priority"`
+	Template []string `yaml:"template" mapstructure:"template"`
+	Filepath string   `yaml:"filepath" mapstructure:"filepath"`
+
 	parsedTemplate *template.Template
+	outputSet      mapset.Set[string]
 }
 
 type InterfaceClass struct {
+	// An interface can have only one of "primary" interface class or "primary" connection class.
 	Name            string                    `yaml:"name" mapstructure:"name"`
-	Prefix          string                    `yaml:"prefix" mapstructure:"prefix"`   // prefix of auto-naming
-	Type            string                    `yaml:"type" mapstructure:"type"`       // Tn Interface.Type, prior to ConnectionClass
-	IPAware         []string                  `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces
+	Primary         bool                      `yaml:"primary" mapstructure:"primary"`
 	Numbered        []string                  `yaml:"numbered,flow" mapstructure:"numbered,flow"`
+	IPAware         []string                  `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces
 	ConfigTemplates []InterfaceConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+
+	// Following attributes are valid only on primary interface classes.
+	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of auto-naming
+	TinetAttr map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`   // tinet attributes
+	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`     // containerlab attributes
 }
 
 type InterfaceConfigTemplate struct {
-	NodeClass      string   `yaml:"node" mapstructure:"node"`     // NodeClass.Name
-	Target         string   `yaml:"target" mapstructure:"target"` // config target, such as "shell", "frr", etc.
-	Priority       int      `yaml:"priority" mapstructure:"priority"`
-	Template       []string `yaml:"template" mapstructure:"template"`
-	Filepath       string   `yaml:"filepath" mapstructure:"filepath"`
+	NodeClass string   `yaml:"node" mapstructure:"node"`               // add config only for interfaces of nodes belongs to this nodeclass
+	Output    []string `yaml:"output,flow" mapstructure:"output,flow"` // add config only for included output
+	Target    string   `yaml:"target" mapstructure:"target"`           // config target, such as "shell", "frr", etc.
+	Priority  int      `yaml:"priority" mapstructure:"priority"`
+	Template  []string `yaml:"template" mapstructure:"template"`
+	Filepath  string   `yaml:"filepath" mapstructure:"filepath"`
+
 	parsedTemplate *template.Template
+	outputSet      mapset.Set[string]
 }
 
 type ConnectionClass struct {
 	Name            string                     `yaml:"name" mapstructure:"name"`
-	Prefix          string                     `yaml:"prefix" mapstructure:"prefix"`               // prefix of interface auto-naming
-	Type            string                     `yaml:"type" mapstructure:"type"`                   // Tn Interface.Type
+	Primary         bool                       `yaml:"primary" mapstructure:"primary"`
 	Numbered        []string                   `yaml:"numbered,flow" mapstructure:"numbered,flow"` // Numbers to be assigned automatically
 	IPAware         []string                   `yaml:"ipaware,flow" mapstructure:"ipaware,flow"`   // aware ip spaces for end interfaces
 	IPSpaces        []string                   `yaml:"ipspaces,flow" mapstructure:"ipspaces,flow"` // Connection is limited to specified spaces
 	ConfigTemplates []ConnectionConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+
+	// Following attributes are valid only on primary interface classes.
+	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of interface auto-naming
+	TinetAttr map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`   // tinet attributes
+	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`     // containerlab attributes
 }
 
 type ConnectionConfigTemplate struct {
-	NodeClass      string   `yaml:"node" mapstructure:"node"`     // NodeClass.Name
-	Target         string   `yaml:"target" mapstructure:"target"` // config target, such as "shell", "frr", etc.
-	Priority       int      `yaml:"priority" mapstructure:"priority"`
-	Template       []string `yaml:"template" mapstructure:"template"`
-	Filepath       string   `yaml:"filepath" mapstructure:"filepath"`
+	NodeClass string   `yaml:"node" mapstructure:"node"`               // add config only for interfaces of nodes belongs to this nodeclass
+	Output    []string `yaml:"output,flow" mapstructure:"output,flow"` // add config only for included output
+	Target    string   `yaml:"target" mapstructure:"target"`           // config target, such as "shell", "frr", etc.
+	Priority  int      `yaml:"priority" mapstructure:"priority"`
+	Template  []string `yaml:"template" mapstructure:"template"`
+	Filepath  string   `yaml:"filepath" mapstructure:"filepath"`
+
 	parsedTemplate *template.Template
+	outputSet      mapset.Set[string]
 }
 
 type parsedLabels struct {
@@ -288,10 +326,37 @@ type parsedLabels struct {
 }
 
 type NetworkModel struct {
-	Nodes       []Node
-	Connections []Connection
+	Nodes       []*Node
+	Connections []*Connection
 
 	nodeMap map[string]*Node
+}
+
+func (nm *NetworkModel) newNode(name string) *Node {
+	node := &Node{
+		Name:            name,
+		Numbers:         map[string]string{},
+		RelativeNumbers: map[string]string{},
+		ipAware:         mapset.NewSet[string](),
+		numbered:        mapset.NewSet[string](),
+		interfaceMap:    map[string]*Interface{},
+	}
+	nm.Nodes = append(nm.Nodes, node)
+	nm.nodeMap[name] = node
+
+	return node
+}
+
+func (nm *NetworkModel) newConnection(src *Interface, dst *Interface) *Connection {
+	conn := &Connection{
+		Src:      src,
+		Dst:      dst,
+		IPSpaces: mapset.NewSet[string](),
+	}
+	nm.Connections = append(nm.Connections, conn)
+	src.Connection = conn
+	dst.Connection = conn
+	return conn
 }
 
 func (nm *NetworkModel) NodeByName(name string) (*Node, bool) {
@@ -299,72 +364,38 @@ func (nm *NetworkModel) NodeByName(name string) (*Node, bool) {
 	return node, ok
 }
 
-/*
-checkFlags put flags to Nodes, Interfaces, and Connections in NetworkModel.
-It searches all classes in Config and remove duplication.
-Node: IPAware, Numbered
-Interface: IPAware, Numbered
-Connection: IPSpaces
-Flags of Interfaces will be affected from both InterfaceClasses and ConnectionClasses.
-*/
-func (nm *NetworkModel) checkFlags(cfg *Config) error {
-	defaultIPAware := cfg.DefaultIPAware()
-	defaultIPConnect := cfg.DefaultIPConnect()
-
-	for i, node := range nm.Nodes {
-		nm.Nodes[i].IPAware = mapset.NewSet[string]()
-		nm.Nodes[i].Numbered = mapset.NewSet[string]()
-		// add defaults of node loopback ipaware
-		for _, space := range defaultIPAware {
-			nm.Nodes[i].IPAware.Add(space)
-		}
-		// check nodeclass flags
-		err := nm.Nodes[i].checkFlags(cfg)
-		if err != nil {
-			return err
-		}
-
-		for j := range node.Interfaces {
-			nm.Nodes[i].Interfaces[j].IPAware = mapset.NewSet[string]()
-			nm.Nodes[i].Interfaces[j].Numbered = mapset.NewSet[string]()
-			// add defaults of interface ipaware (added by Interface.checkFlags and Connection.checkFlags)
-			for _, space := range defaultIPAware {
-				nm.Nodes[i].Interfaces[j].IPAware.Add(space)
-			}
-			// check interfaceclass flags
-			err = nm.Nodes[i].Interfaces[j].checkFlags(cfg)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	for i := range nm.Connections {
-		nm.Connections[i].IPSpaces = mapset.NewSet[string]()
-		for _, space := range defaultIPConnect {
-			nm.Connections[i].IPSpaces.Add(space)
-		}
-		// check connectionclass flags to connections and their interfaces
-		err := nm.Connections[i].checkFlags(cfg)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 type Node struct {
 	Name            string
-	Interfaces      []Interface
+	Interfaces      []*Interface
 	Labels          parsedLabels
-	IPAware         mapset.Set[string] // Aware IPspaces for loopbacks
-	Numbered        mapset.Set[string]
 	Numbers         map[string]string
 	RelativeNumbers map[string]string
 	Commands        []string
+	TinetAttr       *map[string]interface{}
+	ClabAttr        *map[string]interface{}
 
-	interfaceMap map[string]*Interface
+	ipAware            mapset.Set[string] // Aware IPspaces for loopbacks
+	numbered           mapset.Set[string]
+	namePrefix         string
+	mgmtInterface      *Interface
+	mgmtInterfaceClass *InterfaceClass
+	interfaceMap       map[string]*Interface
+}
+
+func (n *Node) newInterface(name string) *Interface {
+	iface := &Interface{
+		Name:            name,
+		Node:            n,
+		Numbers:         map[string]string{},
+		RelativeNumbers: map[string]string{},
+		ipAware:         mapset.NewSet[string](),
+		numbered:        mapset.NewSet[string](),
+	}
+	n.Interfaces = append(n.Interfaces, iface)
+	if name != "" {
+		n.interfaceMap[iface.Name] = iface
+	}
+	return iface
 }
 
 func (n *Node) HasClass(name string) bool {
@@ -376,6 +407,10 @@ func (n *Node) HasClass(name string) bool {
 	return false
 }
 
+func (n *Node) GetManagementInterface() *Interface {
+	return n.mgmtInterface
+}
+
 //func (n *Node) NextInterfaceName() string {
 //	return InterfaceNamePrefix + strconv.Itoa(len(n.Interfaces))
 //}
@@ -385,7 +420,7 @@ func (n *Node) addNumber(key, val string) {
 	// fmt.Printf("NUMBER %+v %+v=%+v\n", n.Name, key, val)
 }
 
-func (n *Node) GivenIPLoopback(ipspace IPSpaceDefinition) (string, bool) {
+func (n *Node) GivenIPLoopback(ipspace *IPSpaceDefinition) (string, bool) {
 	for k, v := range n.Labels.ValueLabels {
 		if k == ipspace.IPLoopbackReplacer() {
 			return v, true
@@ -394,39 +429,23 @@ func (n *Node) GivenIPLoopback(ipspace IPSpaceDefinition) (string, bool) {
 	return "", false
 }
 
-func (n *Node) checkFlags(cfg *Config) error {
-	for _, cls := range n.Labels.ClassLabels {
-		nc, ok := cfg.nodeClassMap[cls]
-		if !ok {
-			return fmt.Errorf("invalid NodeClass name %+v", cls)
-		}
-
-		// check IP aware
-		for _, space := range nc.IPAware {
-			n.IPAware.Add(space)
-		}
-
-		// check numbered
-		for _, num := range nc.Numbered {
-			n.Numbered.Add(num)
-		}
-	}
-	return nil
-}
-
 type Interface struct {
 	Name            string
 	Node            *Node
 	Labels          parsedLabels
-	IPAware         mapset.Set[string] // Aware IPSpaces for IP address assignment
-	Numbered        mapset.Set[string]
 	Numbers         map[string]string
 	RelativeNumbers map[string]string
 	Connection      *Connection
 	Opposite        *Interface
+	TinetAttr       *map[string]interface{}
+	// ClabAttr        *map[string]interface{}
+
+	ipAware    mapset.Set[string] // Aware IPSpaces for IP address assignment
+	numbered   mapset.Set[string]
+	namePrefix string
 }
 
-func (iface *Interface) GivenIPAddress(ipspace IPSpaceDefinition) (string, bool) {
+func (iface *Interface) GivenIPAddress(ipspace *IPSpaceDefinition) (string, bool) {
 	for k, v := range iface.Labels.ValueLabels {
 		if k == ipspace.IPAddressReplacer() {
 			return v, true
@@ -440,27 +459,6 @@ func (iface *Interface) addNumber(key, val string) {
 	// fmt.Printf("NUMBER %+v.%+v %+v=%+v\n", iface.Node.Name, iface.Name, key, val)
 }
 
-func (iface *Interface) checkFlags(cfg *Config) error {
-	for _, cls := range iface.Labels.ClassLabels {
-		ic, ok := cfg.interfaceClassMap[cls]
-		if !ok {
-			return fmt.Errorf("invalid InterfaceClass name %+v", cls)
-		}
-
-		// ip spaces
-		for _, space := range ic.IPAware {
-			iface.IPAware.Add(space)
-		}
-
-		// ip numbered
-		for _, num := range ic.Numbered {
-			iface.Numbered.Add(num)
-		}
-	}
-
-	return nil
-}
-
 type Connection struct {
 	Src      *Interface
 	Dst      *Interface
@@ -468,41 +466,13 @@ type Connection struct {
 	IPSpaces mapset.Set[string]
 }
 
-func (conn *Connection) GivenIPNetwork(ipspace IPSpaceDefinition) (string, bool) {
+func (conn *Connection) GivenIPNetwork(ipspace *IPSpaceDefinition) (string, bool) {
 	for k, v := range conn.Labels.ValueLabels {
 		if k == ipspace.IPNetworkReplacer() {
 			return v, true
 		}
 	}
 	return "", false
-}
-
-func (conn *Connection) checkFlags(cfg *Config) error {
-
-	for _, cls := range conn.Labels.ClassLabels {
-		cc, ok := cfg.connectionClassMap[cls]
-		if !ok {
-			return fmt.Errorf("invalid ConnectionClass name %+v", cls)
-		}
-
-		// ip spaces
-		for _, space := range cc.IPAware {
-			conn.Src.IPAware.Add(space)
-			conn.Dst.IPAware.Add(space)
-		}
-
-		// ip connection
-		for _, space := range cc.IPSpaces {
-			conn.IPSpaces.Add(space)
-		}
-
-		// ip numbered
-		for _, num := range cc.Numbered {
-			conn.Src.Numbered.Add(num)
-			conn.Dst.Numbered.Add(num)
-		}
-	}
-	return nil
 }
 
 func convertLineFeed(str, lcode string) string {
@@ -534,12 +504,6 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	//viper.SetConfigFile(path)
-	//if err := viper.ReadInConfig(); err != nil {
-	//	return nil, err
-	//}
-	//err = viper.Unmarshal(cfg)
-
 	cfg.localDir = filepath.Dir(path)
 	cfg.ipSpaceDefinitionMap = map[string]*IPSpaceDefinition{}
 	for i, ipspace := range cfg.IPSpaceDefinitions {
@@ -561,8 +525,20 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func loadTemplates(cfg *Config) (*Config, error) {
+	var outputs []string
+	allOutput := []string{OutputTinet, OutputClab, OutputAsis}
+
 	for i, nc := range cfg.NodeClasses {
 		for j, nct := range nc.ConfigTemplates {
+			// init output list
+			cfg.NodeClasses[i].ConfigTemplates[j].outputSet = mapset.NewSet[string]()
+			if outputs = nct.Output; len(outputs) == 0 {
+				outputs = allOutput
+			}
+			for _, output := range outputs {
+				cfg.NodeClasses[i].ConfigTemplates[j].outputSet.Add(output)
+			}
+			// init parsed template object
 			path := ""
 			if nct.Filepath != "" {
 				path = getPath(nct.Filepath, cfg)
@@ -576,6 +552,15 @@ func loadTemplates(cfg *Config) (*Config, error) {
 	}
 	for i, ic := range cfg.InterfaceClasses {
 		for j, ict := range ic.ConfigTemplates {
+			// init output list
+			cfg.InterfaceClasses[i].ConfigTemplates[j].outputSet = mapset.NewSet[string]()
+			if outputs = ict.Output; len(outputs) == 0 {
+				outputs = allOutput
+			}
+			for _, output := range outputs {
+				cfg.InterfaceClasses[i].ConfigTemplates[j].outputSet.Add(output)
+			}
+			// init parsed template object
 			path := ""
 			if ict.Filepath != "" {
 				path = getPath(ict.Filepath, cfg)
@@ -589,6 +574,15 @@ func loadTemplates(cfg *Config) (*Config, error) {
 	}
 	for i, cc := range cfg.ConnectionClasses {
 		for j, cct := range cc.ConfigTemplates {
+			// init output list
+			cfg.ConnectionClasses[i].ConfigTemplates[j].outputSet = mapset.NewSet[string]()
+			if outputs = cct.Output; len(outputs) == 0 {
+				outputs = allOutput
+			}
+			for _, output := range outputs {
+				cfg.ConnectionClasses[i].ConfigTemplates[j].outputSet.Add(output)
+			}
+			// init parsed template object
 			path := ""
 			if cct.Filepath != "" {
 				path = getPath(cct.Filepath, cfg)
@@ -626,10 +620,20 @@ func loadTemplate(tpl []string, path string) (*template.Template, error) {
 	}
 }
 
-func BuildNetworkModel(cfg *Config, nd *NetworkDiagram) (nm *NetworkModel, err error) {
+func BuildNetworkModel(cfg *Config, nd *NetworkDiagram, output string) (nm *NetworkModel, err error) {
 
 	// build topology
 	nm, err = buildSkeleton(cfg, nd)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkClasses(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	err = addSpecialInterfaces(cfg, nm)
 	if err != nil {
 		return nil, err
 	}
@@ -647,11 +651,6 @@ func BuildNetworkModel(cfg *Config, nd *NetworkDiagram) (nm *NetworkModel, err e
 	}
 
 	// assign numbers, interface names and addresses
-	err = nm.checkFlags(cfg)
-	if err != nil {
-		return nil, err
-	}
-
 	err = assignIPParameters(cfg, nm)
 	if err != nil {
 		return nil, err
@@ -673,7 +672,7 @@ func BuildNetworkModel(cfg *Config, nd *NetworkDiagram) (nm *NetworkModel, err e
 		return nil, err
 	}
 
-	err = generateConfig(cfg, nm)
+	err = generateConfig(cfg, nm, output)
 	if err != nil {
 		return nil, err
 	}
@@ -682,104 +681,293 @@ func BuildNetworkModel(cfg *Config, nd *NetworkDiagram) (nm *NetworkModel, err e
 }
 
 func buildSkeleton(cfg *Config, nd *NetworkDiagram) (*NetworkModel, error) {
-	nm := NetworkModel{}
+	nm := &NetworkModel{}
 	allNodes := nd.AllNodes()
-	allEdges := nd.AllLines()
+	allLines := nd.AllLines()
 
 	ifaceCounter := map[string]int{}
-	for _, e := range allEdges {
+	for _, e := range allLines {
 		srcDOTName := e.From().(*DiagramNode).Name
 		ifaceCounter[srcDOTName]++
 		dstDOTName := e.To().(*DiagramNode).Name
 		ifaceCounter[dstDOTName]++
 	}
 
-	nm.Nodes = make([]Node, 0, len(allNodes))
+	nm.Nodes = make([]*Node, 0, len(allNodes))
 	nm.nodeMap = map[string]*Node{}
-	for i, n := range allNodes {
-		nm.Nodes = append(nm.Nodes, Node{})
-		node := &nm.Nodes[len(nm.Nodes)-1]
-		node.Name = n.Name // Set DOTID, overwritten later if nodeautoname = true
-		nm.nodeMap[node.Name] = &nm.Nodes[i]
-		node.Interfaces = make([]Interface, 0, ifaceCounter[n.Name])
-		node.Labels = cfg.getValidNodeClasses(n.Classes)
-		node.Numbers = map[string]string{}
-		node.RelativeNumbers = map[string]string{}
-		node.interfaceMap = map[string]*Interface{}
-
+	for _, n := range allNodes {
+		node := nm.newNode(n.Name)
+		// Note: node.Name will be overwritten later if nodeautoname = true
+		node.Labels = cfg.getValidNodeClasses(n.Labels)
 		if len(node.Labels.ClassLabels) == 0 {
+			// sanitycheck to avoid empty output
 			return nil, fmt.Errorf("set default nodeclass to leave nodes unlabeled")
 		}
 	}
 
-	nm.Connections = make([]Connection, 0, len(allEdges))
-	for _, e := range allEdges {
+	nm.Connections = make([]*Connection, 0, len(allLines))
+	for _, e := range allLines {
 		srcNode, ok := nm.NodeByName(e.From().(*DiagramNode).Name)
 		if !ok {
-			return nil, fmt.Errorf("inconsistent DiagramEdge")
+			return nil, fmt.Errorf("buildSkeleton panic: inconsistent DiagramEdge")
 		}
 		if _, ok := srcNode.interfaceMap[e.SrcName]; ok {
 			// Existing named interface
-			return nil, fmt.Errorf("duplicated interface names")
+			return nil, fmt.Errorf("duplicated interface name %v", e.SrcName)
 		}
 		// New interface
-		srcNode.Interfaces = append(srcNode.Interfaces, Interface{})
-		srcIf := &srcNode.Interfaces[len(srcNode.Interfaces)-1]
-		if e.SrcName != "" {
-			// New named interface
-			srcIf.Name = e.SrcName
-			srcNode.interfaceMap[srcIf.Name] = srcIf
-		}
-		srcIf.Node = srcNode
-		srcIf.Numbers = map[string]string{}
-		srcIf.RelativeNumbers = map[string]string{}
-		srcIf.Labels = cfg.getValidInterfaceClasses(e.SrcClasses)
+		srcIf := srcNode.newInterface(e.SrcName)
+		srcIf.Labels = cfg.getValidInterfaceClasses(e.SrcLabels)
 
 		dstNode, ok := nm.NodeByName(e.To().(*DiagramNode).Name)
 		if !ok {
-			return nil, fmt.Errorf("inconsistent DiagramEdge")
+			return nil, fmt.Errorf("buildSkeleton panic: inconsistent DiagramEdge")
 		}
 		if _, ok := dstNode.interfaceMap[e.DstName]; ok {
 			// Existing named interface
-			return nil, fmt.Errorf("duplicated interface names")
+			return nil, fmt.Errorf("duplicated interface name %v", e.SrcName)
 		}
 		// New interface
-		dstNode.Interfaces = append(dstNode.Interfaces, Interface{})
-		dstIf := &dstNode.Interfaces[len(dstNode.Interfaces)-1]
-		if e.DstName != "" {
-			// New named interface
-			dstIf.Name = e.DstName
-			dstNode.interfaceMap[dstIf.Name] = dstIf
-		}
-		dstIf.Node = dstNode
-		dstIf.Numbers = map[string]string{}
-		dstIf.RelativeNumbers = map[string]string{}
-		dstIf.Labels = cfg.getValidInterfaceClasses(e.DstClasses)
+		dstIf := dstNode.newInterface(e.DstName)
+		dstIf.Labels = cfg.getValidInterfaceClasses(e.DstLabels)
 
-		srcIf.Opposite = dstIf // TODO opposite -> method function?
+		srcIf.Opposite = dstIf
 		dstIf.Opposite = srcIf
 
-		conn := Connection{Src: srcIf, Dst: dstIf}
-		conn.Labels = cfg.getValidConnectionClasses(e.Classes)
+		conn := nm.newConnection(srcIf, dstIf)
+		conn.Labels = cfg.getValidConnectionClasses(e.Labels)
 		if len(conn.Labels.PlaceLabels) > 0 {
 			return nil, fmt.Errorf("connection cannot have placeLabels")
 		}
-		nm.Connections = append(nm.Connections, conn)
-		srcIf.Connection = &nm.Connections[len(nm.Connections)-1]
-		dstIf.Connection = &nm.Connections[len(nm.Connections)-1]
-
 		if (len(srcIf.Labels.ClassLabels) == 0 || len(dstIf.Labels.ClassLabels) == 0) && len(conn.Labels.ClassLabels) == 0 {
-			return nil, fmt.Errorf("set default interfaceclass or connectionclass to leave edges unlabeled")
+			return nil, fmt.Errorf("set default interfaceclass or connectionclass to leave links unlabeled")
 		}
 	}
 
-	return &nm, nil
+	return nm, nil
+}
+
+func checkClasses(cfg *Config, nm *NetworkModel) error {
+	/*
+		- check primary class consistency
+		- store primary class attributes on objects
+		- check flags (IPAware, Numbered and IPSpaces)
+	*/
+
+	defaultIPAware := cfg.DefaultIPAware()
+	defaultIPConnect := cfg.DefaultIPConnect()
+
+	var primaryNC string
+	primaryICMap := map[*Interface]string{}
+
+	for _, node := range nm.Nodes {
+		primaryNC = ""
+
+		// add defaults of node loopback ipaware
+		for _, space := range defaultIPAware {
+			node.ipAware.Add(space)
+		}
+
+		// check nodeclass flags
+		for _, cls := range node.Labels.ClassLabels {
+			nc, ok := cfg.nodeClassMap[cls]
+			if !ok {
+				return fmt.Errorf("invalid NodeClass name %s", cls)
+			}
+
+			// check IP aware
+			for _, space := range nc.IPAware {
+				node.ipAware.Add(space)
+			}
+
+			// check numbered
+			for _, num := range nc.Numbered {
+				node.numbered.Add(num)
+			}
+
+			// check primary node class consistency
+			if nc.Primary {
+				if primaryNC == "" {
+					primaryNC = nc.Name
+				} else {
+					return fmt.Errorf("multiple primary node classes on one node (%s, %s)", primaryNC, nc.Name)
+				}
+				// add parameters of primary node class
+				node.namePrefix = nc.Prefix
+				if nc.MgmtInterface != "" {
+					if mgmtnc, ok := cfg.InterfaceClassByName(nc.MgmtInterface); ok {
+						node.mgmtInterfaceClass = mgmtnc
+					} else {
+						return fmt.Errorf("invalid mgmt interface class name %s", nc.MgmtInterface)
+					}
+				}
+				node.TinetAttr = &nc.TinetAttr
+				node.ClabAttr = &nc.ClabAttr
+			} else {
+				if nc.Prefix != "" {
+					return fmt.Errorf("prefix can be specified only in primary class")
+				}
+				if nc.MgmtInterface != "" {
+					return fmt.Errorf("mgmt inteface class can be specified only in primary class")
+				}
+				if len(nc.TinetAttr) > 0 || len(nc.ClabAttr) > 0 {
+					return fmt.Errorf("output-specific attributes can be specified only in primary class")
+				}
+			}
+		}
+
+		for _, iface := range node.Interfaces {
+			// add defaults of interface ipaware (added by Interface.checkFlags and Connection.checkFlags)
+			for _, space := range defaultIPAware {
+				iface.ipAware.Add(space)
+			}
+			// check interfaceclass flags
+			for _, cls := range iface.Labels.ClassLabels {
+				ic, ok := cfg.interfaceClassMap[cls]
+				if !ok {
+					return fmt.Errorf("invalid InterfaceClass name %s", cls)
+				}
+
+				// ip spaces
+				for _, space := range ic.IPAware {
+					iface.ipAware.Add(space)
+				}
+
+				// ip numbered
+				for _, num := range ic.Numbered {
+					iface.numbered.Add(num)
+				}
+
+				// check primary interface class consistency
+				if ic.Primary {
+					if picname, exists := primaryICMap[iface]; !exists {
+						primaryICMap[iface] = ic.Name
+					} else {
+						return fmt.Errorf("multiple primary interface classes on one node (%s, %s)", picname, ic.Name)
+					}
+					iface.namePrefix = ic.Prefix
+					iface.TinetAttr = &ic.TinetAttr
+					// iface.ClabAttr = &ic.ClabAttr
+				} else {
+					if ic.Prefix != "" {
+						return fmt.Errorf("prefix can be specified only in primary class")
+					}
+					if len(ic.TinetAttr) > 0 || len(ic.ClabAttr) > 0 {
+						return fmt.Errorf("output-specific attributes can be specified only in primary class")
+					}
+				}
+			}
+		}
+	}
+
+	for _, conn := range nm.Connections {
+		for _, space := range defaultIPConnect {
+			conn.IPSpaces.Add(space)
+		}
+		// check connectionclass flags to connections and their interfaces
+		for _, cls := range conn.Labels.ClassLabels {
+			cc, ok := cfg.connectionClassMap[cls]
+			if !ok {
+				return fmt.Errorf("invalid ConnectionClass name %s", cls)
+			}
+
+			// ip spaces
+			for _, space := range cc.IPAware {
+				conn.Src.ipAware.Add(space)
+				conn.Dst.ipAware.Add(space)
+			}
+
+			// ip connection
+			for _, space := range cc.IPSpaces {
+				conn.IPSpaces.Add(space)
+			}
+
+			// ip numbered
+			for _, num := range cc.Numbered {
+				conn.Src.numbered.Add(num)
+				conn.Dst.numbered.Add(num)
+			}
+
+			// check primary interface class consistency
+			if cc.Primary {
+				if name, exists := primaryICMap[conn.Src]; !exists {
+					primaryICMap[conn.Src] = cc.Name
+				} else {
+					return fmt.Errorf("multiple primary interface/connection classes on one node (%s, %s)", name, cc.Name)
+				}
+				conn.Src.namePrefix = cc.Prefix
+				conn.Src.TinetAttr = &cc.TinetAttr
+				// conn.Src.ClabAttr = &cc.ClabAttr
+				if name, exists := primaryICMap[conn.Dst]; !exists {
+					primaryICMap[conn.Dst] = cc.Name
+				} else {
+					return fmt.Errorf("multiple primary interface/connection classes on one node (%s, %s)", name, cc.Name)
+				}
+				conn.Dst.namePrefix = cc.Prefix
+				conn.Dst.TinetAttr = &cc.TinetAttr
+				// conn.Dst.ClabAttr = &cc.ClabAttr
+			} else {
+				if cc.Prefix != "" {
+					return fmt.Errorf("prefix can be specified only in primary class")
+				}
+				if len(cc.TinetAttr) > 0 || len(cc.ClabAttr) > 0 {
+					return fmt.Errorf("output-specific attributes can be specified only in primary class")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func addSpecialInterfaces(cfg *Config, nm *NetworkModel) error {
+	// setup management ipspace and interfaces only if management ipspace is specified
+	space := cfg.GlobalSettings.ManagementIPSpace
+	if space == "" {
+		return nil
+	}
+
+	ipspace, ok := cfg.IPSpaceDefinitionByName(space)
+	if !ok {
+		return fmt.Errorf("mgmt IPSpace %v not defined", space)
+	}
+	cfg.mgmtIPSpace = ipspace
+
+	// set mgmt interfaces on nodes
+	name := cfg.GlobalSettings.ManagementInterfaceName
+	if name == "" {
+		name = ManagementInterfaceName
+	}
+	for _, node := range nm.Nodes {
+		if ic := node.mgmtInterfaceClass; ic != nil {
+
+			// check that mgmtInterfaceClass is not used in topology
+			for _, iface := range node.Interfaces {
+				for _, cls := range iface.Labels.ClassLabels {
+					if cls == ic.Name {
+						return fmt.Errorf("mgmt InterfaceClass should not be specified in topology graph (automatically added)")
+					}
+				}
+			}
+
+			// add management interface
+			iface := node.newInterface(name)
+			iface.Labels = parsedLabels{
+				ClassLabels: []string{ic.Name},
+			}
+			iface.ipAware.Add(cfg.mgmtIPSpace.Name)
+			node.mgmtInterface = iface
+
+		}
+	}
+
+	return nil
 }
 
 // assignNodeNames assign names for unnamed nodes with given name prefix automatically
 func assignNodeNames(cfg *Config, nm *NetworkModel) error {
 	nodePrefixes := map[string][]*Node{}
-	for i, node := range nm.Nodes {
+	for _, node := range nm.Nodes {
 		checked := false
 		for _, cls := range node.Labels.ClassLabels {
 			nc, ok := cfg.NodeClassByName(cls)
@@ -791,7 +979,7 @@ func assignNodeNames(cfg *Config, nm *NetworkModel) error {
 					return fmt.Errorf("duplicated node name prefix (classes %+v)", node.Labels.ClassLabels)
 				} else {
 					checked = true
-					nodePrefixes[nc.Prefix] = append(nodePrefixes[nc.Prefix], &nm.Nodes[i])
+					nodePrefixes[nc.Prefix] = append(nodePrefixes[nc.Prefix], node)
 				}
 			}
 			if !checked {
@@ -842,9 +1030,9 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) error {
 		}
 	}
 
-	for i, node := range nm.Nodes {
+	for _, node := range nm.Nodes {
 		existingNames := map[string]struct{}{}
-		for j, iface := range node.Interfaces {
+		for _, iface := range node.Interfaces {
 			if iface.Name != "" {
 				existingNames[iface.Name] = struct{}{}
 				continue
@@ -856,24 +1044,21 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) error {
 					return fmt.Errorf("invalid InterfaceClass name %+v", cls)
 				}
 				if ic.Prefix != "" {
+					// Note: InterfaceClass prefix is prior to ConnectionClass prefix (overwritten)
 					if checked {
 						return fmt.Errorf("duplicated interface name prefix (classes %+v)", node.Labels.ClassLabels)
-						// } else if ifacePrefixes[node.Name][iface.Name] != "" {
-						// TODO show warnings
-						// InterfaceClass prefix is prior to ConnectionClass prefix
 					}
 					checked = true
 					if _, ok := ifacePrefixes[node.Name]; !ok {
 						ifacePrefixes[node.Name] = map[*Interface]string{}
 					}
-					ifacePrefixes[node.Name][&nm.Nodes[i].Interfaces[j]] = ic.Prefix
+					ifacePrefixes[node.Name][iface] = ic.Prefix
 				}
 			}
 		}
 
 		prefixMap := map[string][]*Interface{}
-		for j := range node.Interfaces {
-			iface := &nm.Nodes[i].Interfaces[j]
+		for _, iface := range node.Interfaces {
 			prefix, exists := ifacePrefixes[node.Name][iface]
 			if iface.Name == "" {
 				if prefix == "" || !exists {
@@ -905,7 +1090,7 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) error {
 	for _, node := range nm.Nodes {
 		for _, iface := range node.Interfaces {
 			if iface.Name == "" {
-				return fmt.Errorf("still exists unnamed interfaces")
+				return fmt.Errorf("still exists unnamed interfaces after assignInterfaceNames")
 			}
 		}
 	}
@@ -914,14 +1099,25 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) error {
 }
 
 func assignIPParameters(cfg *Config, nm *NetworkModel) error {
-	for _, ipspace := range cfg.IPSpaceDefinitions {
-		err := assignIPLoopbacks(cfg, nm, ipspace)
-		if err != nil {
-			return err
+	for i := range cfg.IPSpaceDefinitions {
+		ipspace := &cfg.IPSpaceDefinitions[i]
+		if ipspace.LoopbackRange != "" {
+			err := assignIPLoopbacks(cfg, nm, ipspace)
+			if err != nil {
+				return err
+			}
 		}
-		err = assignIPAddresses(cfg, nm, ipspace)
-		if err != nil {
-			return err
+
+		if ipspace.Name == cfg.GlobalSettings.ManagementIPSpace {
+			err := assignManagementIPAddresses(cfg, nm, ipspace)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := assignIPAddresses(cfg, nm, ipspace)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -930,15 +1126,15 @@ func assignIPParameters(cfg *Config, nm *NetworkModel) error {
 func assignNumbers(cfg *Config, nm *NetworkModel) error {
 	nodesForNumbers := map[string][]*Node{}
 	interfacesForNumbers := map[string][]*Interface{}
-	for i, node := range nm.Nodes {
-		nm.Nodes[i].addNumber(NumberReplacerName, node.Name)
-		for num := range node.Numbered.Iter() {
-			nodesForNumbers[num] = append(nodesForNumbers[num], &nm.Nodes[i])
+	for _, node := range nm.Nodes {
+		node.addNumber(NumberReplacerName, node.Name)
+		for num := range node.numbered.Iter() {
+			nodesForNumbers[num] = append(nodesForNumbers[num], node)
 		}
-		for j, iface := range node.Interfaces {
-			nm.Nodes[i].Interfaces[j].addNumber(NumberReplacerName, iface.Name)
-			for num := range iface.Numbered.Iter() {
-				interfacesForNumbers[num] = append(interfacesForNumbers[num], &nm.Nodes[i].Interfaces[j])
+		for _, iface := range node.Interfaces {
+			iface.addNumber(NumberReplacerName, iface.Name)
+			for num := range iface.numbered.Iter() {
+				interfacesForNumbers[num] = append(interfacesForNumbers[num], iface)
 			}
 		}
 	}
@@ -971,20 +1167,30 @@ func assignNumbers(cfg *Config, nm *NetworkModel) error {
 	}
 
 	// set values in ValueLabels
-	for i, node := range nm.Nodes {
+	for _, node := range nm.Nodes {
 		for k, v := range node.Labels.ValueLabels {
-			nm.Nodes[i].addNumber(k, v) // overwrite
+			// check existance (ip numbers may already added)
+			if _, exists := node.Numbers[k]; !exists {
+				node.addNumber(k, v)
+			}
 		}
-		for j, iface := range node.Interfaces {
+		for _, iface := range node.Interfaces {
 			for k, v := range iface.Labels.ValueLabels {
-				nm.Nodes[i].Interfaces[j].addNumber(k, v)
+				// check existance (ip numbers may already added)
+				if _, exists := iface.Numbers[k]; !exists {
+					iface.addNumber(k, v)
+				}
 			}
 		}
 	}
 	for _, conn := range nm.Connections {
 		for k, v := range conn.Labels.ValueLabels {
-			conn.Src.addNumber(k, v)
-			conn.Dst.addNumber(k, v)
+			if _, exists := conn.Src.Numbers[k]; !exists {
+				conn.Src.addNumber(k, v)
+			}
+			if _, exists := conn.Dst.Numbers[k]; !exists {
+				conn.Dst.addNumber(k, v)
+			}
 		}
 	}
 
@@ -1068,17 +1274,19 @@ func formatNumbers(nm *NetworkModel) error {
 			}
 
 			// opposite interface
-			oppIf := iface.Opposite
-			for oppnum, val := range oppIf.Numbers {
-				num := NumberPrefixOppositeInterface + oppnum
-				nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = val
-			}
+			if iface.Connection != nil {
+				oppIf := iface.Opposite
+				for oppnum, val := range oppIf.Numbers {
+					num := NumberPrefixOppositeInterface + oppnum
+					nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = val
+				}
 
-			// node of opposite interface
-			oppNode := oppIf.Node
-			for oppnnum, val := range oppNode.Numbers {
-				num := NumberPrefixOppositeNode + oppnnum
-				nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = val
+				// node of opposite interface
+				oppNode := oppIf.Node
+				for oppnnum, val := range oppNode.Numbers {
+					num := NumberPrefixOppositeNode + oppnnum
+					nm.Nodes[i].Interfaces[j].RelativeNumbers[num] = val
+				}
 			}
 
 			// global namespace of PlaceLabels
@@ -1104,7 +1312,7 @@ func formatNumbers(nm *NetworkModel) error {
 	return nil
 }
 
-func generateConfig(cfg *Config, nm *NetworkModel) error {
+func generateConfig(cfg *Config, nm *NetworkModel, output string) error {
 	for i, node := range nm.Nodes {
 		configBlocks := []string{}
 		configTarget := []string{}
@@ -1115,6 +1323,9 @@ func generateConfig(cfg *Config, nm *NetworkModel) error {
 				return fmt.Errorf("undefined NodeClass name %v", cls)
 			}
 			for _, nct := range nc.ConfigTemplates {
+				if !nct.outputSet.Contains(output) {
+					continue
+				}
 				block, err := getConfig(nct.parsedTemplate, node.RelativeNumbers)
 				if err != nil {
 					return err
@@ -1132,6 +1343,9 @@ func generateConfig(cfg *Config, nm *NetworkModel) error {
 					return fmt.Errorf("undefined InterfaceClass name %v", cls)
 				}
 				for _, ict := range ic.ConfigTemplates {
+					if !ict.outputSet.Contains(output) {
+						continue
+					}
 					if !(ict.NodeClass == "" || node.HasClass(ict.NodeClass)) {
 						continue
 					}
@@ -1145,12 +1359,18 @@ func generateConfig(cfg *Config, nm *NetworkModel) error {
 				}
 			}
 
+			if iface.Connection == nil {
+				continue
+			}
 			for _, cls := range iface.Connection.Labels.ClassLabels {
 				cc, ok := cfg.connectionClassMap[cls]
 				if !ok {
 					return fmt.Errorf("undefined ConnectionClass name %v", cls)
 				}
 				for _, cct := range cc.ConfigTemplates {
+					if !cct.outputSet.Contains(output) {
+						continue
+					}
 					if !(cct.NodeClass == "" || node.HasClass(cct.NodeClass)) {
 						continue
 					}

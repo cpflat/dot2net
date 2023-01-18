@@ -11,19 +11,27 @@ ipspace:
 
 nodeclass:
   - name: router
+    primary: true
     tinet:
+      image: slankdev/frr
+    clab:
+      kind: linux
       image: slankdev/frr
     config:
       - target: local
         template: 
           - /usr/lib/frr/frr start
   - name: server
-    attr:
+    primary: true
+    tinet:
+      image: slankdev/ubuntu:18.04
+    clab:
+      kind: linux
       image: slankdev/ubuntu:18.04
 
 connectionclass:
   - name: default
-    type: direct
+    primary: true
     config:
       - target: local
         template:

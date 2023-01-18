@@ -3,10 +3,18 @@ package tinet
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/goccy/go-yaml"
 
 	"github.com/cpflat/dot2tinet/pkg/model"
+)
+
+const (
+	SCRIPT_PATH      = "/tinet"
+	SCRIPT_EXTENSION = ".sh"
+	SCRIPT_SHELL     = "sh"
 )
 
 // Tn specification definition based on github.com/tinynetwork/tinet v0.0.2
@@ -107,7 +115,16 @@ type Test struct {
 	Cmds []Cmd `yaml:"cmds" mapstructure:"cmds"`
 }
 
-func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) {
+func GetScriptPaths(cfg *model.Config, nm *model.NetworkModel) map[string]string {
+	cfgmap := map[string]string{}
+	for _, n := range nm.Nodes {
+		filename := n.Name + SCRIPT_EXTENSION
+		cfgmap[n.Name] = filename
+	}
+	return cfgmap
+}
+
+func getTinetSpecificationBase(cfg *model.Config, nm *model.NetworkModel) (*Tn, error) {
 	tn := Tn{}
 
 	for _, n := range nm.Nodes {
@@ -121,6 +138,9 @@ func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, e
 			if err != nil {
 				return nil, err
 			}
+			if iface.Type == "" {
+				iface.Type = "direct"
+			}
 			ifaces = append(ifaces, iface)
 		}
 
@@ -133,8 +153,71 @@ func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, e
 			node.Interfaces = ifaces
 			tn.Nodes = append(tn.Nodes, node)
 		}
+	}
 
-		ncfg := NodeConfig{Name: n.Name, Cmds: []Cmd{}}
+	return &tn, nil
+}
+
+func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel,
+	cfgmap map[string]string, dirname string) ([]byte, error) {
+
+	tn, err := getTinetSpecificationBase(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	// add configuration commands to Tn.NodeConfigs
+	cfgdir := strings.TrimRight(dirname, "/")
+	for i, node := range tn.Nodes {
+		n, exists := nm.NodeByName(node.Name)
+		if !exists {
+			return nil, fmt.Errorf("node %s not found", node.Name)
+		}
+
+		cfgname, ok := cfgmap[n.Name]
+		if !ok {
+			return nil, fmt.Errorf("configuration file name not found for node %s", node.Name)
+		}
+		cfgpath := filepath.Join(cfgdir, cfgname)
+		targetpath := filepath.Join(SCRIPT_PATH, cfgname)
+		bindstr := cfgpath + ":" + targetpath
+		execstr := SCRIPT_SHELL + " " + targetpath
+
+		// mount script
+		tn.Nodes[i].Mounts = append(tn.Nodes[i].Mounts, bindstr)
+		// add script execution command
+		ncfg := NodeConfig{Name: node.Name, Cmds: []Cmd{}}
+		ncfg.Cmds = append(ncfg.Cmds, Cmd{Cmd: execstr})
+		tn.NodeConfigs = append(tn.NodeConfigs, ncfg)
+	}
+
+	bytes, err := yaml.Marshal(tn)
+	if err != nil {
+		return nil, err
+	}
+
+	return bytes, nil
+}
+
+func GetTinetSpecificationConfig(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) {
+	tn, err := getTinetSpecificationBase(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, node := range tn.Nodes {
+		n, exists := nm.NodeByName(node.Name)
+		if !exists {
+			return nil, fmt.Errorf("node %s not found", node.Name)
+		}
+
+		// check switch node configuration is empty
+		if node.Type == "switch" && len(n.Commands) > 0 {
+			return nil, fmt.Errorf("commands specified for switch node %s", node.Name)
+		}
+
+		// add configuration commands to Tn.NodeConfigs
+		ncfg := NodeConfig{Name: node.Name, Cmds: []Cmd{}}
 		for _, line := range n.Commands {
 			ncfg.Cmds = append(ncfg.Cmds, Cmd{Cmd: line})
 		}
@@ -149,24 +232,14 @@ func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, e
 	return bytes, nil
 }
 
-func getTinetNode(cfg *model.Config, n model.Node) (Node, error) {
-	mapper := map[string]interface{}{}
-	for _, cls := range n.Labels.ClassLabels {
-		nc, ok := cfg.NodeClassByName(cls)
-		if !ok {
-			return Node{}, fmt.Errorf("invalid NodeClass name %v", cls)
-		}
-		for key, val := range nc.TinetAttr {
-			if _, ok := mapper[key]; ok {
-				// key already exists -> duplicated
-				return Node{}, fmt.Errorf("duplicated Attribute %v in classes %v", key, n.Labels.ClassLabels)
-			} else {
-				mapper[key] = val
-			}
-		}
+func getTinetNode(cfg *model.Config, n *model.Node) (Node, error) {
+	if n.TinetAttr == nil {
+		return Node{}, nil
 	}
+	mapper := n.TinetAttr
 
 	node := Node{}
+	// Node name is empty here, added after checking node type
 	bytes, err := json.Marshal(mapper)
 	if err != nil {
 		return Node{}, err
@@ -178,45 +251,23 @@ func getTinetNode(cfg *model.Config, n model.Node) (Node, error) {
 	return node, nil
 }
 
-func getTinetInterface(cfg *model.Config, i model.Interface) (Interface, error) {
-	iface := Interface{Name: i.Name, Args: i.Node.Name + "#" + i.Name}
+func getTinetInterface(cfg *model.Config, i *model.Interface) (Interface, error) {
+	if i.TinetAttr == nil {
+		return Interface{}, nil
+	}
+	mapper := i.TinetAttr
 
-	connectionType := ""
-	for _, cls := range i.Connection.Labels.ClassLabels {
-		cc, ok := cfg.ConnectionClassByName(cls)
-		if !ok {
-			return Interface{}, fmt.Errorf("invalid ConnectionClass name %v", cls)
-		}
-		if cc.Type != "" {
-			if connectionType == "" {
-				connectionType = cc.Type
-			} else {
-				return Interface{}, fmt.Errorf("duplicated type in ConnectionClasses %v", i.Connection.Labels.ClassLabels)
-			}
-		}
+	iface := Interface{
+		Name: i.Name,
+		Args: i.Opposite.Node.Name + "#" + i.Opposite.Name,
 	}
-	interfaceType := ""
-	for _, cls := range i.Labels.ClassLabels {
-		ic, ok := cfg.InterfaceClassByName(cls)
-		if !ok {
-			return Interface{}, fmt.Errorf("invalid InterfaceClass name %v", cls)
-		}
-		if ic.Type != "" {
-			if interfaceType == "" {
-				interfaceType = ic.Type
-			} else {
-				return Interface{}, fmt.Errorf("duplicated type in InterfaceClasses %v", i.Labels.ClassLabels)
-			}
-		}
+	bytes, err := json.Marshal(mapper)
+	if err != nil {
+		return Interface{}, err
 	}
-	iface.Type = connectionType
-	if interfaceType != "" {
-		iface.Type = interfaceType
+	err = json.Unmarshal(bytes, &iface)
+	if err != nil {
+		return Interface{}, err
 	}
-	if iface.Type == "" {
-		return Interface{}, fmt.Errorf("no given interface type in node %v", i.Node.Name)
-	}
-	iface.Args = i.Opposite.Node.Name + "#" + i.Opposite.Name
-
 	return iface, nil
 }

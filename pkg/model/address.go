@@ -21,7 +21,7 @@ type netSegment struct {
 	bits    int          // default (automatically assigned) prefix length
 }
 
-func (seg *netSegment) checkConnection(conn *Connection, ipspace IPSpaceDefinition) error {
+func (seg *netSegment) checkConnection(conn *Connection, ipspace *IPSpaceDefinition) error {
 	if val, ok := conn.GivenIPNetwork(ipspace); ok {
 		prefix, err := netip.ParsePrefix(val)
 		if err != nil {
@@ -41,7 +41,7 @@ func (seg *netSegment) checkConnection(conn *Connection, ipspace IPSpaceDefiniti
 	return nil
 }
 
-func (seg *netSegment) checkInterface(iface *Interface, ipspace IPSpaceDefinition) (bool, error) {
+func (seg *netSegment) checkInterface(iface *Interface, ipspace *IPSpaceDefinition) (bool, error) {
 	if val, ok := iface.GivenIPAddress(ipspace); ok {
 		addr, err := netip.ParseAddr(val)
 		if err != nil {
@@ -51,7 +51,7 @@ func (seg *netSegment) checkInterface(iface *Interface, ipspace IPSpaceDefinitio
 		seg.raddrs = append(seg.raddrs, addr)
 		seg.bound = true
 		return true, nil // ip aware (manually specified)
-	} else if iface.IPAware.Contains(ipspace.Name) {
+	} else if iface.ipAware.Contains(ipspace.Name) {
 		seg.uifaces = append(seg.uifaces, iface)
 		seg.count++
 		return true, nil // ip aware (unspecified)
@@ -91,11 +91,11 @@ type netSegments struct {
 	count    int // number of unbound segments
 }
 
-func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace IPSpaceDefinition) (*netSegments, error) {
+func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) (*netSegments, error) {
 	segs := netSegments{pool: pool}
 
 	checked := mapset.NewSet[*Connection]()
-	for i, conn := range nm.Connections {
+	for _, conn := range nm.Connections {
 
 		// skip connections out of IPSpace
 		if !conn.IPSpaces.Contains(ipspace.Name) {
@@ -103,16 +103,16 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace IPSpaceDefini
 		}
 
 		// skip connections that is already checked
-		if checked.Contains(&nm.Connections[i]) {
+		if checked.Contains(conn) {
 			break
 		}
 
 		seg := netSegment{bits: pool.bits}
 
 		// check connection
-		checked.Add(&nm.Connections[i])
+		checked.Add(conn)
 		// reserve specified network address on connection
-		if err := seg.checkConnection(&conn, ipspace); err != nil {
+		if err := seg.checkConnection(conn, ipspace); err != nil {
 			return nil, err
 		}
 
@@ -148,12 +148,12 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace IPSpaceDefini
 
 					// check connection
 					checked.Add(nextIf.Connection)
-					if err := seg.checkConnection(&conn, ipspace); err != nil {
+					if err := seg.checkConnection(conn, ipspace); err != nil {
 						return nil, err
 					}
 
 					// check interface
-					ipaware, err := seg.checkInterface(&nextIf, ipspace)
+					ipaware, err := seg.checkInterface(nextIf, ipspace)
 					if err != nil {
 						return nil, err
 					}
@@ -213,6 +213,9 @@ func initIPPool(prefixRange netip.Prefix, bits int) (*ipPool, error) {
 
 func (pool *ipPool) getitem(idx int) (netip.Prefix, error) {
 	slice := pool.prefixRange.Addr().AsSlice()
+	if idx < 0 {
+		idx = pool.length - idx
+	}
 
 	// byte_idx to increase values: 1-8 -> 0, 9-16 -> 1, ...
 	byte_idx := (pool.bits - 1) / 8
@@ -394,11 +397,11 @@ func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix,
 	}
 }
 
-func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, ipspace IPSpaceDefinition) ([]*Node, int, error) {
+func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) ([]*Node, int, error) {
 	// search ip loopbacks
 	allLoopbacks := []*Node{}
 	cnt := 0
-	for i, node := range nm.Nodes {
+	for _, node := range nm.Nodes {
 		// check specified (reserved) loopback address -> reserve
 		if val, ok := node.GivenIPLoopback(ipspace); ok {
 			addr, err := netip.ParseAddr(val)
@@ -406,10 +409,10 @@ func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, ipspace IPSpaceDefinition
 				return nil, 0, fmt.Errorf("invalid given iploopback (%v)", val)
 			}
 			pool.reserveAddr(addr)
-		} else if node.IPAware.Contains(ipspace.Name) {
+		} else if node.ipAware.Contains(ipspace.Name) {
 			// ip aware -> add the node to list
 			// count as node with unspecified loopback
-			allLoopbacks = append(allLoopbacks, &nm.Nodes[i])
+			allLoopbacks = append(allLoopbacks, node)
 			cnt++
 		}
 		// ip non-aware -> do nothing
@@ -417,7 +420,7 @@ func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, ipspace IPSpaceDefinition
 	return allLoopbacks, cnt, nil
 }
 
-func assignIPLoopbacks(cfg *Config, nm *NetworkModel, ipspace IPSpaceDefinition) error {
+func assignIPLoopbacks(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition) error {
 	poolrange, err := netip.ParsePrefix(ipspace.LoopbackRange)
 	if err != nil {
 		return fmt.Errorf("invalid ipspace loopback_range (%v)", ipspace.LoopbackRange)
@@ -425,6 +428,21 @@ func assignIPLoopbacks(cfg *Config, nm *NetworkModel, ipspace IPSpaceDefinition)
 	pool, err := initIPPool(poolrange, poolrange.Addr().BitLen())
 	if err != nil {
 		return err
+	}
+	err = pool.reserveAddr(poolrange.Addr()) // avoid network address
+	if err != nil {
+		return err
+	}
+	if poolrange.Addr().Is4() {
+		// avoid broadcast address on IPv4
+		baddr, err := pool.getitem(-1)
+		if err != nil {
+			return err
+		}
+		err = pool.reserveAddr(baddr.Addr())
+		if err != nil {
+			return err
+		}
 	}
 
 	allLoopbacks, cnt, err := searchIPLoopbacks(nm, pool, ipspace)
@@ -443,7 +461,86 @@ func assignIPLoopbacks(cfg *Config, nm *NetworkModel, ipspace IPSpaceDefinition)
 	return nil
 }
 
-func assignIPAddresses(cfg *Config, nm *NetworkModel, ipspace IPSpaceDefinition) error {
+func searchManagementInterfaces(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) ([]*Interface, int, error) {
+	cnt := 0
+	allInterfaces := []*Interface{}
+	for _, node := range nm.Nodes {
+		if iface := node.mgmtInterface; iface != nil {
+			if val, ok := iface.GivenIPAddress(ipspace); ok {
+				addr, err := netip.ParseAddr(val)
+				if err != nil {
+					return nil, 0, fmt.Errorf("invalid given ipaddress (%v)", val)
+				}
+				pool.reserveAddr(addr)
+			} else if iface.ipAware.Contains(ipspace.Name) {
+				allInterfaces = append(allInterfaces, iface)
+				cnt++
+			}
+		}
+	}
+	return allInterfaces, cnt, nil
+}
+
+func assignManagementIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition) error {
+	poolrange, err := netip.ParsePrefix(ipspace.AddrRange)
+	if err != nil {
+		return fmt.Errorf("invalid ipspace range (%v)", ipspace.AddrRange)
+	}
+	pool, err := initIPPool(poolrange, poolrange.Addr().BitLen())
+	if err != nil {
+		return err
+	}
+	err = pool.reserveAddr(poolrange.Addr()) // avoid network address
+	if err != nil {
+		return err
+	}
+	if poolrange.Addr().Is4() {
+		// avoid broadcast address on IPv4
+		baddr, err := pool.getitem(-1)
+		if err != nil {
+			return err
+		}
+		err = pool.reserveAddr(baddr.Addr())
+		if err != nil {
+			return err
+		}
+	}
+	// avoid external gateway address
+	// if external gateway address is not given, use first address as default (same as containerlab defaults)
+	var gaddr netip.Addr
+	if ipspace.ExternalGateway == "" {
+		gaddr = poolrange.Addr().Next()
+		ipspace.ExternalGateway = gaddr.String()
+	} else {
+		gaddr, err = netip.ParseAddr(ipspace.ExternalGateway)
+		if err != nil {
+			return err
+		}
+	}
+	err = pool.reserveAddr(gaddr)
+	if err != nil {
+		return err
+	}
+
+	allInterfaces, cnt, err := searchManagementInterfaces(nm, pool, ipspace)
+	if err != nil {
+		return err
+	}
+	prefixes, err := pool.getAvailablePrefix(cnt)
+	if err != nil {
+		return err
+	}
+	for i, iface := range allInterfaces {
+		addr := prefixes[i].Addr()
+		iface.addNumber(ipspace.IPAddressReplacer(), addr.String())
+		iface.addNumber(ipspace.IPNetworkReplacer(), poolrange.String())
+		iface.addNumber(ipspace.IPPrefixLengthReplacer(), strconv.Itoa(poolrange.Bits()))
+	}
+
+	return nil
+}
+
+func assignIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition) error {
 	poolrange, err := netip.ParsePrefix(ipspace.AddrRange)
 	if err != nil {
 		return fmt.Errorf("invalid ipspace range (%v)", ipspace.AddrRange)

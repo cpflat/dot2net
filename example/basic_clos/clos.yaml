@@ -11,8 +11,12 @@ ipspace:
 
 nodeclass:
   - name: all
+    primary: true
     numbered: [as]
     tinet:
+      image: slankdev/frr
+    clab:
+      kind: linux
       image: slankdev/frr
     config:
       - target: local
@@ -31,7 +35,7 @@ nodeclass:
 
 connectionclass:
   - name: default
-    type: direct
+    primary: true
     config:
       - node: router
         target: frr

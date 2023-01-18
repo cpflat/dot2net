@@ -21,10 +21,10 @@ var commandCommand = &cli.Command{
 			Value:   "config.yaml",
 		},
 		&cli.StringFlag{
-			Name:    "output",
-			Aliases: []string{"o"},
-			Usage:   "Specify name of output file or directory.",
-			Value:   "",
+			Name:    "dir",
+			Aliases: []string{"d"},
+			Usage:   "Specify name of directory for per-device configuration.",
+			Value:   "commands",
 		},
 		&cli.BoolFlag{
 			Name:    "verbose",
@@ -48,7 +48,13 @@ var commandTinet = &cli.Command{
 		&cli.StringFlag{
 			Name:    "output",
 			Aliases: []string{"o"},
-			Usage:   "Specify name of output file or directory.",
+			Usage:   "Specify name of output specification file.",
+			Value:   "",
+		},
+		&cli.StringFlag{
+			Name:    "dir",
+			Aliases: []string{"d"},
+			Usage:   "Specify name of directory for per-device configuration. If not given, configuration is described inline",
 			Value:   "",
 		},
 		&cli.BoolFlag{
@@ -73,7 +79,13 @@ var commandClab = &cli.Command{
 		&cli.StringFlag{
 			Name:    "output",
 			Aliases: []string{"o"},
-			Usage:   "Specify name of output file or directory.",
+			Usage:   "Specify name of output topology file.",
+			Value:   "",
+		},
+		&cli.StringFlag{
+			Name:    "dir",
+			Aliases: []string{"d"},
+			Usage:   "Specify name of directory for per-device configuration. If not given, configuration is described inline",
 			Value:   "",
 		},
 		&cli.BoolFlag{
@@ -94,6 +106,11 @@ var commandNumber = &cli.Command{
 			Aliases: []string{"c"},
 			Usage:   "Specify the Config file.",
 			Value:   "config.yaml",
+		},
+		&cli.BoolFlag{
+			Name:    "all",
+			Aliases: []string{"a"},
+			Usage:   "Show all numbers including relative ones.",
 		},
 		&cli.BoolFlag{
 			Name:    "verbose",

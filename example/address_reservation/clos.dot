@@ -1,6 +1,6 @@
 digraph  {
-	spine1[class="router"];
-	spine2[class="router"];
+	spine1[conf="router"];
+	spine2[info="router"];
 	leaf1[class="router"];
 	leaf2[class="router"];
 	leaf3[class="router"];

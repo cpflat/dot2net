@@ -16,7 +16,11 @@ nodeclass:
         template:
           - bash -c "enable_seg6_router.py | sh"
   - name: router
+    primary: true
     tinet:
+      image: slankdev/frr
+    clab:
+      kind: linux
       image: slankdev/frr
     config:
       - target: frr
@@ -24,12 +28,16 @@ nodeclass:
           - router ospf
           - ospf6 router-id {{ .ip_loopback }}
   - name: server
+    primary: true
     tinet:
+      image: slankdev/ubuntu:18.04
+    clab:
+      kind: linux
       image: slankdev/ubuntu:18.04
 
 connectionclass:
   - name: default
-    type: direct
+    primary: true
     config:
       - target: local
         template:

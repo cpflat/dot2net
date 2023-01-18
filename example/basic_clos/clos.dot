@@ -14,21 +14,9 @@ digraph  {
 	sv7[class="server"];
 	sv8[class="server"];
 
-	spine1:dn1->leaf1:up1[dir="none"];
-	spine1:dn2->leaf2:up1[dir="none"];
-	spine1:dn3->leaf3:up1[dir="none"];
-	spine1:dn4->leaf4:up1[dir="none"];
-	spine2:dn1->leaf1:up2[dir="none"];
-	spine2:dn2->leaf2:up2[dir="none"];
-	spine2:dn3->leaf3:up2[dir="none"];
-	spine2:dn4->leaf4:up2[dir="none"];
-	
-	leaf1:dn1->sv1[dir="none"];
-	leaf1:dn2->sv2[dir="none"];
-	leaf2:dn1->sv3[dir="none"];
-	leaf2:dn2->sv4[dir="none"];
-	leaf3:dn1->sv5[dir="none"];
-	leaf3:dn2->sv6[dir="none"];
-	leaf4:dn1->sv7[dir="none"];
-	leaf4:dn2->sv8[dir="none"];
+	{spine1 spine2} -> {leaf1 leaf2 leaf3 leaf4} [dir="none"];
+	leaf1 -> {sv1 sv2} [dir="none"];
+	leaf2 -> {sv3 sv4} [dir="none"];
+	leaf3 -> {sv5 sv6} [dir="none"];
+	leaf4 -> {sv7 sv8} [dir="none"];
 }

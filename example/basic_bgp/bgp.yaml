@@ -1,3 +1,5 @@
+name: basic_bgp
+
 global:
   path: local
 
@@ -11,8 +13,12 @@ ipspace:
 
 nodeclass:
   - name: default
+    primary: true
     numbered: [as]
     tinet:
+      image: slankdev/frr
+    clab:
+      kind: linux
       image: slankdev/frr
     config:
       - target: local
@@ -25,7 +31,7 @@ nodeclass:
 
 connectionclass:
   - name: default
-    type: direct
+    primary: true
     config:
       - node: default
         target: local

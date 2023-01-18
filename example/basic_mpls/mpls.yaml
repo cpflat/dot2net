@@ -18,7 +18,11 @@ nodeclass:
           - modprobe mpls_gso
           - modprobe mpls_iptunnel
   - name: router
+    primary: true
     tinet:
+      image: slankdev/frr
+    clab:
+      kind: linux
       image: slankdev/frr
     config:
       - target: local
@@ -27,12 +31,16 @@ nodeclass:
           - sysctl -w net.mpls.conf.lo.input=1 > /dev/null
           - sysctl -w net.mpls.platform_labels=1024 > /dev/null
   - name: server
+    primary: true
     tinet:
+      image: slankdev/ubuntu:18.04
+    clab:
+      kind: linux
       image: slankdev/ubuntu:18.04
 
 connectionclass:
   - name: default
-    type: direct
+    primary: true
     config:
       - node: router
         target: local
