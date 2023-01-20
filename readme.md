@@ -80,10 +80,12 @@ Interface names can be specified in port fields if needed
 
 Nodes or links of different configuration can be specified with classes.
 The classes can be specified like tags; There can be multiple tags for one node or link (separated with ";" or ",").
+
 There are 3 kinds of classes.
-- Node Class: Specified in "xlabel", "class", "conf", or "info" of nodes.
+- Node Class: Specified in "xlabel", "class", "conf", or "info" of nodes (Note that "label" is not included).
 - Interface Class: "headlabel", "headclass", "headconf", or "headinfo" specifies arrow-head-side interface class of the link. "taillabel", "tailclass", "tailconf", or "tailinfo" specified arrow-tail-side interface class of the link.
 - Connection Class: Specified in "label", "class", "conf", or "info" of links. It just means two ends of interfaces have same configuration.
+
 For example in the above DOT, the interface of n2 connected with n3 belongs to two Interface Classes, b and c.
 The definition of these classes are defined in the config file.
 

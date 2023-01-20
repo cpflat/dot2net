@@ -1,7 +1,4 @@
-name: basic_bgp
-
-global:
-  path: local
+name: bgp
 
 ipspace:
   - name: ip

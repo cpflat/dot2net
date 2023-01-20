@@ -1,5 +1,4 @@
-global:
-  path: local
+name: clos
 
 ipspace:
   - name: ip
