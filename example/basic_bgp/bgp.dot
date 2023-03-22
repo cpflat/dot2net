@@ -1,7 +1,14 @@
 digraph  {
 
-	r1;
-	r2;
+	subgraph cluster1 {
+		class="as";
+		r1;
+	}
+
+	subgraph cluster2 {
+		class="as";
+		r2;
+	}
 	r1->r2;
 
 }

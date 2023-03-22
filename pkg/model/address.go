@@ -626,19 +626,37 @@ func getIPAddr(pool netip.Prefix, cnt int, reserved []netip.Addr) ([]netip.Addr,
 	return addrs, nil
 }
 
-func getASNumber(cnt int) ([]int, error) {
+func getASNumber(cfg *Config, cnt int) ([]int, error) {
+	var asmin int
+	var asmax int
 	var asnumbers = make([]int, 0, cnt)
-	if cnt <= 535 {
-		for i := 0; i < cnt; i++ {
-			asnumbers = append(asnumbers, 65001+i)
+	if cfg.GlobalSettings.ASNumberMin > 0 {
+		asmin = cfg.GlobalSettings.ASNumberMin
+		if cfg.GlobalSettings.ASNumberMax > 0 {
+			asmax = cfg.GlobalSettings.ASNumberMax
+		} else {
+			asmax = 65535
 		}
-	} else if cnt <= 1024 {
-		for i := 0; i < cnt; i++ {
-			asnumbers = append(asnumbers, 64512+i)
+		if asmax <= asmin {
+			return nil, fmt.Errorf("invalid AS range (%d - %d) specified in configuration", asmin, asmax)
 		}
-	} else { // cnt > 1024
-		// currently returns error
-		return nil, fmt.Errorf("requested more than 1024 private AS numbers")
+		if (asmax - asmin + 1) < cnt {
+			return nil, fmt.Errorf("requested %d AS numbers, but specified AS range has only %d numbers", cnt, asmax-asmin+1)
+		}
+	} else {
+		if cnt <= 535 {
+			asmin = 65001
+			asmax = 65535
+		} else if cnt <= 1024 {
+			asmin = 64512
+			asmax = 65535
+		} else {
+			// currently returns error
+			return nil, fmt.Errorf("requested more than 1024 private AS numbers")
+		}
+	}
+	for i := 0; i < cnt; i++ {
+		asnumbers = append(asnumbers, asmin+i)
 	}
 	return asnumbers, nil
 }

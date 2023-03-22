@@ -68,6 +68,18 @@ If all links have same meanings (and configurations), the DOT file only needs no
 Interface names can be specified in port fields if needed
 (It may cause warnings in other usages such as dot commands).
 
+    digraph  {
+        subgraph cluster1 {
+            n1;
+            n2;
+            n1:eth0->n2:eth0;
+        }
+    }
+
+Subgraph clusters can be defined as node groups.
+It can be used for automated AS number assignment.
+
+
 ## Class labels
 
     digraph {
@@ -76,6 +88,12 @@ Interface names can be specified in port fields if needed
         n3[class="a"];
         n1->n2[label="b"];
         n2->n3[headlabel="b;c"];
+        
+        subgraph cluster1 {
+            label="s"
+            n4;
+            n5;
+        }
     }
 
 Nodes or links of different configuration can be specified with classes.
@@ -85,17 +103,18 @@ There are 3 kinds of classes.
 - Node Class: Specified in "xlabel", "class", "conf", or "info" of nodes (Note that "label" is not included).
 - Interface Class: "headlabel", "headclass", "headconf", or "headinfo" specifies arrow-head-side interface class of the link. "taillabel", "tailclass", "tailconf", or "tailinfo" specified arrow-tail-side interface class of the link.
 - Connection Class: Specified in "label", "class", "conf", or "info" of links. It just means two ends of interfaces have same configuration.
+- Group Class: Specified in "label", "class", "conf", or "info" of subgraphs.
 
 For example in the above DOT, the interface of n2 connected with n3 belongs to two Interface Classes, b and c.
 The definition of these classes are defined in the config file.
+
+If no labels are given, they refer "default" classes if exists.
+Also, if "all" classes are defined, they affects all possible objects (nodes or interfaces).
 
 In addition, one object only have one primary class label.
 Primary class can define node setup information (e.g., node docker image).
 There can be multiple non-primary class labels,
 but the non-Primary classes cannot include these setup information.
-
-If no labels are given, they refer "default" classes if exists.
-Also, if "all" classes are defined, they affects all possible objects (nodes or interfaces).
 
 
 # Config templates
@@ -136,12 +155,18 @@ For example, if their is one defined IPSpace named "ip",
 For config templates of Interface Classes or Connection Classes,
 Relative prefix can be additionally used for specifying neighbor parameters .
 
-| Prefix   | Note
-|:---------|:-------
-| (none)   | Value of interface itself
-| node_    | Node value of interface
-| opp_     | Value of opposite interface
-| oppnode_ | Node value of opposite interface
+| Class     | Prefix          | Note
+|:----------|:----------------|:-------
+| Node      | (none)          | Value of node itself
+| Node      | group_          | Group value of node
+| Node      | (groupcls)_     | Group value corresponding to specified group class of node
+| Interface | (none)          | Value of interface itself
+| Interface | node_           | Node value of interface
+| Interface | group_          | Node group value of inteface
+| Interface | opp_            | Value of opposite interface
+| Interface | opp_node_       | Node value of opposite interface
+| Interface | opp_group_      | Node group value of opposite interface
+| Interface | opp_(groupcls)_ | Group value corresponding to specified group class of node
 
 For example, {{ .opp_ipnet }} embeds IP network (such as "192.168.101.0/24")
 of the opposite interface. 

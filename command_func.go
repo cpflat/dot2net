@@ -13,29 +13,29 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func loadContext(c *cli.Context) (nd *model.NetworkDiagram, cfg *model.Config, err error) {
+func loadContext(c *cli.Context) (d *model.Diagram, cfg *model.Config, err error) {
 
 	dotPaths := c.Args().Slice()
 
-	nd, err = model.NetworkDiagramFromDotFile(dotPaths[0])
+	d, err = model.DiagramFromDotFile(dotPaths[0])
 	if err != nil {
 		return nil, nil, err
 	}
 	for _, dotPath := range dotPaths[1:] {
-		newnd, err := model.NetworkDiagramFromDotFile(dotPath)
+		newnd, err := model.DiagramFromDotFile(dotPath)
 		if err != nil {
 			return nil, nil, err
 		}
-		nd.MergeDiagram(newnd)
+		d.MergeDiagram(newnd)
 	}
 
 	cfgPath := c.String("config")
 	cfg, err = model.LoadConfig(cfgPath)
 	if err != nil {
-		return nd, cfg, err
+		return d, cfg, err
 	}
 
-	return nd, cfg, err
+	return d, cfg, err
 }
 
 func outputString(name string, buffer []byte) error {
@@ -251,6 +251,19 @@ func CmdNumber(c *cli.Context) error {
 				lines = append(lines, fmt.Sprintf("%+v.%+v {{ .%+v }} = %+v", node.Name, iface.Name, num, val))
 			}
 		}
+
+		for _, group := range node.Groups {
+			keys := []string{}
+			for num := range group.Numbers {
+				keys = append(keys, num)
+			}
+			sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+			for _, num := range keys {
+				val := group.Numbers[num]
+				lines = append(lines, fmt.Sprintf("%+v.%+v {{ .%+v }} = %+v", node.Name, group.Name, num, val))
+			}
+		}
+
 	}
 
 	buf := strings.Join(lines, "\n")

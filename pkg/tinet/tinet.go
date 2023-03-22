@@ -233,12 +233,12 @@ func GetTinetSpecificationConfig(cfg *model.Config, nm *model.NetworkModel) ([]b
 }
 
 func getTinetNode(cfg *model.Config, n *model.Node) (Node, error) {
+	node := Node{}
+
+	mapper := n.TinetAttr
 	if n.TinetAttr == nil {
 		return Node{}, nil
 	}
-	mapper := n.TinetAttr
-
-	node := Node{}
 	// Node name is empty here, added after checking node type
 	bytes, err := json.Marshal(mapper)
 	if err != nil {
@@ -252,14 +252,14 @@ func getTinetNode(cfg *model.Config, n *model.Node) (Node, error) {
 }
 
 func getTinetInterface(cfg *model.Config, i *model.Interface) (Interface, error) {
-	if i.TinetAttr == nil {
-		return Interface{}, nil
-	}
-	mapper := i.TinetAttr
-
 	iface := Interface{
 		Name: i.Name,
 		Args: i.Opposite.Node.Name + "#" + i.Opposite.Name,
+	}
+
+	mapper := i.TinetAttr
+	if i.TinetAttr == nil {
+		return iface, nil
 	}
 	bytes, err := json.Marshal(mapper)
 	if err != nil {
