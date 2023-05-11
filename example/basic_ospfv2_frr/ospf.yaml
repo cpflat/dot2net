@@ -1,5 +1,14 @@
 name: ospf
 
+global:
+  path: local
+
+file:
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+
 ipspace:
   - name: ip
     range: 10.0.0.0/16
@@ -12,36 +21,35 @@ nodeclass:
   - name: router
     primary: true
     tinet:
-      image: slankdev/frr
+      image: quay.io/frrouting/frr:8.5.0
     clab:
       kind: linux
-      image: slankdev/frr
+      image: quay.io/frrouting/frr:8.5.0
     config:
-      - target: local
-        template: 
-          - /usr/lib/frr/frr start
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
   - name: server
     primary: true
     tinet:
-      image: slankdev/ubuntu:18.04
+      image: nicolaka/netshoot
     clab:
       kind: linux
-      image: slankdev/ubuntu:18.04
+      image: nicolaka/netshoot
 
 connectionclass:
   - name: default
     primary: true
     config:
-      - target: local
-        template:
+      - template:
           - ip addr add {{ .ip_addr }}/{{ .ip_plen }} dev {{ .name }}
       - node: router
-        target: frr
+        style: frr-vtysh
         template: 
           - router ospf
           - network {{ .ip_net }} area 0
       - node: server
-        target: local
         template:
           - ip route replace default via {{ .opp_ip_addr }}
 

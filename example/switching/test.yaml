@@ -1,0 +1,42 @@
+name: test
+
+ipspace:
+  - name: ip
+    range: 10.0.0.0/16
+    prefix: 24
+    loopback_range: 10.0.255.0/24
+    default_connect: true
+
+nodeclass:
+  - name: switch
+    primary: true
+    tinet:
+      image: nicolaka/netshoot
+    clab:
+      kind: linux
+      image: nicolaka/netshoot
+    config:
+      - template:
+          - ip link add br0 type bridge
+          - ip link set br0 up
+
+  - name: server
+    primary: true
+    ipaware: [ip]
+    tinet:
+      image: nicolaka/netshoot
+    clab:
+      kind: linux
+      image: nicolaka/netshoot
+
+connectionclass:
+  - name: default
+    config:
+      - node: switch
+        template:
+          - ip link set dev {{ .name }} promisc on
+          - ip link set dev {{ .name }} master br0
+      - node: server
+        template:
+          - ip addr add {{ .ip_addr }}/{{ .ip_plen }} dev {{ .name }}
+

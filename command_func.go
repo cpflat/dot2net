@@ -53,6 +53,11 @@ func outputString(name string, buffer []byte) error {
 }
 
 func outputFiles(buffers map[string][]byte, dirname string) error {
+	if len(buffers) == 0 {
+		// do not generate directories for empty nodes
+		return nil
+	}
+
 	f, err := os.Stat(dirname)
 	if os.IsNotExist(err) {
 		err = os.Mkdir(dirname, 0755)
@@ -72,11 +77,11 @@ func outputFiles(buffers map[string][]byte, dirname string) error {
 	return nil
 }
 
-func generateScriptBuffers(nm *model.NetworkModel, cfgmap map[string]string) map[string][]byte {
-	buffers := make(map[string][]byte, len(nm.Nodes))
-	for _, n := range nm.Nodes {
-		filename := cfgmap[n.Name]
-		buffer := strings.Join(n.Commands, "\n")
+func generateBuffers(node *model.Node) map[string][]byte {
+	buffers := map[string][]byte{}
+	for _, filename := range node.Files.FileNames() {
+		file := node.Files.GetFile(filename)
+		buffer := strings.Join(file.Content, "\n")
 		buffers[filename] = []byte(buffer)
 	}
 	return buffers
@@ -92,15 +97,18 @@ func CmdCommand(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	dir := c.String("dir")
 
-	cfgmap := map[string]string{}
 	for _, n := range nm.Nodes {
-		filename := n.Name
-		cfgmap[n.Name] = filename
+		buffers := generateBuffers(n)
+		embed := n.Files.GetEmbeddedConfig()
+		if embed != nil {
+			buffer := strings.Join(embed.Content, "\n")
+			buffers[n.Name] = []byte(buffer)
+		}
+		outputFiles(buffers, n.Name)
 	}
-	buffers := generateScriptBuffers(nm, cfgmap)
-	return outputFiles(buffers, dir)
+
+	return nil
 }
 
 func CmdTinet(c *cli.Context) error {
@@ -109,47 +117,22 @@ func CmdTinet(c *cli.Context) error {
 		return err
 	}
 	name := c.String("output")
-	dir := c.String("dir")
 
 	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputTinet)
 	if err != nil {
 		return err
 	}
 
-	if dir == "" {
-		// generate clab topology file (incluing configuration)
-		spec, err := tinet.GetTinetSpecificationConfig(cfg, nm)
-		if err != nil {
-			return err
-		}
-		// output clab topology file
-		err = outputString(name, spec)
-		return err
-	} else {
-		// generate script files in dir
-		dir, err = filepath.Abs(dir)
-		if err != nil {
-			return err
-		}
-		cfgmap := tinet.GetScriptPaths(cfg, nm)
-		buffers := generateScriptBuffers(nm, cfgmap)
+	for _, n := range nm.Nodes {
+		buffers := generateBuffers(n)
+		outputFiles(buffers, n.Name)
+	}
 
-		// generate tinet specification file without configuration commands
-		spec, err := tinet.GetTinetSpecification(cfg, nm, cfgmap, dir)
-		if err != nil {
-			return err
-		}
-
-		// output script files
-		err = outputFiles(buffers, dir)
-		if err != nil {
-			return err
-		}
-
-		// output clab topology file
-		err = outputString(name, spec)
+	spec, err := tinet.GetTinetSpecification(cfg, nm)
+	if err != nil {
 		return err
 	}
+	return outputString(name, spec)
 }
 
 func CmdClab(c *cli.Context) error {
@@ -158,47 +141,22 @@ func CmdClab(c *cli.Context) error {
 		return err
 	}
 	name := c.String("output")
-	dir := c.String("dir")
 
 	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputClab)
 	if err != nil {
 		return err
 	}
 
-	if dir == "" {
-		// generate clab topology file (incluing configuration)
-		spec, err := clab.GetClabTopologyConfig(cfg, nm)
-		if err != nil {
-			return err
-		}
-		// output clab topology file
-		err = outputString(name, spec)
-		return err
-	} else {
-		// generate script files in dir
-		dir, err = filepath.Abs(dir)
-		if err != nil {
-			return err
-		}
-		cfgmap := clab.GetScriptPaths(cfg, nm)
-		buffers := generateScriptBuffers(nm, cfgmap)
+	for _, n := range nm.Nodes {
+		buffers := generateBuffers(n)
+		outputFiles(buffers, n.Name)
+	}
 
-		// generate clab topology file
-		spec, err := clab.GetClabTopology(cfg, nm, cfgmap, dir)
-		if err != nil {
-			return err
-		}
-
-		// output script files
-		err = outputFiles(buffers, dir)
-		if err != nil {
-			return err
-		}
-
-		// output clab topology file
-		err = outputString(name, spec)
+	topo, err := clab.GetClabTopology(cfg, nm)
+	if err != nil {
 		return err
 	}
+	return outputString(name, topo)
 }
 
 func CmdNumber(c *cli.Context) error {

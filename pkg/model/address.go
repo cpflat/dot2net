@@ -5,6 +5,7 @@ import (
 	"math"
 	"net/netip"
 	"strconv"
+	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
 )
@@ -19,6 +20,24 @@ type netSegment struct {
 	bound   bool         // network address is bound (determined by reservation) or not
 	count   int          // number of unspecified interfaces for address assignment
 	bits    int          // default (automatically assigned) prefix length
+}
+
+func (seg *netSegment) String() string {
+	buf := fmt.Sprintf("prefix: %v, bits: %v, ", seg.prefix.String(), seg.bits)
+	buf += fmt.Sprintf("%v free interfaces: [", len(seg.uifaces))
+	ifaces := []string{}
+	for _, iface := range seg.uifaces {
+		ifaces = append(ifaces, iface.String())
+	}
+	buf += strings.Join(ifaces, ", ")
+	buf += fmt.Sprintf("], %v reserved interfaces: [", len(seg.rifaces))
+	ifaces = []string{}
+	for _, iface := range seg.rifaces {
+		ifaces = append(ifaces, iface.String())
+	}
+	buf += strings.Join(ifaces, ", ")
+	buf += "]"
+	return buf
 }
 
 func (seg *netSegment) checkConnection(conn *Connection, ipspace *IPSpaceDefinition) error {
@@ -87,8 +106,18 @@ func (seg *netSegment) checkReservedInterfaces() error {
 // It also manage address allocation considering reservation.
 type netSegments struct {
 	pool     *ipPool
-	segments []netSegment
+	segments []*netSegment
 	count    int // number of unbound segments
+}
+
+func (segs *netSegments) String() string {
+	buf := fmt.Sprintf("pool: [%s]\n%d segments:\n", segs.pool.String(), len(segs.segments))
+	tmp := []string{}
+	for _, seg := range segs.segments {
+		tmp = append(tmp, "- "+seg.String())
+	}
+	buf += strings.Join(tmp, "\n")
+	return buf
 }
 
 func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) (*netSegments, error) {
@@ -96,15 +125,14 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 
 	checked := mapset.NewSet[*Connection]()
 	for _, conn := range nm.Connections {
-
 		// skip connections out of IPSpace
 		if !conn.IPSpaces.Contains(ipspace.Name) {
-			break
+			continue
 		}
 
 		// skip connections that is already checked
 		if checked.Contains(conn) {
-			break
+			continue
 		}
 
 		seg := netSegment{bits: pool.bits}
@@ -177,10 +205,11 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 		} else {
 			segs.count++
 		}
-		segs.segments = append(segs.segments, seg)
+		segs.segments = append(segs.segments, &seg)
 
 		// sanity check
 		if len(seg.rifaces)+len(seg.uifaces) <= 0 {
+			fmt.Printf("%+v, src: %s@%s, dst: %s@%s\n", conn, conn.Src.Name, conn.Src.Node.Name, conn.Dst.Name, conn.Dst.Node.Name)
 			return nil, fmt.Errorf("searchNetworkSegment panic: no %v-aware interfaces in a segment", ipspace.Name)
 		}
 	}
@@ -209,6 +238,10 @@ func initIPPool(prefixRange netip.Prefix, bits int) (*ipPool, error) {
 		boundIndex:  map[int]struct{}{},
 	}
 	return &pool, nil
+}
+
+func (pool *ipPool) String() string {
+	return fmt.Sprintf("prefix: %s, bits: %d", pool.prefixRange.String(), pool.bits)
 }
 
 func (pool *ipPool) getitem(idx int) (netip.Prefix, error) {
@@ -584,7 +617,7 @@ func assignIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition
 	}
 
 	if len(prefixes) > 0 {
-		return fmt.Errorf("address reservation panic")
+		return fmt.Errorf("address reservation panic: %d prefixes unassigned", len(prefixes))
 	}
 	return nil
 }
@@ -644,6 +677,7 @@ func getASNumber(cfg *Config, cnt int) ([]int, error) {
 			return nil, fmt.Errorf("requested %d AS numbers, but specified AS range has only %d numbers", cnt, asmax-asmin+1)
 		}
 	} else {
+		// if ASNumberMin/Max not given, automatically use Private AS numbers
 		if cnt <= 535 {
 			asmin = 65001
 			asmax = 65535

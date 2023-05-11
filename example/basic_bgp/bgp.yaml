@@ -1,5 +1,11 @@
 name: bgp
 
+file:
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+
 ipspace:
   - name: ip
     range: 10.0.0.0/16
@@ -12,15 +18,16 @@ nodeclass:
   - name: default
     primary: true
     tinet:
-      image: slankdev/frr
+      image: quay.io/frrouting/frr:8.5.0
     clab:
       kind: linux
-      image: slankdev/frr
+      image: quay.io/frrouting/frr:8.5.0
     config:
-      - target: local
-        template: 
-          - /usr/lib/frr/frr start
-      - target: frr
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - style: frr-vtysh
         template:
           - router bgp {{ .group_as }}
           - bgp router-id {{ .ip_loopback }}
@@ -29,11 +36,11 @@ connectionclass:
   - name: default
     primary: true
     config:
-      - node: default
-        target: frr
+      - style: frr-vtysh
         template: 
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/{{ .ip_plen }}
+          - router bgp {{ .group_as }}
           - neighbor {{ .opp_ip_addr }} remote-as {{ .opp_group_as }}
 
 groupclass:

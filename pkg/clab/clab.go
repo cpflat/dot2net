@@ -12,22 +12,10 @@ import (
 )
 
 const (
-	DEFAULT_NAME     = "clab"
-	SCRIPT_PATH      = "/"
-	SCRIPT_EXTENSION = ".sh"
-	SCRIPT_SHELL     = "sh"
+	DEFAULT_NAME = "clab"
 )
 
-func GetScriptPaths(cfg *model.Config, nm *model.NetworkModel) map[string]string {
-	cfgmap := map[string]string{}
-	for _, n := range nm.Nodes {
-		filename := n.Name + SCRIPT_EXTENSION
-		cfgmap[n.Name] = filename
-	}
-	return cfgmap
-}
-
-func getClabConfigBase(cfg *model.Config, nm *model.NetworkModel) (*Config, error) {
+func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) {
 
 	config := &Config{
 		Name: "",
@@ -109,6 +97,11 @@ func getClabConfigBase(cfg *model.Config, nm *model.NetworkModel) (*Config, erro
 	}
 
 	for _, node := range nm.Nodes {
+		// skip virtual nodes
+		if node.Virtual {
+			continue
+		}
+
 		// node settings
 		name := node.Name
 		ndef, err := getClabNode(cfg, node)
@@ -136,6 +129,26 @@ func getClabConfigBase(cfg *model.Config, nm *model.NetworkModel) (*Config, erro
 				return nil, fmt.Errorf("clab mgmt address format panic %s", val)
 			}
 		}
+
+		// add mount points
+		for _, filename := range node.Files.FileNames() {
+			file := node.Files.GetFile(filename)
+			dirpath, err := filepath.Abs(node.Name)
+			if err != nil {
+				return nil, fmt.Errorf("directory path panic")
+			}
+			//dirpath = strings.TrimRight(dirpath, "/")
+			cfgpath := filepath.Join(dirpath, file.FileDefinition.Name)
+			targetpath := file.FileDefinition.Path
+			bindstr := cfgpath + ":" + targetpath
+			ndef.Binds = append(ndef.Binds, bindstr)
+		}
+
+		embed := node.Files.GetEmbeddedConfig()
+		if embed != nil {
+			// add inline configuration commands
+			config.Topology.Nodes[name].Exec = append(config.Topology.Nodes[name].Exec, node.Files.GetEmbeddedConfig().Content...)
+		}
 	}
 
 	for _, conn := range nm.Connections {
@@ -144,63 +157,11 @@ func getClabConfigBase(cfg *model.Config, nm *model.NetworkModel) (*Config, erro
 		config.Topology.Links = append(config.Topology.Links, link)
 	}
 
-	return config, nil
-}
-
-func GetClabTopology(cfg *model.Config, nm *model.NetworkModel,
-	cfgmap map[string]string, dirname string) ([]byte, error) {
-
-	config, err := getClabConfigBase(cfg, nm)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, node := range nm.Nodes {
-		name := node.Name
-
-		// configuration script settings
-		cfgname, ok := cfgmap[node.Name]
-		if !ok {
-			return nil, fmt.Errorf("configuration file name not found for node %s", node.Name)
-		}
-		cfgpath := filepath.Join(dirname, cfgname)
-		targetpath := filepath.Join(SCRIPT_PATH, cfgname)
-		bindstr := cfgpath + ":" + targetpath
-		execstr := SCRIPT_SHELL + " " + targetpath
-
-		// mount script
-		config.Topology.Nodes[name].Binds = append(config.Topology.Nodes[name].Binds, bindstr)
-		// add script execution command
-		config.Topology.Nodes[name].Exec = append(config.Topology.Nodes[name].Exec, execstr)
-	}
-
 	bytes, err := yaml.Marshal(config)
 	if err != nil {
 		return nil, err
 	}
 	return bytes, nil
-
-}
-
-func GetClabTopologyConfig(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) {
-
-	config, err := getClabConfigBase(cfg, nm)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, node := range nm.Nodes {
-		// add inline configuration commands
-		name := node.Name
-		config.Topology.Nodes[name].Exec = append(config.Topology.Nodes[name].Exec, node.Commands...)
-	}
-
-	bytes, err := yaml.Marshal(config)
-	if err != nil {
-		return nil, err
-	}
-	return bytes, nil
-
 }
 
 func getClabNode(cfg *model.Config, n *model.Node) (*NodeDefinition, error) {
@@ -229,14 +190,4 @@ func getClabLink(cfg *model.Config, conn *model.Connection) *LinkConfig {
 		Endpoints: []string{src, dst},
 	}
 	return &link
-}
-
-func GetScripts(cfg *model.Config, nm *model.NetworkModel) map[string][]string {
-
-	buffers := map[string][]string{}
-
-	for _, n := range nm.Nodes {
-		buffers[n.Name] = n.Commands
-	}
-	return buffers
 }

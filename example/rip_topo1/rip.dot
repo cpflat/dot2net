@@ -1,0 +1,20 @@
+digraph  {
+	r1[class="router"];
+	r2[class="router"];
+	r3[class="router"];
+	sw1[class="switch"];
+	sw2[class="switch"];
+	sw3[class="switch"];
+	sw4[class="switch"];
+	sw5[class="switch"];
+	sw6[class="switch"];
+
+	r1->sw1[dir="none"];
+	r1->sw2[dir="none", class="rip"];
+	r2->sw2[dir="none", class="rip"];
+	r2->sw3[dir="none", class="rip"];
+	r3->sw3[dir="none", class="rip"];
+	r3->sw4[dir="none", class="to_stub; stubnet=192.168.2.0/24"];
+	r1->sw5[dir="none"];
+	r1->sw6[dir="none"];
+}

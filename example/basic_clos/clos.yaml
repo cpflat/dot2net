@@ -18,11 +18,11 @@ nodeclass:
       kind: linux
       image: slankdev/frr
     config:
-      - target: local
-        template: 
+      - template: 
           - /usr/lib/frr/frr start
-      - target: frr
+      - style: frr-vtysh
         template:
+          - ip forwarding
           - int lo
           - ip addr {{ .ip_loopback }}/32
           - router bgp {{ .as }}
@@ -37,14 +37,14 @@ connectionclass:
     primary: true
     config:
       - node: router
-        target: frr
+        style: frr-vtysh
         template: 
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/30
           - router bgp {{ .node_as }}
           - neighbor {{ .opp_ip_addr }} remote-as {{ .opp_node_as }}
       - node: server
-        target: frr
+        style: frr-vtysh
         template:
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/30

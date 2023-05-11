@@ -1,0 +1,109 @@
+name: ospf-topo1
+
+file:
+  - name: zebra.conf
+    path: /etc/frr/zebra.conf
+  - name: ospfd.conf
+    path: /etc/frr/ospfd.conf
+  - name: ospf6d.conf
+    path: /etc/frr/ospf6d.conf
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+  - name: frr.log
+    path: /var/log/frr.log
+
+ipspace:
+  - name: ip
+    range: 10.0.0.0/16
+    prefix: 24
+    loopback_range: 10.0.255.0/24
+    default_connect: true
+  - name: ipv6
+    range: 2001:db8::/32
+    prefix: 64
+    default_connect: true
+
+nodeclass:
+  - name: switch
+    primary: true
+    tinet:
+      image: nicolaka/netshoot
+    clab:
+      kind: linux
+      image: nicolaka/netshoot
+    config:
+      - template:
+          - ip link add br0 type bridge
+          - ip link set br0 up
+  - name: router
+    primary: true
+    ipaware: [ip, ipv6]
+    tinet:
+      image: quay.io/frrouting/frr:8.5.0
+    clab:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+    config:
+      - template:
+          - chown frr:frr /var/log/frr.log 
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - file: frr.log
+        sourcefile: ./frr.log
+      - file: zebra.conf
+        template:
+          - "log file /var/log/frr.log informational"
+          - "ip forwarding"
+          - "ipv6 forwarding"
+      - file: ospfd.conf
+        template:
+          - "router ospf"
+          - " ospf router-id {{ .ip_loopback }}"
+          - " redistribute kernel"
+          - " redistribute connected"
+          - " redistribute static"
+          - "!"
+      - file: ospf6d.conf
+        template:
+          - "router ospf6"
+          - " ospf6 router-id {{ .ip_loopback }}"
+          - " redistribute kernel"
+          - " redistribute connected"
+          - " redistribute static"
+          - "!"
+
+connectionclass:
+  - name: default
+    primary: true
+    config:
+      - node: switch
+        template:
+          - ip link set dev {{ .name }} promisc on
+          - ip link set dev {{ .name }} master br0
+      - node: router
+        file: zebra.conf
+        template: 
+          - "interface {{ .name }}"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - " ipv6 address {{ .ipv6_addr}}/{{ .ipv6_plen }}"
+          - "!"
+      - node: router
+        file: ospfd.conf
+        template:
+          - "router ospf"
+          - " network {{ .ip_net }} area {{ .opp_group_area }}"
+          - "!"
+      - node: router
+        file: ospf6d.conf
+        priority: -1
+        template:
+          - "interface {{ .name }}"
+          - " ipv6 ospf6 area {{ .opp_group_area6 }}"
+          - "!"
+
+groupclass:
+  - name: area

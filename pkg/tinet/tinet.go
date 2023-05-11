@@ -4,17 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/goccy/go-yaml"
 
 	"github.com/cpflat/dot2tinet/pkg/model"
-)
-
-const (
-	SCRIPT_PATH      = "/tinet"
-	SCRIPT_EXTENSION = ".sh"
-	SCRIPT_SHELL     = "sh"
 )
 
 // Tn specification definition based on github.com/tinynetwork/tinet v0.0.2
@@ -95,7 +88,7 @@ type Template struct {
 // Switch
 type Switch struct {
 	Name       string      `yaml:"name"`
-	Interfaces []Interface `yaml:"interfaces,omitempty" mapstructure:"interfaces,omitempty"`
+	Interfaces []Interface `yaml:"interfaces,flow,omitempty" mapstructure:"interfaces,flow,omitempty"`
 }
 
 // NodeConfig
@@ -115,25 +108,27 @@ type Test struct {
 	Cmds []Cmd `yaml:"cmds" mapstructure:"cmds"`
 }
 
-func GetScriptPaths(cfg *model.Config, nm *model.NetworkModel) map[string]string {
-	cfgmap := map[string]string{}
-	for _, n := range nm.Nodes {
-		filename := n.Name + SCRIPT_EXTENSION
-		cfgmap[n.Name] = filename
-	}
-	return cfgmap
-}
-
-func getTinetSpecificationBase(cfg *model.Config, nm *model.NetworkModel) (*Tn, error) {
+func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) {
 	tn := Tn{}
 
 	for _, n := range nm.Nodes {
+		// skip virtual nodes
+		if n.Virtual {
+			continue
+		}
+
 		node, err := getTinetNode(cfg, n)
 		if err != nil {
 			return nil, err
 		}
 		ifaces := []Interface{}
 		for _, i := range n.Interfaces {
+
+			// skip virtual interface
+			if i.Virtual {
+				continue
+			}
+
 			iface, err := getTinetInterface(cfg, i)
 			if err != nil {
 				return nil, err
@@ -142,6 +137,20 @@ func getTinetSpecificationBase(cfg *model.Config, nm *model.NetworkModel) (*Tn, 
 				iface.Type = "direct"
 			}
 			ifaces = append(ifaces, iface)
+		}
+
+		// add mount points for file outputs
+		for _, filename := range n.Files.FileNames() {
+			file := n.Files.GetFile(filename)
+			dirpath, err := filepath.Abs(n.Name) // requires absolute path
+			if err != nil {
+				return nil, fmt.Errorf("directory path panic")
+			}
+			//dirpath = strings.TrimRight(dirpath, "/")
+			cfgpath := filepath.Join(dirpath, file.FileDefinition.Name)
+			targetpath := file.FileDefinition.Path
+			bindstr := cfgpath + ":" + targetpath
+			node.Mounts = append(node.Mounts, bindstr)
 		}
 
 		if node.Type == "switch" {
@@ -153,75 +162,22 @@ func getTinetSpecificationBase(cfg *model.Config, nm *model.NetworkModel) (*Tn, 
 			node.Interfaces = ifaces
 			tn.Nodes = append(tn.Nodes, node)
 		}
-	}
 
-	return &tn, nil
-}
+		embed := n.Files.GetEmbeddedConfig()
 
-func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel,
-	cfgmap map[string]string, dirname string) ([]byte, error) {
+		if embed != nil {
+			// check switch node configuration is empty
+			if node.Type == "switch" {
+				return nil, fmt.Errorf("commands are specified for switch-type node %s", node.Name)
+			}
 
-	tn, err := getTinetSpecificationBase(cfg, nm)
-	if err != nil {
-		return nil, err
-	}
-
-	// add configuration commands to Tn.NodeConfigs
-	cfgdir := strings.TrimRight(dirname, "/")
-	for i, node := range tn.Nodes {
-		n, exists := nm.NodeByName(node.Name)
-		if !exists {
-			return nil, fmt.Errorf("node %s not found", node.Name)
+			// add configuration commands to Tn.NodeConfigs
+			ncfg := NodeConfig{Name: node.Name, Cmds: []Cmd{}}
+			for _, line := range embed.Content {
+				ncfg.Cmds = append(ncfg.Cmds, Cmd{Cmd: line})
+			}
+			tn.NodeConfigs = append(tn.NodeConfigs, ncfg)
 		}
-
-		cfgname, ok := cfgmap[n.Name]
-		if !ok {
-			return nil, fmt.Errorf("configuration file name not found for node %s", node.Name)
-		}
-		cfgpath := filepath.Join(cfgdir, cfgname)
-		targetpath := filepath.Join(SCRIPT_PATH, cfgname)
-		bindstr := cfgpath + ":" + targetpath
-		execstr := SCRIPT_SHELL + " " + targetpath
-
-		// mount script
-		tn.Nodes[i].Mounts = append(tn.Nodes[i].Mounts, bindstr)
-		// add script execution command
-		ncfg := NodeConfig{Name: node.Name, Cmds: []Cmd{}}
-		ncfg.Cmds = append(ncfg.Cmds, Cmd{Cmd: execstr})
-		tn.NodeConfigs = append(tn.NodeConfigs, ncfg)
-	}
-
-	bytes, err := yaml.Marshal(tn)
-	if err != nil {
-		return nil, err
-	}
-
-	return bytes, nil
-}
-
-func GetTinetSpecificationConfig(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) {
-	tn, err := getTinetSpecificationBase(cfg, nm)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, node := range tn.Nodes {
-		n, exists := nm.NodeByName(node.Name)
-		if !exists {
-			return nil, fmt.Errorf("node %s not found", node.Name)
-		}
-
-		// check switch node configuration is empty
-		if node.Type == "switch" && len(n.Commands) > 0 {
-			return nil, fmt.Errorf("commands specified for switch node %s", node.Name)
-		}
-
-		// add configuration commands to Tn.NodeConfigs
-		ncfg := NodeConfig{Name: node.Name, Cmds: []Cmd{}}
-		for _, line := range n.Commands {
-			ncfg.Cmds = append(ncfg.Cmds, Cmd{Cmd: line})
-		}
-		tn.NodeConfigs = append(tn.NodeConfigs, ncfg)
 	}
 
 	bytes, err := yaml.Marshal(tn)

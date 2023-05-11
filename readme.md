@@ -20,6 +20,7 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
 
     docker run --rm -i -t -v $PWD:/v -w /v golang:1.18 go build
 
+    // mv dot2tinet /usr/bin/dot2tinet  (if required)
 
 ## Deploy a network with TiNET
 
@@ -27,11 +28,11 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
     dot2tinet tinet -c ./example/basic_bgp/bgp.yaml ./example/basic_bgp/bgp.dot > spec.yaml
     
     // Deploy
-    tinet up -c spec.yaml
-    tinet conf -c spec.yaml
+    tinet up -c spec.yaml | sudo sh -x
+    tinet conf -c spec.yaml | sudo sh -x
 
     // Destroy
-    tinet down -c spec.yaml
+    tinet down -c spec.yaml | sudo sh -x
 
 ## Deploy a network with Containerlab
 
@@ -236,7 +237,7 @@ For example, {{ .target_name }} is replaced with "n3" on n4, and "n2" on n5.
 
 If the configuration have expected order coming from its dependency,
 you can set priority values for config templates.
-If priority value is larger, the config blocks will be on the head of merged configuration.
+If priority value is smaller, the config blocks will be on the head of merged configuration.
 The default value of priority is 0,
-which means you can also set negative values to place configs on the tail.
+which means you can set positive values to place configs on the tail and negative values to place them on the head.
 

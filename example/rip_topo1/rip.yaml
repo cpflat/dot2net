@@ -1,0 +1,127 @@
+name: rip-topo1
+
+file:
+  - name: zebra.conf
+    path: /etc/frr/zebra.conf
+  - name: ripd.conf
+    path: /etc/frr/ripd.conf
+  - name: staticd.conf
+    path: /etc/frr/staticd.conf
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+  - name: frr.log
+    path: /var/log/frr.log
+
+ipspace:
+  - name: ip
+    range: 10.0.0.0/16
+    prefix: 24
+    loopback_range: 10.0.255.0/24
+    default_connect: true
+
+nodeclass:
+  - name: switch
+    primary: true
+    tinet:
+      image: nicolaka/netshoot
+    clab:
+      kind: linux
+      image: nicolaka/netshoot
+    config:
+      - template:
+          - ip link add br0 type bridge
+          - ip link set br0 up
+  - name: router
+    primary: true
+    ipaware: [ip]
+    tinet:
+      image: quay.io/frrouting/frr:8.5.0
+    clab:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+    config:
+      - template:
+          - chown frr:frr /var/log/frr.log 
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - file: frr.log
+        sourcefile: ./frr.log
+      - file: zebra.conf
+        priority: -1
+        template:
+          - "log file /var/log/frr.log"
+          - "ip forwarding"
+          - "ipv6 forwarding"
+          - "!"
+      - file: zebra.conf
+        priority: 1
+        template:
+          - "line vty"
+          - "!"
+      - file: ripd.conf
+        template:
+          - "router rip"
+          - " version 2"
+          - " timers basic 5 180 5"
+          - " redistribute connected"
+          - " redistribute static"
+          - "!"
+      - file: ripd.conf
+        priority: 1
+        template:
+          - "line vty"
+          - "!"
+
+connectionclass:
+  - name: all
+    config:
+      - node: switch
+        template:
+          - ip link set dev {{ .name }} promisc on
+          - ip link set dev {{ .name }} master br0
+  - name: default
+    config:
+      - node: router
+        file: zebra.conf
+        template:
+          - "interface {{ .name }}"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - "!"
+  - name: rip
+    config:
+      - node: router
+        file: ripd.conf
+        template:
+          - "router rip"
+          - " network {{ .ip_net }}"
+          - "!"
+      - node: router
+        file: zebra.conf
+        priority: -1
+        template:
+          - "interface {{ .name }}"
+          - " description to {{ .opp_node_name }} - RIPv2 interface"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - " no link-detect"
+          - "!"
+  - name: to_stub
+    ipaware: [ip] # assign IP addr to switch (as stub gateway)
+    config:
+      - node: router
+        file: zebra.conf
+        template:
+          - "interface {{ .name }}"
+          - " description to {{ .opp_node_name }} - Stub interface"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - " no link-detect"
+          - "!"
+      - node: router
+        file: staticd.conf
+        template:
+          - "ip route {{ .stubnet }} {{ .opp_ip_addr }}"
+          - "!"
+

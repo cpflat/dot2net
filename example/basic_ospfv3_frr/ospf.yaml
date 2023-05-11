@@ -1,5 +1,13 @@
+name: ospf
+
 global:
   path: local
+
+file:
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
 
 ipspace:
   - name: ip
@@ -12,43 +20,59 @@ ipspace:
 nodeclass:
   - name: all
     config:
-      - target: local
-        template:
-          - bash -c "enable_seg6_router.py | sh"
+      - template:
+          - sysctl -w net.ipv6.conf.all.forwarding=1
+          - sysctl -w net.ipv6.conf.all.disable_ipv6=0
+          - sysctl -w net.ipv6.conf.all.seg6_enabled=1
+          - sysctl -w net.ipv4.conf.all.rp_filter=0
+          - sysctl -w net.ipv6.conf.default.forwarding=1
+          - sysctl -w net.ipv6.conf.default.disable_ipv6=0
+          - sysctl -w net.ipv6.conf.default.seg6_enabled=1
+          - sysctl -w net.ipv4.conf.default.rp_filter=0
   - name: router
     primary: true
     tinet:
-      image: slankdev/frr
+      image: quay.io/frrouting/frr:8.5.0
     clab:
       kind: linux
-      image: slankdev/frr
+      image: quay.io/frrouting/frr:8.5.0
     config:
-      - target: frr
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - style: frr-vtysh
+        priority: 1
         template: 
-          - router ospf
+          - router ospf6
           - ospf6 router-id {{ .ip_loopback }}
   - name: server
     primary: true
     tinet:
-      image: slankdev/ubuntu:18.04
+      image: nicolaka/netshoot
     clab:
       kind: linux
-      image: slankdev/ubuntu:18.04
+      image: nicolaka/netshoot
 
 connectionclass:
   - name: default
     primary: true
     config:
-      - target: local
-        template:
+      - template:
+          - sysctl -w net.ipv6.conf.{{ .name }}.disable_ipv6=0
+          - sysctl -w net.ipv6.conf.{{ .name }}.seg6_enabled=1
+          - sysctl -w net.ipv4.conf.{{ .name }}.rp_filter=0
+      - template:
           - ip -6 addr add {{ .ip_addr }}/{{ .ip_plen}} dev {{ .name }}
       - node: router
-        target: frr
+        style: frr-vtysh
+        priority: 1
         template: 
-          - router ospf
-          - interface {{ .name }} area 0.0.0.0
+          - interface {{ .name }}
+          - ipv6 ospf6 area 0.0.0.0
+            #- router ospf6
+            #- interface {{ .name }} area 0.0.0.0
       - node: server
-        target: local
         template:
           - ip -6 route replace default via {{ .opp_ip_addr }}
 

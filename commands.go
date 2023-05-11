@@ -51,12 +51,6 @@ var commandTinet = &cli.Command{
 			Usage:   "Specify name of output specification file.",
 			Value:   "",
 		},
-		&cli.StringFlag{
-			Name:    "dir",
-			Aliases: []string{"d"},
-			Usage:   "Specify name of directory for per-device configuration. If not given, configuration is described inline",
-			Value:   "",
-		},
 		&cli.BoolFlag{
 			Name:    "verbose",
 			Aliases: []string{"v"},
@@ -80,12 +74,6 @@ var commandClab = &cli.Command{
 			Name:    "output",
 			Aliases: []string{"o"},
 			Usage:   "Specify name of output topology file.",
-			Value:   "",
-		},
-		&cli.StringFlag{
-			Name:    "dir",
-			Aliases: []string{"d"},
-			Usage:   "Specify name of directory for per-device configuration. If not given, configuration is described inline",
 			Value:   "",
 		},
 		&cli.BoolFlag{
