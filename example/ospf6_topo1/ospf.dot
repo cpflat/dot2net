@@ -1,0 +1,31 @@
+digraph  {
+
+	subgraph cluster1 {
+		label="area=0.0.0.0";
+		r1[class="router"];
+		r2[class="router"];
+		r3[class="router"];
+		sw1[class="switch"];
+		sw2[class="switch"];
+		sw3[class="switch"];
+		sw5[class="switch"];
+	}
+
+	subgraph cluster2 {
+		label="area=0.0.0.1";
+		r4[class="router"];
+		sw4[class="switch"];
+		sw6[class="switch"];
+	}
+
+	r1->sw5[dir="none"];
+	r2->sw5[dir="none"];
+	r3->sw5[dir="none"];
+	r3->sw6[dir="none"];
+	r4->sw6[dir="none"];
+
+	r1->sw1[dir="none", class="to_stub; stubnet=fc00:1111:1111:1111::/64"];
+	r2->sw2[dir="none", class="to_stub; stubnet=fc00:2222:2222:2222::/64"];
+	r3->sw3[dir="none", class="to_stub; stubnet=fc00:3333:3333:3333::/64"];
+	r4->sw4[dir="none", class="to_stub; stubnet=fc00:4444:4444:4444::/64"];
+}

@@ -1,0 +1,118 @@
+name: ospf-topo1
+
+file:
+  - name: zebra.conf
+    path: /etc/frr/zebra.conf
+  - name: staticd.conf
+    path: /etc/frr/staticd.conf
+  - name: ospf6d.conf
+    path: /etc/frr/ospf6d.conf
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+  - name: frr.log
+    path: /var/log/frr.log
+
+ipspace:
+  - name: ip
+    range: fc00::/32
+    prefix: 64
+    loopback_range: 10.0.0.0/24
+    default_connect: true
+
+nodeclass:
+  - name: switch
+    primary: true
+    tinet:
+      image: nicolaka/netshoot
+    clab:
+      kind: linux
+      image: nicolaka/netshoot
+    config:
+      - template:
+          - ip link add br0 type bridge
+          - ip link set br0 up
+  - name: router
+    primary: true
+    ipaware: [ip]
+    tinet:
+      image: quay.io/frrouting/frr:8.5.0
+    clab:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+    config:
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - file: frr.log
+        sourcefile: ./frr.log
+      - template:
+          - chown frr:frr /var/log/frr.log 
+      - file: zebra.conf
+        priority: -1
+        template:
+          - "log file /var/log/frr.log"
+          - "!"
+      - file: zebra.conf
+        priority: 1
+        template:
+          - "interface lo"
+          - "ipv6 forwarding"
+          - "!"
+      - file: ospf6d.conf
+        priority: -1
+        template:
+          - "log file /var/log/frr.log"
+          - "!"
+      - file: ospf6d.conf
+        template:
+          - "router ospf6"
+          - " ospf6 router-id {{ .ip_loopback }}"
+          - " log-adjacency-changes detail"
+          - " redistribute static"
+          - "!"
+          - "line vty"
+          - " exec-timeout 0 0"
+          - "!"
+  - name: stub
+    primary: true
+    virtual: true
+    ipaware: [ip]
+
+connectionclass:
+  - name: all
+    primary: true
+    config:
+      - node: switch
+        template:
+          - ip link set dev {{ .name }} promisc on
+          - ip link set dev {{ .name }} master br0
+      - node: router
+        file: zebra.conf
+        template: 
+          - "interface {{ .name }}"
+          - " ipv6 address {{ .ip_addr}}/{{ .ip_plen }}"
+          - "!"
+      - node: router
+        file: ospf6d.conf
+        priority: -1
+        template:
+          - "interface {{ .name }}"
+          - " ipv6 ospf6 area {{ .opp_group_area }}"
+          - " ipv6 ospf6 network broadcast"
+          - " ipv6 ospf6 hello-interval 2"
+          - " ipv6 ospf6 dead-interval 10"
+          - "!"
+  - name: to_stub  # corresponding to switch-stub L2 connection
+    ipaware: [ip]  # assign ip addr also for switch, used only as stub gw addr
+    config:
+      - node: router
+        file: staticd.conf
+        template:
+          - "ipv6 route {{ .stubnet }} {{ .opp_ip_addr }}"
+          - "!"
+
+groupclass:
+  - name: area
