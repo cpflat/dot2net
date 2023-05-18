@@ -40,6 +40,10 @@ func (seg *netSegment) String() string {
 	return buf
 }
 
+func (seg *netSegment) Interfaces() []*Interface {
+	return append(seg.uifaces, seg.rifaces...)
+}
+
 func (seg *netSegment) checkConnection(conn *Connection, ipspace *IPSpaceDefinition) error {
 	if val, ok := conn.GivenIPNetwork(ipspace); ok {
 		prefix, err := netip.ParsePrefix(val)
@@ -70,7 +74,7 @@ func (seg *netSegment) checkInterface(iface *Interface, ipspace *IPSpaceDefiniti
 		seg.raddrs = append(seg.raddrs, addr)
 		seg.bound = true
 		return true, nil // ip aware (manually specified)
-	} else if iface.ipAware.Contains(ipspace.Name) {
+	} else if iface.IsAware(ipspace.Name) {
 		seg.uifaces = append(seg.uifaces, iface)
 		seg.count++
 		return true, nil // ip aware (unspecified)
@@ -118,6 +122,19 @@ func (segs *netSegments) String() string {
 	}
 	buf += strings.Join(tmp, "\n")
 	return buf
+}
+
+func (segs *netSegments) setNeighbors(ipspace *IPSpaceDefinition) {
+	for _, seg := range segs.segments {
+		for _, iface := range seg.Interfaces() {
+			iface.Neighbors[ipspace.Name] = []*Neighbor{}
+			for _, n := range seg.Interfaces() {
+				if iface != n {
+					iface.addNeighbor(n, ipspace.Name)
+				}
+			}
+		}
+	}
 }
 
 func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) (*netSegments, error) {
@@ -442,7 +459,7 @@ func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinitio
 				return nil, 0, fmt.Errorf("invalid given iploopback (%v)", val)
 			}
 			pool.reserveAddr(addr)
-		} else if node.ipAware.Contains(ipspace.Name) {
+		} else if node.IsAware(ipspace.Name) {
 			// ip aware -> add the node to list
 			// count as node with unspecified loopback
 			allLoopbacks = append(allLoopbacks, node)
@@ -505,7 +522,7 @@ func searchManagementInterfaces(nm *NetworkModel, pool *ipPool, ipspace *IPSpace
 					return nil, 0, fmt.Errorf("invalid given ipaddress (%v)", val)
 				}
 				pool.reserveAddr(addr)
-			} else if iface.ipAware.Contains(ipspace.Name) {
+			} else if iface.IsAware(ipspace.Name) {
 				allInterfaces = append(allInterfaces, iface)
 				cnt++
 			}
@@ -616,6 +633,7 @@ func assignIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition
 		}
 	}
 
+	segs.setNeighbors(ipspace)
 	if len(prefixes) > 0 {
 		return fmt.Errorf("address reservation panic: %d prefixes unassigned", len(prefixes))
 	}

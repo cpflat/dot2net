@@ -75,6 +75,9 @@ nodeclass:
         template:
           - "line vty"
           - "!"
+  - name: vrouter
+    virtual: true
+    ipaware: [ip]
 
 connectionclass:
   - name: all
@@ -109,7 +112,6 @@ connectionclass:
           - " no link-detect"
           - "!"
   - name: to_stub
-    ipaware: [ip] # assign IP addr to switch (as stub gateway)
     config:
       - node: router
         file: zebra.conf
@@ -119,9 +121,14 @@ connectionclass:
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
           - " no link-detect"
           - "!"
-      - node: router
-        file: staticd.conf
-        template:
-          - "ip route {{ .stubnet }} {{ .opp_ip_addr }}"
-          - "!"
+    neighbors:
+      - ipspace: ip
+        config:
+          - node: router
+            file: staticd.conf
+            template:
+              - "ip route {{ .n_node_stubnet }} {{ .n_ip_addr }}"
+  - name: vlink
+    virtual: true
+
 

@@ -7,6 +7,7 @@ var commands = []*cli.Command{
 	commandTinet,
 	commandClab,
 	commandNumber,
+	commandVisual,
 }
 
 var commandCommand = &cli.Command{
@@ -99,6 +100,31 @@ var commandNumber = &cli.Command{
 			Name:    "all",
 			Aliases: []string{"a"},
 			Usage:   "Show all numbers including relative ones.",
+		},
+		&cli.BoolFlag{
+			Name:    "verbose",
+			Aliases: []string{"v"},
+			Usage:   "Verbose",
+		},
+	},
+}
+
+var commandVisual = &cli.Command{
+	Name:   "visual",
+	Usage:  "Visualize IP address assignment in DOT file",
+	Action: CmdVisual,
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "config",
+			Aliases: []string{"c"},
+			Usage:   "Specify the Config file.",
+			Value:   "config.yaml",
+		},
+		&cli.StringFlag{
+			Name:    "layer",
+			Aliases: []string{"l"},
+			Usage:   "Specify layer name to visualize. If not given, all information will be visualized.",
+			Value:   "",
 		},
 		&cli.BoolFlag{
 			Name:    "verbose",

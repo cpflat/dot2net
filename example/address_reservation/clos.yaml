@@ -51,7 +51,7 @@ connectionclass:
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/{{ .ip_plen }}
           - router bgp {{ .node_as }}
-          - neighbor {{ .opp_ip_addr }} remote-as {{ .oppnode_as }}
+          - neighbor {{ .opp_ip_addr }} remote-as {{ .opp_node_as }}
       - node: server
         target: frr
         template:

@@ -113,9 +113,9 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 		// mgmt interface settings
 		mgmtif := node.GetManagementInterface()
 		if mgmtspace != nil && mgmtif != nil {
-			val, ok := mgmtif.RelativeNumbers[mgmtspace.IPAddressReplacer()]
-			if !ok {
-				return nil, fmt.Errorf("clab mgmt address store panic")
+			val, err := mgmtif.GetValue(mgmtspace.IPAddressReplacer())
+			if err != nil {
+				return nil, err
 			}
 			addr, err := netip.ParseAddr(val)
 			if err != nil {
@@ -152,6 +152,11 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 	}
 
 	for _, conn := range nm.Connections {
+		// skip virtual links
+		if conn.Src.Virtual || conn.Dst.Virtual {
+			continue
+		}
+
 		// link settings
 		link := getClabLink(cfg, conn)
 		config.Topology.Links = append(config.Topology.Links, link)

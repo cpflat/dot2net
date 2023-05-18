@@ -10,6 +10,7 @@ import (
 	"github.com/cpflat/dot2tinet/pkg/clab"
 	"github.com/cpflat/dot2tinet/pkg/model"
 	"github.com/cpflat/dot2tinet/pkg/tinet"
+	"github.com/cpflat/dot2tinet/pkg/visual"
 	"github.com/urfave/cli/v2"
 )
 
@@ -124,8 +125,10 @@ func CmdTinet(c *cli.Context) error {
 	}
 
 	for _, n := range nm.Nodes {
-		buffers := generateBuffers(n)
-		outputFiles(buffers, n.Name)
+		if !n.Virtual {
+			buffers := generateBuffers(n)
+			outputFiles(buffers, n.Name)
+		}
 	}
 
 	spec, err := tinet.GetTinetSpecification(cfg, nm)
@@ -148,8 +151,10 @@ func CmdClab(c *cli.Context) error {
 	}
 
 	for _, n := range nm.Nodes {
-		buffers := generateBuffers(n)
-		outputFiles(buffers, n.Name)
+		if !n.Virtual {
+			buffers := generateBuffers(n)
+			outputFiles(buffers, n.Name)
+		}
 	}
 
 	topo, err := clab.GetClabTopology(cfg, nm)
@@ -174,12 +179,13 @@ func CmdNumber(c *cli.Context) error {
 
 	var nodeNumbers map[string]string
 	var ifaceNumbers map[string]string
+	var nNumbers map[string]string
 	lines := []string{}
 	for _, node := range nm.Nodes {
 		if flagall {
-			nodeNumbers = node.RelativeNumbers
+			nodeNumbers = node.GetRelativeNumbers()
 		} else {
-			nodeNumbers = node.Numbers
+			nodeNumbers = node.GetNumbers()
 		}
 
 		keys := []string{}
@@ -194,9 +200,9 @@ func CmdNumber(c *cli.Context) error {
 
 		for _, iface := range node.Interfaces {
 			if flagall {
-				ifaceNumbers = iface.RelativeNumbers
+				ifaceNumbers = iface.GetRelativeNumbers()
 			} else {
-				ifaceNumbers = iface.Numbers
+				ifaceNumbers = iface.GetNumbers()
 			}
 
 			keys := []string{}
@@ -208,16 +214,39 @@ func CmdNumber(c *cli.Context) error {
 				val := ifaceNumbers[num]
 				lines = append(lines, fmt.Sprintf("%+v.%+v {{ .%+v }} = %+v", node.Name, iface.Name, num, val))
 			}
+
+			if flagall {
+				for layer, neighbors := range iface.Neighbors {
+					for _, n := range neighbors {
+						nNumbers = n.GetRelativeNumbers()
+						keys := []string{}
+						for num := range nNumbers {
+							keys = append(keys, num)
+						}
+						sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+						for _, num := range keys {
+							val := nNumbers[num]
+							lines = append(lines, fmt.Sprintf(
+								"%+v.%+v (%+v-neighbor %+v.%+v) {{ .%+v }} = %+v",
+								node.Name, iface.Name, layer, n.Neighbor.Node.Name, n.Neighbor.Name, num, val,
+							))
+						}
+					}
+				}
+			}
 		}
 
 		for _, group := range node.Groups {
 			keys := []string{}
-			for num := range group.Numbers {
+			for num := range group.GetNumbers() {
 				keys = append(keys, num)
 			}
 			sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 			for _, num := range keys {
-				val := group.Numbers[num]
+				val, err := group.GetValue(num)
+				if err != nil {
+					return err
+				}
 				lines = append(lines, fmt.Sprintf("%+v.%+v {{ .%+v }} = %+v", node.Name, group.Name, num, val))
 			}
 		}
@@ -225,6 +254,27 @@ func CmdNumber(c *cli.Context) error {
 	}
 
 	buf := strings.Join(lines, "\n")
+	err = outputString(name, []byte(buf))
+	return err
+}
+
+func CmdVisual(c *cli.Context) error {
+	nd, cfg, err := loadContext(c)
+	if err != nil {
+		return err
+	}
+	name := c.String("output")
+	layer := c.String("layer")
+
+	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputAsis)
+	if err != nil {
+		return err
+	}
+
+	buf, err := visual.GraphToDot(cfg, nm, layer)
+	if err != nil {
+		return err
+	}
 	err = outputString(name, []byte(buf))
 	return err
 }

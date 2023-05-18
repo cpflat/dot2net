@@ -92,30 +92,6 @@ type configBlock struct {
 	style    string
 }
 
-func loadTemplate(tpl []string, path string) (*template.Template, error) {
-	if len(tpl) == 0 && path == "" {
-		fmt.Printf("%+v\n", tpl)
-		return nil, fmt.Errorf("empty config template")
-	} else if len(tpl) == 0 {
-		bytes, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		buf := convertLineFeed(string(bytes), "\n")
-		return template.New("").Parse(buf)
-	} else if path == "" {
-		buf := strings.Join(tpl, "\n")
-		return template.New("").Parse(buf)
-	} else {
-		bytes, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		buf := strings.Join(tpl, "\n") + "\n" + convertLineFeed(string(bytes), "\n")
-		return template.New("").Parse(buf)
-	}
-}
-
 func getConfig(tpl *template.Template, numbers map[string]string) (string, error) {
 	writer := new(strings.Builder)
 	err := tpl.Execute(writer, numbers)
@@ -125,87 +101,125 @@ func getConfig(tpl *template.Template, numbers map[string]string) (string, error
 	return writer.String(), nil
 }
 
-func generateConfig(cfg *Config, nm *NetworkModel, outputPlatform string) error {
+func generateConfigBlock(cfg *Config, ct *ConfigTemplate, files *ConfigFiles, ns NameSpacer, outputPlatform string) error {
+	// skip if platform does not match
+	if !ct.platformSet.Contains(outputPlatform) {
+		return nil
+	}
+
+	// skip if noode class does not match
+	switch o := ns.(type) {
+	case *Node:
+		// pass
+	case *Interface:
+		if !(ct.NodeClass == "" || o.Node.HasClass(ct.NodeClass)) {
+			return nil
+		}
+	case *Neighbor:
+		if !(ct.NodeClass == "" || o.Self.Node.HasClass(ct.NodeClass)) {
+			return nil
+		}
+	default:
+		return fmt.Errorf("unexpected type of NameSpacer: %T", o)
+	}
+
+	block, err := files.newConfigBlock(cfg, ct)
+	if err != nil {
+		return err
+	}
+
+	conf, err := getConfig(ct.parsedTemplate, ns.GetRelativeNumbers())
+	if err != nil {
+		return err
+	}
+	block.config = conf
+	return nil
+}
+
+func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) error {
 	for _, node := range nm.Nodes {
+		if node.Virtual {
+			continue
+		}
 		files := &ConfigFiles{mapper: map[string]*ConfigFile{}}
 
-		for _, cls := range node.Labels.ClassLabels {
+		for _, cls := range node.classLabels {
 			nc, ok := cfg.nodeClassMap[cls]
 			if !ok {
 				return fmt.Errorf("undefined NodeClass name %v", cls)
 			}
-			for _, nct := range nc.ConfigTemplates {
-				if !nct.platformSet.Contains(outputPlatform) {
-					continue
-				}
-				block, err := files.newConfigBlock(cfg, &nct)
+			for _, ct := range nc.ConfigTemplates {
+				err := generateConfigBlock(cfg, &ct, files, node, outputPlatform)
 				if err != nil {
 					return err
 				}
-
-				conf, err := getConfig(nct.parsedTemplate, node.RelativeNumbers)
-				if err != nil {
-					return err
-				}
-				block.config = conf
 			}
 		}
 
 		for _, iface := range node.Interfaces {
-			for _, cls := range iface.Labels.ClassLabels {
+			if iface.Virtual {
+				continue
+			}
+			for _, cls := range iface.classLabels {
 				ic, ok := cfg.interfaceClassMap[cls]
 				if !ok {
 					return fmt.Errorf("undefined InterfaceClass name %v", cls)
 				}
-				for _, ict := range ic.ConfigTemplates {
-					if !ict.platformSet.Contains(outputPlatform) {
-						continue
-					}
-					if !(ict.NodeClass == "" || node.HasClass(ict.NodeClass)) {
-						// interfaces of different node class -> ignore
-						continue
-					}
-
-					block, err := files.newConfigBlock(cfg, &ict)
+				for i := range ic.ConfigTemplates {
+					ct := &ic.ConfigTemplates[i]
+					err := generateConfigBlock(cfg, ct, files, iface, outputPlatform)
 					if err != nil {
 						return err
 					}
-
-					conf, err := getConfig(ict.parsedTemplate, iface.RelativeNumbers)
-					if err != nil {
-						return err
+				}
+				for _, nc := range ic.NeighborClasses {
+					for i := range nc.ConfigTemplates {
+						ct := &nc.ConfigTemplates[i]
+						neighbors, ok := iface.Neighbors[nc.IPSpace]
+						if !ok {
+							continue
+							//return fmt.Errorf("neighbors not generated for %s", nc.IPSpace)
+						}
+						for _, neighbor := range neighbors {
+							err := generateConfigBlock(cfg, ct, files, neighbor, outputPlatform)
+							if err != nil {
+								return err
+							}
+						}
 					}
-					block.config = conf
 				}
 			}
 
 			if iface.Connection == nil {
 				continue
 			}
-			for _, cls := range iface.Connection.Labels.ClassLabels {
+			for _, cls := range iface.Connection.classLabels {
 				cc, ok := cfg.connectionClassMap[cls]
 				if !ok {
 					return fmt.Errorf("undefined ConnectionClass name %v", cls)
 				}
-				for _, cct := range cc.ConfigTemplates {
-					if !cct.platformSet.Contains(outputPlatform) {
-						continue
-					}
-					if !(cct.NodeClass == "" || node.HasClass(cct.NodeClass)) {
-						// interfaces of different node class -> ignore
-						continue
-					}
-
-					block, err := files.newConfigBlock(cfg, &cct)
+				for i := range cc.ConfigTemplates {
+					ct := &cc.ConfigTemplates[i]
+					err := generateConfigBlock(cfg, ct, files, iface, outputPlatform)
 					if err != nil {
 						return err
 					}
-
-					conf, err := getConfig(cct.parsedTemplate, iface.RelativeNumbers)
-					if err != nil {
-						return err
+				}
+				for _, nc := range cc.NeighborClasses {
+					for i := range nc.ConfigTemplates {
+						ct := &nc.ConfigTemplates[i]
+						neighbors, ok := iface.Neighbors[nc.IPSpace]
+						if !ok {
+							continue
+							// return fmt.Errorf("neighbors not generated for %s", nc.IPSpace)
+						}
+						for _, neighbor := range neighbors {
+							err := generateConfigBlock(cfg, ct, files, neighbor, outputPlatform)
+							if err != nil {
+								return err
+							}
+						}
 					}
-					block.config = conf
 				}
 			}
 		}

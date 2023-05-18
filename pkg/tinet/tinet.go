@@ -210,7 +210,9 @@ func getTinetNode(cfg *model.Config, n *model.Node) (Node, error) {
 func getTinetInterface(cfg *model.Config, i *model.Interface) (Interface, error) {
 	iface := Interface{
 		Name: i.Name,
-		Args: i.Opposite.Node.Name + "#" + i.Opposite.Name,
+	}
+	if i.Opposite != nil {
+		iface.Args = i.Opposite.Node.Name + "#" + i.Opposite.Name
 	}
 
 	mapper := i.TinetAttr

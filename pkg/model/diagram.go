@@ -225,12 +225,12 @@ func getEdgeLabels(e *gographviz.Edge) (labels []string, srcLabels []string, dst
 			"headlabel",                         // visible on graphviz as edge arrowhead label
 			"headclass", "headinfo", "headconf": // meaningless attributes on dot
 			// -> save as interface label of src interface
-			srcLabels = append(srcLabels, ParseLabels(v)...)
+			dstLabels = append(dstLabels, ParseLabels(v)...)
 		case
 			"taillabel",                         // visible on graphviz as edge arrowhead label
 			"tailclass", "tailinfo", "tailconf": // meaningless attributes on dot
 			// -> save as interface label of dst interface
-			dstLabels = append(dstLabels, ParseLabels(v)...)
+			srcLabels = append(srcLabels, ParseLabels(v)...)
 		default:
 			// -> ignore
 		}

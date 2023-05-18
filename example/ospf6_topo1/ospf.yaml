@@ -76,8 +76,7 @@ nodeclass:
           - "line vty"
           - " exec-timeout 0 0"
           - "!"
-  - name: stub
-    primary: true
+  - name: vrouter
     virtual: true
     ipaware: [ip]
 
@@ -105,14 +104,17 @@ connectionclass:
           - " ipv6 ospf6 hello-interval 2"
           - " ipv6 ospf6 dead-interval 10"
           - "!"
-  - name: to_stub  # corresponding to switch-stub L2 connection
-    ipaware: [ip]  # assign ip addr also for switch, used only as stub gw addr
-    config:
-      - node: router
-        file: staticd.conf
-        template:
-          - "ipv6 route {{ .stubnet }} {{ .opp_ip_addr }}"
-          - "!"
+  - name: to_stub
+    neighbors:
+      - ipspace: ip
+        config:
+          - node: router
+            file: staticd.conf
+            template:
+              - "ipv6 route {{ .n_node_stubnet }} {{ .n_ip_addr }}"
+              - "!"
+  - name: vlink
+    virtual: true
 
 groupclass:
   - name: area

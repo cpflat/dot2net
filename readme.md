@@ -25,7 +25,7 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
 ## Deploy a network with TiNET
 
     // Generate tinet specification file
-    dot2tinet tinet -c ./example/basic_bgp/bgp.yaml ./example/basic_bgp/bgp.dot > spec.yaml
+    dot2tinet tinet -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > spec.yaml
     
     // Deploy
     tinet up -c spec.yaml | sudo sh -x
@@ -37,7 +37,7 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
 ## Deploy a network with Containerlab
 
     // Generate containerlab topology file
-    dot2tinet clab -c ./example/basic_bgp/bgp.yaml ./example/basic_bgp/bgp.dot > topo.yaml
+    dot2tinet clab -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > topo.yaml
     
     // Deploy
     containerlab deploy --topo topo.yaml
@@ -45,6 +45,12 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
     // Destroy
     containerlab destroy --topo topo.yaml
  
+ 
+## Show IPaddress assignment visualization
+
+    // Generate DOT file of address assignment, and generate PDF of the DOT
+    dot2tinet visual -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot | dot -Tpdf > addr.pdf
+
 
 # DOT files
 
