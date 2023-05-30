@@ -1,6 +1,9 @@
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 const NumberSeparator string = "_"
 const NumberPrefixNode string = "node" + NumberSeparator
@@ -8,6 +11,7 @@ const NumberPrefixGroup string = "group" + NumberSeparator
 const NumberPrefixOppositeHeader string = "opp" + NumberSeparator
 const NumberPrefixOppositeInterface string = "opp" + NumberSeparator
 const NumberPrefixNeighbor string = "n" + NumberSeparator
+const NumberPrefixMember string = "m" + NumberSeparator
 
 //const NumberPrefixOppositeNode string = "oppnode_"
 //const NumberPrefixOppositeGroup string = "oppgroup_"
@@ -104,11 +108,11 @@ func setGroupNameSpace(ns NameSpacer, groups []*Group, opposite bool) {
 			// prioritize numbers by node-num > smaller-group-num > large-group-num
 			var num string
 			if opposite {
-				num = NumberPrefixOppositeHeader + NumberPrefixNode + k
+				num = NumberPrefixOppositeHeader + NumberPrefixGroup + k
 			} else {
 				num = NumberPrefixGroup + k
 			}
-			if ns.hasRelativeNumber(num) {
+			if !ns.hasRelativeNumber(num) {
 				ns.setRelativeNumber(num, val)
 			}
 
@@ -120,7 +124,7 @@ func setGroupNameSpace(ns NameSpacer, groups []*Group, opposite bool) {
 				} else {
 					cnum = label + NumberSeparator + k
 				}
-				if ns.hasRelativeNumber(cnum) {
+				if !ns.hasRelativeNumber(cnum) {
 					ns.setRelativeNumber(cnum, val)
 				}
 			}
@@ -178,6 +182,93 @@ func setNeighborNameSpace(iface *Interface) {
 	}
 }
 
+func setMemberClassNameSpace(nm *NetworkModel, mr memberReferer) error {
+	var classes []string
+	var classtype string
+	var cmMapper classMemberMap
+
+	var nodeNameSpace map[string]string
+	switch t := mr.(type) {
+	case *Node:
+		// pass
+	case *Interface:
+		nodeNameSpace = getNodeNameSpace(t)
+	default:
+		return fmt.Errorf("unknown memberReferer type: %v", t)
+	}
+
+	for _, mc := range mr.getMemberClasses() {
+		classes = []string{}
+		if mc.NodeClass != "" || len(mc.NodeClasses) > 0 {
+			if mc.InterfaceClass != "" || len(mc.InterfaceClasses) > 0 {
+				return fmt.Errorf("nodeClass and interfaceClass cannot be specified at the same time")
+			}
+			if mc.ConnectionClass != "" || len(mc.ConnectionClasses) > 0 {
+				return fmt.Errorf("nodeClass and connectionClass cannot be specified at the same time")
+			}
+			if mc.NodeClass != "" {
+				classes = append(classes, mc.NodeClass)
+			}
+			classes = append(classes, mc.NodeClasses...)
+			cmMapper = nm.nodeClassMemberMap
+			classtype = ClassTypeNode
+		} else if mc.InterfaceClass != "" || len(mc.InterfaceClasses) > 0 {
+			if mc.ConnectionClass != "" || len(mc.ConnectionClasses) > 0 {
+				return fmt.Errorf("interfaceClass and connectionClass cannot be specified at the same time")
+			}
+			if mc.InterfaceClass != "" {
+				classes = append(classes, mc.InterfaceClass)
+			}
+			classes = append(classes, mc.InterfaceClasses...)
+			cmMapper = nm.interfaceClassMemberMap
+			classtype = ClassTypeInterface
+		} else if mc.ConnectionClass != "" || len(mc.ConnectionClasses) > 0 {
+			if mc.ConnectionClass != "" {
+				classes = append(classes, mc.ConnectionClass)
+			}
+			classes = append(classes, mc.ConnectionClasses...)
+			cmMapper = nm.connectionClassMemberMap
+			classtype = ClassTypeConnection
+		}
+
+		for _, cls := range classes {
+			members := cmMapper.getClassMembers(cls)
+			if len(members) == 0 {
+				fmt.Fprintf(os.Stderr, "warning: class %s has no members\n", cls)
+				// return fmt.Errorf("class %v has no members", cls)
+			}
+
+			for _, memberObject := range members {
+				if mc.IncludeSelf || memberObject == mr.(NameSpacer) {
+					continue
+				}
+				member := &Member{
+					ClassName: cls,
+					ClassType: classtype,
+					Referer:   mr,
+					Member:    memberObject,
+					NameSpace: newNameSpace(),
+				}
+				// base namespace
+				for k, v := range mr.GetNumbers() {
+					member.setRelativeNumber(k, v)
+				}
+				// node namespace
+				for k, v := range nodeNameSpace {
+					member.setRelativeNumber(k, v)
+				}
+				// member namespace
+				for k, v := range memberObject.GetNumbers() {
+					key := NumberPrefixMember + k
+					member.setRelativeNumber(key, v)
+				}
+				mr.addMember(member)
+			}
+		}
+	}
+	return nil
+}
+
 func getNodeNameSpace(iface *Interface) map[string]string {
 	nodeNumbers := map[string]string{}
 	for nodenum, val := range iface.Node.NameSpace.numbers {
@@ -214,6 +305,12 @@ func makeRelativeNamespace(nm *NetworkModel) error {
 			return err
 		}
 
+		// member classes
+		err = setMemberClassNameSpace(nm, node)
+		if err != nil {
+			return err
+		}
+
 		for _, iface := range node.Interfaces {
 
 			// interface self
@@ -234,6 +331,12 @@ func makeRelativeNamespace(nm *NetworkModel) error {
 			// L3 neighbor interfaces
 			setNeighborNameSpace(iface)
 
+			// member classes
+			err = setMemberClassNameSpace(nm, iface)
+			if err != nil {
+				return err
+			}
+
 			// PlaceLabels
 			setPlaceLabelNameSpace(iface, globalNumbers)
 
@@ -241,6 +344,13 @@ func makeRelativeNamespace(nm *NetworkModel) error {
 			err = setMetaValueLabelNameSpace(iface, iface, globalNumbers)
 			if err != nil {
 				return err
+			}
+		}
+
+		for _, group := range node.Groups {
+			// group self
+			for num, val := range group.NameSpace.numbers {
+				group.setRelativeNumber(num, val)
 			}
 		}
 	}

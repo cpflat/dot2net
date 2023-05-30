@@ -1,0 +1,33 @@
+digraph  {
+	r1[class="router; bgp; ospf; as=65000"];
+	r2[class="router; bgp; ospf; as=65000"];
+	r3[class="router; ospf"];
+	r4[class="router; bgp; as=65001"];
+	r5[class="router; bgp; as=65002"];
+	sw0[class="switch"];
+	sw1[class="switch"];
+	sw2[class="switch"];
+	sw4[class="switch"];
+	sw5[class="switch"];
+	sw6[class="switch"];
+	sw7[class="switch"];
+	sw8[class="switch"];
+	sw9[class="switch"];
+	sw10[class="switch"];
+
+	r1->sw0[dir="none", taillabel="ibgp; ospf; priority=10"];
+	r1->sw2[dir="none", taillabel="ospf; priority=10"];
+	r1->sw4[dir="none", taillabel="ebgp"];
+	r1->sw6[dir="none"];
+	r2->sw0[dir="none", taillabel="ibgp; ospf; priority=5"];
+	r2->sw1[dir="none", taillabel="priority=10"];
+	r2->sw5[dir="none", taillabel="ebgp"];
+	r2->sw7[dir="none"];
+	r3->sw1[dir="none", taillabel="ospf; adv; priority=5"];
+	r3->sw2[dir="none", taillabel="ospf; adv; priority=5"];
+	r3->sw8[dir="none", taillabel="adv"];
+	r4->sw4[dir="none", taillabel="ebgp"];
+	r4->sw9[dir="none"];
+	r5->sw5[dir="none", taillabel="ebgp"];
+	r5->sw10[dir="none"];
+}

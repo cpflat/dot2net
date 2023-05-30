@@ -140,6 +140,8 @@ func (segs *netSegments) setNeighbors(ipspace *IPSpaceDefinition) {
 func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) (*netSegments, error) {
 	segs := netSegments{pool: pool}
 
+	//fmt.Printf("search segments on %+v\n", ipspace)
+
 	checked := mapset.NewSet[*Connection]()
 	for _, conn := range nm.Connections {
 		// skip connections out of IPSpace
@@ -151,6 +153,8 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 		if checked.Contains(conn) {
 			continue
 		}
+
+		// fmt.Printf("search start with %s\n", conn)
 
 		seg := netSegment{bits: pool.bits}
 
@@ -181,18 +185,22 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 						continue
 					}
 
+					tmpconn := nextIf.Connection
+
 					// skip connections (and end interfaces) out of IPSpace
-					if !nextIf.Connection.IPSpaces.Contains(ipspace.Name) {
+					if !tmpconn.IPSpaces.Contains(ipspace.Name) {
 						continue
 					}
 
-					if checked.Contains(nextIf.Connection) {
-						// already checked connection, something wrong
-						return nil, fmt.Errorf("network segment search algorithm panic")
+					if checked.Contains(tmpconn) {
+						// already checked connection, may cause on networks with closed paths
+						continue
 					}
 
+					// fmt.Printf("check connection %s\n", tmpconn)
+
 					// check connection
-					checked.Add(nextIf.Connection)
+					checked.Add(tmpconn)
 					if err := seg.checkConnection(conn, ipspace); err != nil {
 						return nil, err
 					}
@@ -210,6 +218,11 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 				}
 			}
 		}
+		// no ipspace-aware inteface
+		if len(seg.rifaces)+len(seg.uifaces) == 0 {
+			return nil, nil
+		}
+
 		// note: reserved addresses are checked after all reserved connections
 		// (reserved connections can change prefix length)
 		err := seg.checkReservedInterfaces()
@@ -226,7 +239,7 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 
 		// sanity check
 		if len(seg.rifaces)+len(seg.uifaces) <= 0 {
-			fmt.Printf("%+v, src: %s@%s, dst: %s@%s\n", conn, conn.Src.Name, conn.Src.Node.Name, conn.Dst.Name, conn.Dst.Node.Name)
+			// fmt.Printf("%+v, src: %s@%s, dst: %s@%s\n", conn, conn.Src.Name, conn.Src.Node.Name, conn.Dst.Name, conn.Dst.Node.Name)
 			return nil, fmt.Errorf("searchNetworkSegment panic: no %v-aware interfaces in a segment", ipspace.Name)
 		}
 	}
@@ -236,10 +249,11 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 // An ipPool manage reservation of prefix range.
 // It allocate address blocks considering the address reservation.
 type ipPool struct {
-	prefixRange netip.Prefix
-	bits        int
-	length      int
-	boundIndex  map[int]struct{}
+	prefixRange   netip.Prefix
+	bits          int
+	availableBits int
+	// length      int
+	boundIndex map[int]struct{}
 }
 
 func initIPPool(prefixRange netip.Prefix, bits int) (*ipPool, error) {
@@ -249,10 +263,11 @@ func initIPPool(prefixRange netip.Prefix, bits int) (*ipPool, error) {
 	}
 
 	pool := ipPool{
-		prefixRange: prefixRange,
-		bits:        bits,
-		length:      1 << (bits - pbits),
-		boundIndex:  map[int]struct{}{},
+		prefixRange:   prefixRange,
+		bits:          bits,
+		availableBits: bits - pbits,
+		//length:      1 << (bits - pbits),
+		boundIndex: map[int]struct{}{},
 	}
 	return &pool, nil
 }
@@ -261,11 +276,15 @@ func (pool *ipPool) String() string {
 	return fmt.Sprintf("prefix: %s, bits: %d", pool.prefixRange.String(), pool.bits)
 }
 
+func (pool *ipPool) isEnough(cnt int) bool {
+	return (cnt >> pool.availableBits) == 0
+}
+
 func (pool *ipPool) getitem(idx int) (netip.Prefix, error) {
 	slice := pool.prefixRange.Addr().AsSlice()
-	if idx < 0 {
-		idx = pool.length - idx
-	}
+	// if idx < 0 {
+	// 	idx = pool.length - idx
+	// }
 
 	// byte_idx to increase values: 1-8 -> 0, 9-16 -> 1, ...
 	byte_idx := (pool.bits - 1) / 8
@@ -370,15 +389,13 @@ func (pool *ipPool) reservePrefix(prefix netip.Prefix) error {
 }
 
 func (pool *ipPool) getAvailablePrefix(cnt int) ([]netip.Prefix, error) {
-	if pool.length-len(pool.boundIndex) < cnt {
-		return nil, fmt.Errorf("no enough network prefix in address pool")
-	}
-	if cnt < 0 {
-		cnt = pool.length - len(pool.boundIndex)
+	required := cnt + len(pool.boundIndex)
+	if !pool.isEnough(required) {
+		return nil, fmt.Errorf("no enough network prefix in address pool (%d required)", required)
 	}
 
 	var prefixes = make([]netip.Prefix, 0, cnt)
-	for i := 0; i < pool.length; i++ {
+	for i := 0; i < required; i++ {
 		if _, exists := pool.boundIndex[i]; !exists {
 			p, err := pool.getitem(i)
 			if err != nil {
@@ -603,6 +620,10 @@ func assignIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition
 	segs, err := searchNetworkSegments(nm, pool, ipspace)
 	if err != nil {
 		return err
+	}
+	if segs == nil {
+		// no network segment or ipspace-aware interface
+		return nil
 	}
 	prefixes, err := segs.pool.getAvailablePrefix(segs.count)
 	if err != nil {

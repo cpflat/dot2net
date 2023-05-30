@@ -1,0 +1,212 @@
+name: bgp_features
+
+file:
+  - name: zebra.conf
+    path: /etc/frr/zebra.conf
+  - name: bgpd.conf
+    path: /etc/frr/bgpd.conf
+  - name: ospfd.conf
+    path: /etc/frr/ospfd.conf
+  - name: ospf6d.conf
+    path: /etc/frr/ospf6d.conf
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+  - name: frr.log
+    path: /var/log/frr.log
+
+ipspace:
+  - name: ip
+    range: 192.168.0.0/16
+    prefix: 24
+    loopback_range: 192.168.255.0/24
+    default_connect: true
+  - name: ipv6
+    range: fc00::/32
+    prefix: 64
+    loopback_range: fc00:0:0:ffff::/64
+    default_connect: true
+
+nodeclass:
+  - name: switch
+    primary: true
+    tinet:
+      image: nicolaka/netshoot
+    clab:
+      kind: linux
+      image: nicolaka/netshoot
+    config:
+      - template:
+          - ip link add br0 type bridge
+          - ip link set br0 up
+  - name: router
+    primary: true
+    ipaware: [ip, ipv6]
+    tinet:
+      image: quay.io/frrouting/frr:8.5.0
+    clab:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+    config:
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - file: frr.log
+        sourcefile: ./frr.log
+      - template:
+          - chown frr:frr /var/log/frr.log 
+      - file: zebra.conf
+        template:
+          - "log file /var/log/frr.log"
+          - "!"
+          - "interface lo"
+          - " ip address {{ .ip_loopback }}/32"
+          - " ipv6 address {{ .ipv6_loopback }}/128"
+          - "!"
+  - name: bgp
+    config:
+      - file: bgpd.conf
+        template:
+          - "log file /var/log/frr.log"
+          - "!"
+          - "router bgp {{ .as }}"
+          - " timers bgp 3 10"
+          - " coalesce-time 0"
+          - " bgp router-id {{ .ip_loopback }}"
+          - " bgp log-neighbor-changes"
+          - " no bgp ebgp-requires-policy"
+          - "!"
+          - " address-family ipv4 unicast"
+          - "  network 192.168.255.0/24"  # loopback range
+          - " exit-address-family"
+          - "!"
+          - "route-map testmap-in permit 999"
+          - "!"
+          - "route-map testmap-out permit 999"
+          - "!"
+  - name: ospf
+    config:
+      - file: ospfd.conf
+        template:
+          - "log file /var/log/frr.log"
+          - "!"
+          - "router ospf"
+          - " ospf router-id {{ .ip_loopback }}"
+          - " log-adjacency-changes"
+          - " network 192.168.0.0/16 area 0.0.0.0"
+          - " timers throttle spf 0 0 0"
+          - " timers lsa min-arrival 10"
+          - " timers throttle lsa all 0"
+          - " refresh timer 10"
+          - "!"
+      - file: ospf6d.conf
+        template:
+          - "log file /var/log/frr.log"
+          - "!"
+          - "interface lo"
+          - "!"
+      - file: ospf6d.conf
+        priority: 1
+        template:
+          - "router ospf6"
+          - " ospf6 router-id {{ .ip_loopback }}"
+          - " log-adjacency-changes"
+          - " interface lo area 0.0.0.0"
+          - "!"
+
+interfaceclass:
+  - name: all
+    primary: true
+    config:
+      - node: switch
+        template:
+          - ip link set dev {{ .name }} promisc on
+          - ip link set dev {{ .name }} master br0
+      - node: router
+        file: zebra.conf
+        template:
+          - "interface {{ .name }}"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - " ipv6 address {{ .ipv6_addr }}/{{ .ipv6_plen }}"
+          - "!"
+  - name: ibgp
+    neighbors:
+      - ipspace: ip
+        config:
+          - node: bgp
+            file: bgpd.conf
+            template:
+              - "router bgp {{ .node_as }}"
+              - " neighbor {{ .n_node_ip_loopback }} remote-as {{ .n_node_as }}"
+              - " neighbor {{ .n_node_ip_loopback }} timers 3 10"
+              - " neighbor {{ .n_node_ip_loopback }} description Router {{ .n_node_name }} (iBGP)"
+              - " neighbor {{ .n_node_ip_loopback }} update-source lo"
+              - " neighbor {{ .n_node_ip_loopback }} timers connect 5"
+              - "!"
+              - " address-family ipv4 unicast"
+              - "  network {{ .n_ip_net }}"  # neighbor network
+              - " exit-address-family"
+              - "!"
+    classmembers: 
+      - interface: adv
+        config:
+          - file: bgpd.conf
+            template:
+              - "router bgp {{ .node_as }}"
+              - " address-family ipv4 unicast"
+              - "  network {{ .m_ip_net }}"  # advertised network
+              - " exit-address-family"
+              - "!"
+  - name: ebgp
+    neighbors:
+      - ipspace: ip
+        config:
+          - node: bgp
+            file: bgpd.conf
+            template:
+              - "router bgp {{ .node_as }}"
+              - " neighbor {{ .n_ip_addr }} remote-as {{ .n_node_as }}"
+              - " neighbor {{ .n_ip_addr }} timers 3 10"
+              - " neighbor {{ .n_ip_addr }} description Router {{ .n_node_name }} (eBGP AS {{ .n_node_as }})"
+              - " neighbor {{ .n_ip_addr }} timers connect 5"
+              - "!"
+              - " address-family ipv4 unicast"
+              - "  network {{ .n_ip_net }}"  # neighbor network
+              - "  neighbor {{ .n_ip_addr }} route-map testmap-in in"
+              - "  neighbor {{ .n_ip_addr }} route-map testmap-out out"
+              - " exit-address-family"
+              - "!"
+    classmembers: 
+      - interface: adv
+        config:
+          - file: bgpd.conf
+            template:
+              - "router bgp {{ .node_as }}"
+              - " address-family ipv4 unicast"
+              - "  network {{ .m_ip_net }}"  # advertised network
+              - " exit-address-family"
+              - "!"
+  - name: ospf
+    config:
+      - file: ospfd.conf
+        template:
+          - "interface {{ .name }}"
+          - " ip ospf hello-interval 2"
+          - " ip ospf dead-interval 10"
+          - " ip ospf priority {{ .priority }}"
+          - "!"
+      - file: ospf6d.conf
+        template:
+          - "interface {{ .name }}"
+          - " ipv6 ospf6 priority {{ .priority }}"
+          - "!"
+      - file: ospf6d.conf
+        priority: 1
+        template:
+          - "router ospf6"
+          - " interface {{ .name }} area 0.0.0.0"
+          - "!"
+  - name: adv
+

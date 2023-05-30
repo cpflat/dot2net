@@ -97,12 +97,20 @@ connectionclass:
           - "router ospf"
           - " network {{ .ip_net }} area {{ .opp_group_area }}"
           - "!"
+          - "interface {{ .name }}"
+          - " ip ospf hello-interval 2"
+          - " ip ospf dead-interval 10"
+          - "!"
       - node: router
         file: ospf6d.conf
-        priority: -1
         template:
+          - "router ospf6"
+          - " interface {{ .name }} area {{ .opp_group_area6 }}"
+          - "!"
           - "interface {{ .name }}"
-          - " ipv6 ospf6 area {{ .opp_group_area6 }}"
+          - " ip ospf hello-interval 2"
+          - " ip ospf dead-interval 10"
+            #- " ipv6 ospf6 area {{ .opp_group_area6 }}"
           - "!"
 
 groupclass:

@@ -233,6 +233,21 @@ func CmdNumber(c *cli.Context) error {
 						}
 					}
 				}
+				for _, m := range iface.GetMembers() {
+					mNumbers := m.GetRelativeNumbers()
+					keys := []string{}
+					for num := range mNumbers {
+						keys = append(keys, num)
+					}
+					sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+					for _, num := range keys {
+						val := mNumbers[num]
+						line := fmt.Sprintf(
+							"%v.%v (%v %v member %v) {{ .%v }} = %v",
+							node.Name, iface.Name, m.ClassType, m.ClassName, m.Member, num, val)
+						lines = append(lines, line)
+					}
+				}
 			}
 		}
 

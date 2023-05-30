@@ -107,17 +107,33 @@ func generateConfigBlock(cfg *Config, ct *ConfigTemplate, files *ConfigFiles, ns
 		return nil
 	}
 
-	// skip if noode class does not match
 	switch o := ns.(type) {
 	case *Node:
 		// pass
 	case *Interface:
-		if !(ct.NodeClass == "" || o.Node.HasClass(ct.NodeClass)) {
+		// skip if node class does not match
+		if !(ct.NodeClassCheck(o.Node)) {
 			return nil
 		}
 	case *Neighbor:
-		if !(ct.NodeClass == "" || o.Self.Node.HasClass(ct.NodeClass)) {
+		// skip if self node class does not match
+		if !(ct.NodeClassCheck(o.Self.Node)) {
 			return nil
+		}
+		// skip if neighbor node class does not match
+		if !(ct.NodeClassCheck(o.Neighbor.Node)) {
+			return nil
+		}
+	case *Member:
+		switch t := o.Referer.(type) {
+		case *Node:
+			// pass
+		case *Interface:
+			if !(ct.NodeClassCheck(t.Node)) {
+				return nil
+			}
+		default:
+			return fmt.Errorf("panic: unexpected type of Member Referer: %T", t)
 		}
 	default:
 		return fmt.Errorf("unexpected type of NameSpacer: %T", o)
@@ -143,15 +159,23 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 		}
 		files := &ConfigFiles{mapper: map[string]*ConfigFile{}}
 
-		for _, cls := range node.classLabels {
-			nc, ok := cfg.nodeClassMap[cls]
-			if !ok {
-				return fmt.Errorf("undefined NodeClass name %v", cls)
-			}
+		for _, cls := range node.GetClasses() {
+			nc := cls.(*NodeClass)
 			for _, ct := range nc.ConfigTemplates {
-				err := generateConfigBlock(cfg, &ct, files, node, outputPlatform)
+				err := generateConfigBlock(cfg, ct, files, node, outputPlatform)
 				if err != nil {
 					return err
+				}
+			}
+
+			for _, mc := range nc.MemberClasses {
+				for _, ct := range mc.ConfigTemplates {
+					for _, m := range node.GetMembers() {
+						err := generateConfigBlock(cfg, ct, files, m, outputPlatform)
+						if err != nil {
+							return err
+						}
+					}
 				}
 			}
 		}
@@ -160,21 +184,16 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 			if iface.Virtual {
 				continue
 			}
-			for _, cls := range iface.classLabels {
-				ic, ok := cfg.interfaceClassMap[cls]
-				if !ok {
-					return fmt.Errorf("undefined InterfaceClass name %v", cls)
-				}
-				for i := range ic.ConfigTemplates {
-					ct := &ic.ConfigTemplates[i]
+			for _, cls := range iface.GetClasses() {
+				ic := cls.(*InterfaceClass)
+				for _, ct := range ic.ConfigTemplates {
 					err := generateConfigBlock(cfg, ct, files, iface, outputPlatform)
 					if err != nil {
 						return err
 					}
 				}
 				for _, nc := range ic.NeighborClasses {
-					for i := range nc.ConfigTemplates {
-						ct := &nc.ConfigTemplates[i]
+					for _, ct := range nc.ConfigTemplates {
 						neighbors, ok := iface.Neighbors[nc.IPSpace]
 						if !ok {
 							continue
@@ -188,26 +207,32 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 						}
 					}
 				}
+
+				for _, mc := range ic.MemberClasses {
+					for _, ct := range mc.ConfigTemplates {
+						for _, m := range iface.GetMembers() {
+							err := generateConfigBlock(cfg, ct, files, m, outputPlatform)
+							if err != nil {
+								return err
+							}
+						}
+					}
+				}
 			}
 
 			if iface.Connection == nil {
 				continue
 			}
-			for _, cls := range iface.Connection.classLabels {
-				cc, ok := cfg.connectionClassMap[cls]
-				if !ok {
-					return fmt.Errorf("undefined ConnectionClass name %v", cls)
-				}
-				for i := range cc.ConfigTemplates {
-					ct := &cc.ConfigTemplates[i]
+			for _, cls := range iface.Connection.GetClasses() {
+				cc := cls.(*ConnectionClass)
+				for _, ct := range cc.ConfigTemplates {
 					err := generateConfigBlock(cfg, ct, files, iface, outputPlatform)
 					if err != nil {
 						return err
 					}
 				}
 				for _, nc := range cc.NeighborClasses {
-					for i := range nc.ConfigTemplates {
-						ct := &nc.ConfigTemplates[i]
+					for _, ct := range nc.ConfigTemplates {
 						neighbors, ok := iface.Neighbors[nc.IPSpace]
 						if !ok {
 							continue
@@ -215,6 +240,17 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 						}
 						for _, neighbor := range neighbors {
 							err := generateConfigBlock(cfg, ct, files, neighbor, outputPlatform)
+							if err != nil {
+								return err
+							}
+						}
+					}
+				}
+
+				for _, mc := range cc.MemberClasses {
+					for _, ct := range mc.ConfigTemplates {
+						for _, m := range iface.GetMembers() {
+							err := generateConfigBlock(cfg, ct, files, m, outputPlatform)
 							if err != nil {
 								return err
 							}

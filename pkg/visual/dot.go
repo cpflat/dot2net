@@ -84,9 +84,7 @@ func getInterfaceAddress(iface *model.Interface, layer *model.IPSpaceDefinition)
 func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string, error) {
 	var layers []*model.IPSpaceDefinition
 	if layer == "" {
-		for i := range cfg.IPSpaceDefinitions {
-			layers = append(layers, &cfg.IPSpaceDefinitions[i])
-		}
+		layers = cfg.IPSpaceDefinitions
 	} else {
 		l, ok := cfg.IPSpaceDefinitionByName(layer)
 		if !ok {

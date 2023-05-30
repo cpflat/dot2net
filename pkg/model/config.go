@@ -13,6 +13,13 @@ import (
 	// "github.com/spf13/viper"
 )
 
+const ClassTypeNode string = "nodeclass"
+const ClassTypeInterface string = "interfaceclass"
+const ClassTypeConnection string = "connectionclass"
+const ClassTypeGroup string = "groupclass"
+const ClassTypeNeighbor string = "neighborclass"
+const ClassTypeMember string = "memberclass"
+
 const ClassAll string = "all"         // all objects
 const ClassDefault string = "default" // all empty objects
 const PlaceLabelPrefix string = "@"
@@ -37,14 +44,14 @@ func AllOutput() []string {
 }
 
 type Config struct {
-	Name               string              `yaml:"name" mapstructure:"name"`
-	GlobalSettings     GlobalSettings      `yaml:"global" mapstructure:"global"`
-	FileDefinitions    []FileDefinition    `yaml:"file" mapstructure:"file"`
-	IPSpaceDefinitions []IPSpaceDefinition `yaml:"ipspace" mapstructure:"ipspace"`
-	NodeClasses        []NodeClass         `yaml:"nodeclass,flow" mapstructure:"nodes,flow"`
-	InterfaceClasses   []InterfaceClass    `yaml:"interfaceclass,flow" mapstructure:"interfaces,flow"`
-	ConnectionClasses  []ConnectionClass   `yaml:"connectionclass,flow" mapstructure:"connections,flow"`
-	GroupClasses       []GroupClass        `yaml:"groupclass,flow" mapstructure:"group,flow"`
+	Name               string               `yaml:"name" mapstructure:"name"`
+	GlobalSettings     GlobalSettings       `yaml:"global" mapstructure:"global"`
+	FileDefinitions    []*FileDefinition    `yaml:"file" mapstructure:"file"`
+	IPSpaceDefinitions []*IPSpaceDefinition `yaml:"ipspace" mapstructure:"ipspace"`
+	NodeClasses        []*NodeClass         `yaml:"nodeclass,flow" mapstructure:"nodes,flow"`
+	InterfaceClasses   []*InterfaceClass    `yaml:"interfaceclass,flow" mapstructure:"interfaces,flow"`
+	ConnectionClasses  []*ConnectionClass   `yaml:"connectionclass,flow" mapstructure:"connections,flow"`
+	GroupClasses       []*GroupClass        `yaml:"groupclass,flow" mapstructure:"group,flow"`
 
 	fileDefinitionMap    map[string]*FileDefinition
 	ipSpaceDefinitionMap map[string]*IPSpaceDefinition
@@ -124,10 +131,8 @@ func (cfg *Config) DefaultIPConnect() []string {
 	return spaces
 }
 
-func (cfg *Config) classifyLabels(given []string) parsedLabels {
-	pl := parsedLabels{}
-	pl.valueLabels = map[string]string{}
-	pl.metaValueLabels = map[string]string{}
+func (cfg *Config) classifyLabels(given []string) *parsedLabels {
+	pl := newParsedLabels()
 	for _, label := range given {
 		if label == "" {
 		} else if strings.HasPrefix(label, PlaceLabelPrefix) {
@@ -158,7 +163,7 @@ func (cfg *Config) classifyLabels(given []string) parsedLabels {
 	return pl
 }
 
-func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool) parsedLabels {
+func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool) *parsedLabels {
 	pl := cfg.classifyLabels(given)
 	classLabels := pl.classLabels
 
@@ -186,25 +191,25 @@ func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool)
 	return pl
 }
 
-func (cfg *Config) getValidNodeClasses(given []string) parsedLabels {
+func (cfg *Config) getValidNodeClasses(given []string) *parsedLabels {
 	_, hasAllNodeClass := cfg.nodeClassMap[ClassAll]
 	_, hasDefaultNodeClass := cfg.nodeClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllNodeClass, hasDefaultNodeClass)
 }
 
-func (cfg *Config) getValidInterfaceClasses(given []string) parsedLabels {
+func (cfg *Config) getValidInterfaceClasses(given []string) *parsedLabels {
 	_, hasAllInterfaceClass := cfg.interfaceClassMap[ClassAll]
 	_, hasDefaultInterfaceClass := cfg.interfaceClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllInterfaceClass, hasDefaultInterfaceClass)
 }
 
-func (cfg *Config) getValidConnectionClasses(given []string) parsedLabels {
+func (cfg *Config) getValidConnectionClasses(given []string) *parsedLabels {
 	_, hasAllConnectionClass := cfg.connectionClassMap[ClassAll]
 	_, hasDefaultConnectionClass := cfg.connectionClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllConnectionClass, hasDefaultConnectionClass)
 }
 
-func (cfg *Config) getValidGroupClasses(given []string) parsedLabels {
+func (cfg *Config) getValidGroupClasses(given []string) *parsedLabels {
 	_, hasAllGroupClass := cfg.groupClassMap[ClassAll]
 	_, hasDefaultGroupClass := cfg.groupClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllGroupClass, hasDefaultGroupClass)
@@ -267,17 +272,20 @@ func (ipspace *IPSpaceDefinition) IPLoopbackReplacer() string {
 	return ipspace.Name + "_" + IPLoopbackReplacerFooter
 }
 
+type ObjectClass interface{}
+
 type NodeClass struct {
 	// A node can have only one "primary" node class.
 	// Unprimary node classes only have "name", "numbered" and "config". Other attributes are ignored.
 	// A virtual node have parameters, but no object nor configuration. It is considered only on parameter assignment.
-	Name                  string           `yaml:"name" mapstructure:"name"`
-	Primary               bool             `yaml:"primary" mapstructure:"primary"`
-	Virtual               bool             `yaml:"virtual" mapstructure:"virtual"`
-	IPAware               []string         `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces for loopback
-	IPAwareIgnoreDefaults bool             `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
-	Numbered              []string         `yaml:"numbered,flow" mapstructure:"numbered,flow"`
-	ConfigTemplates       []ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	Name                  string            `yaml:"name" mapstructure:"name"`
+	Primary               bool              `yaml:"primary" mapstructure:"primary"`
+	Virtual               bool              `yaml:"virtual" mapstructure:"virtual"`
+	IPAware               []string          `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces for loopback
+	IPAwareIgnoreDefaults bool              `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
+	Numbered              []string          `yaml:"numbered,flow" mapstructure:"numbered,flow"`
+	ConfigTemplates       []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	MemberClasses         []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
 
 	// Following attributes are valid only on primary interface classes.
 	Prefix        string                 `yaml:"prefix" mapstructure:"prefix"`                 // prefix of auto-naming
@@ -288,15 +296,16 @@ type NodeClass struct {
 
 type InterfaceClass struct {
 	// An interface can have only one of "primary" interface class or "primary" connection class.
-	Name                  string           `yaml:"name" mapstructure:"name"`
-	Primary               bool             `yaml:"primary" mapstructure:"primary"`
-	Virtual               bool             `yaml:"virtual" mapstructure:"virtual"`
-	Numbered              []string         `yaml:"numbered,flow" mapstructure:"numbered,flow"`
-	IPAware               []string         `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces
-	IPAwareIgnoreNode     bool             `yaml:"ipaware_ignore_node" mapstructure:"ipaware_ignore_node"`
-	IPAwareIgnoreDefaults bool             `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
-	ConfigTemplates       []ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
-	NeighborClasses       []NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
+	Name                  string            `yaml:"name" mapstructure:"name"`
+	Primary               bool              `yaml:"primary" mapstructure:"primary"`
+	Virtual               bool              `yaml:"virtual" mapstructure:"virtual"`
+	Numbered              []string          `yaml:"numbered,flow" mapstructure:"numbered,flow"`
+	IPAware               []string          `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces
+	IPAwareIgnoreNode     bool              `yaml:"ipaware_ignore_node" mapstructure:"ipaware_ignore_node"`
+	IPAwareIgnoreDefaults bool              `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
+	ConfigTemplates       []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	NeighborClasses       []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
+	MemberClasses         []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
 
 	// Following attributes are valid only on primary interface classes.
 	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of auto-naming
@@ -304,17 +313,19 @@ type InterfaceClass struct {
 	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`     // containerlab attributes
 }
 
+// type ConnectionClass struct {
 type ConnectionClass struct {
-	Name                  string           `yaml:"name" mapstructure:"name"`
-	Primary               bool             `yaml:"primary" mapstructure:"primary"`
-	Virtual               bool             `yaml:"virtual" mapstructure:"virtual"`
-	Numbered              []string         `yaml:"numbered,flow" mapstructure:"numbered,flow"` // Numbers to be assigned automatically
-	IPAware               []string         `yaml:"ipaware,flow" mapstructure:"ipaware,flow"`   // aware ip spaces for end interfaces
-	IPAwareIgnoreNode     bool             `yaml:"ipaware_ignore_node" mapstructure:"ipaware_ignore_node"`
-	IPAwareIgnoreDefaults bool             `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
-	IPSpaces              []string         `yaml:"ipspaces,flow" mapstructure:"ipspaces,flow"` // Connection is limited to specified spaces
-	ConfigTemplates       []ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
-	NeighborClasses       []NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
+	Name                  string            `yaml:"name" mapstructure:"name"`
+	Primary               bool              `yaml:"primary" mapstructure:"primary"`
+	Virtual               bool              `yaml:"virtual" mapstructure:"virtual"`
+	Numbered              []string          `yaml:"numbered,flow" mapstructure:"numbered,flow"` // Numbers to be assigned automatically
+	IPAware               []string          `yaml:"ipaware,flow" mapstructure:"ipaware,flow"`   // aware ip spaces for end interfaces
+	IPAwareIgnoreNode     bool              `yaml:"ipaware_ignore_node" mapstructure:"ipaware_ignore_node"`
+	IPAwareIgnoreDefaults bool              `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
+	IPSpaces              []string          `yaml:"ipspaces,flow" mapstructure:"ipspaces,flow"` // Connection is limited to specified spaces
+	ConfigTemplates       []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	MemberClasses         []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
+	NeighborClasses       []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
 
 	// Following attributes are valid only on primary interface classes.
 	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of interface auto-naming
@@ -328,16 +339,33 @@ type GroupClass struct {
 }
 
 type NeighborClass struct {
-	IPSpace         string           `yaml:"ipspace" mapstructure:"ipspace"`
-	ConfigTemplates []ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	IPSpace         string            `yaml:"ipspace" mapstructure:"ipspace"`
+	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+}
+
+type MemberClass struct {
+	NodeClass         string            `yaml:"node" mapstructure:"node"`
+	NodeClasses       []string          `yaml:"nodes" mapstructure:"nodes"`
+	InterfaceClass    string            `yaml:"interface" mapstructure:"interface"`
+	InterfaceClasses  []string          `yaml:"interfaces" mapstructure:"interfaces"`
+	ConnectionClass   string            `yaml:"connection" mapstructure:"connection"`
+	ConnectionClasses []string          `yaml:"connections" mapstructure:"connections"`
+	IncludeSelf       bool              `yaml:"include_self" mapstructure:"include_self"`
+	ConfigTemplates   []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 }
 
 type ConfigTemplate struct {
 	// Target file definition name
 	File string `yaml:"file" mapstructure:"file"`
-	// add config only for interfaces of nodes belongs to this nodeclass
+	// add config only for interfaces of nodes belongs to the nodeclass(es)
+	// this option is valid only on InterfaceClass, ConnectionClass, and their NeighborClass
+	NodeClass   string   `yaml:"node" mapstructure:"node"`
+	NodeClasses []string `yaml:"nodes" mapstructure:"nodes"`
+	// add config only if the neighbor node belongs to the nodeclass(es)
+	// this option is valid only on NeighborClass
+	NeighborNodeClass   string   `yaml:"neighbor_node" mapstructure:"neighbor_node"`
+	NeighborNodeClasses []string `yaml:"neighbor_nodes" mapstructure:"neighbor_nodes"`
 	// This option is valid only on InterfaceClass or ConnectionClass
-	NodeClass string `yaml:"node" mapstructure:"node"`
 	// If specified, add config only for included output (e.g., tinet only, clab only, etc)
 	Platform []string `yaml:"platform,flow" mapstructure:"platform,flow"`
 	// Style is used to iterpret the given config format. Style can be different on one file. As-is in default.
@@ -351,6 +379,54 @@ type ConfigTemplate struct {
 
 	parsedTemplate *template.Template
 	platformSet    mapset.Set[string]
+}
+
+func (ct *ConfigTemplate) NodeClassCheck(node *Node) bool {
+	if len(ct.NodeClasses) == 0 {
+		if ct.NodeClass == "" {
+			// No nodeclass constraint, always true
+			return true
+		} else {
+			return node.HasClass(ct.NodeClass)
+		}
+	} else {
+		ncs := make([]string, 0, len(ct.NodeClasses)+1)
+		copy(ncs, ct.NodeClasses)
+		if ct.NodeClass != "" {
+			ncs = append(ncs, ct.NodeClass)
+		}
+
+		for _, nc := range ncs {
+			if node.HasClass(nc) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func (ct *ConfigTemplate) NeighborNodeClassCheck(node *Node) bool {
+	if len(ct.NeighborNodeClasses) == 0 {
+		if ct.NeighborNodeClass == "" {
+			// No nodeclass constraint, always true
+			return true
+		} else {
+			return node.HasClass(ct.NeighborNodeClass)
+		}
+	} else {
+		ncs := make([]string, 0, len(ct.NeighborNodeClasses)+1)
+		copy(ncs, ct.NeighborNodeClasses)
+		if ct.NeighborNodeClass != "" {
+			ncs = append(ncs, ct.NeighborNodeClass)
+		}
+
+		for _, nc := range ncs {
+			if node.HasClass(nc) {
+				return true
+			}
+		}
+		return false
+	}
 }
 
 func convertLineFeed(str, lcode string) string {
@@ -383,42 +459,41 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	// add empty filedef for embedded conifg
-	cfg.FileDefinitions = append(cfg.FileDefinitions, FileDefinition{Name: "", Format: "shell"})
+	cfg.FileDefinitions = append(cfg.FileDefinitions, &FileDefinition{Name: "", Format: "shell"})
 
 	cfg.localDir = filepath.Dir(path)
 	cfg.fileDefinitionMap = map[string]*FileDefinition{}
-	for i, filedef := range cfg.FileDefinitions {
-		cfg.fileDefinitionMap[filedef.Name] = &cfg.FileDefinitions[i]
+	for _, filedef := range cfg.FileDefinitions {
+		cfg.fileDefinitionMap[filedef.Name] = filedef
 	}
 	cfg.ipSpaceDefinitionMap = map[string]*IPSpaceDefinition{}
-	for i, ipspace := range cfg.IPSpaceDefinitions {
-		cfg.ipSpaceDefinitionMap[ipspace.Name] = &cfg.IPSpaceDefinitions[i]
+	for _, ipspace := range cfg.IPSpaceDefinitions {
+		cfg.ipSpaceDefinitionMap[ipspace.Name] = ipspace
 	}
 	cfg.nodeClassMap = map[string]*NodeClass{}
-	for i, node := range cfg.NodeClasses {
-		cfg.nodeClassMap[node.Name] = &cfg.NodeClasses[i]
+	for _, node := range cfg.NodeClasses {
+		cfg.nodeClassMap[node.Name] = node
 	}
 	cfg.interfaceClassMap = map[string]*InterfaceClass{}
 	cfg.neighborClassMap = map[string]map[string][]*NeighborClass{}
-	for i, iface := range cfg.InterfaceClasses {
-		cfg.interfaceClassMap[iface.Name] = &cfg.InterfaceClasses[i]
-		for j, neighbor := range iface.NeighborClasses {
+	for _, iface := range cfg.InterfaceClasses {
+		cfg.interfaceClassMap[iface.Name] = iface
+		for _, neighbor := range iface.NeighborClasses {
 			if _, ok := cfg.neighborClassMap[iface.Name]; !ok {
 				cfg.neighborClassMap[iface.Name] = map[string][]*NeighborClass{}
 			}
 			cfg.neighborClassMap[iface.Name][neighbor.IPSpace] = append(
-				cfg.neighborClassMap[iface.Name][neighbor.IPSpace],
-				&cfg.InterfaceClasses[i].NeighborClasses[j],
+				cfg.neighborClassMap[iface.Name][neighbor.IPSpace], neighbor,
 			)
 		}
 	}
 	cfg.connectionClassMap = map[string]*ConnectionClass{}
-	for i, conn := range cfg.ConnectionClasses {
-		cfg.connectionClassMap[conn.Name] = &cfg.ConnectionClasses[i]
+	for _, conn := range cfg.ConnectionClasses {
+		cfg.connectionClassMap[conn.Name] = conn
 	}
 	cfg.groupClassMap = map[string]*GroupClass{}
-	for i, group := range cfg.GroupClasses {
-		cfg.groupClassMap[group.Name] = &cfg.GroupClasses[i]
+	for _, group := range cfg.GroupClasses {
+		cfg.groupClassMap[group.Name] = group
 	}
 	return &cfg, err
 }
@@ -473,40 +548,56 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 }
 
 func loadTemplates(cfg *Config) (*Config, error) {
-	for i, nc := range cfg.NodeClasses {
-		for j := range nc.ConfigTemplates {
-			ct := &cfg.NodeClasses[i].ConfigTemplates[j]
+	for _, nc := range cfg.NodeClasses {
+		for _, ct := range nc.ConfigTemplates {
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
 		}
-	}
-	for i, ic := range cfg.InterfaceClasses {
-		for j := range ic.ConfigTemplates {
-			ct := &cfg.InterfaceClasses[i].ConfigTemplates[j]
-			if err := initConfigTemplate(cfg, ct); err != nil {
-				return nil, err
-			}
-		}
-		for n, nc := range ic.NeighborClasses {
-			for j := range nc.ConfigTemplates {
-				ct := &cfg.InterfaceClasses[i].NeighborClasses[n].ConfigTemplates[j]
+		for _, mc := range nc.MemberClasses {
+			for _, ct := range mc.ConfigTemplates {
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
 			}
 		}
 	}
-	for i, cc := range cfg.ConnectionClasses {
-		for j := range cc.ConfigTemplates {
-			ct := &cfg.ConnectionClasses[i].ConfigTemplates[j]
+	for _, ic := range cfg.InterfaceClasses {
+		for _, ct := range ic.ConfigTemplates {
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
 		}
-		for n, nc := range cc.NeighborClasses {
-			for j := range nc.ConfigTemplates {
-				ct := &cfg.ConnectionClasses[i].NeighborClasses[n].ConfigTemplates[j]
+		for _, nc := range ic.NeighborClasses {
+			for _, ct := range nc.ConfigTemplates {
+				if err := initConfigTemplate(cfg, ct); err != nil {
+					return nil, err
+				}
+			}
+		}
+		for _, mc := range ic.MemberClasses {
+			for _, ct := range mc.ConfigTemplates {
+				if err := initConfigTemplate(cfg, ct); err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+	for _, cc := range cfg.ConnectionClasses {
+		for _, ct := range cc.ConfigTemplates {
+			if err := initConfigTemplate(cfg, ct); err != nil {
+				return nil, err
+			}
+		}
+		for _, nc := range cc.NeighborClasses {
+			for _, ct := range nc.ConfigTemplates {
+				if err := initConfigTemplate(cfg, ct); err != nil {
+					return nil, err
+				}
+			}
+		}
+		for _, mc := range cc.MemberClasses {
+			for _, ct := range mc.ConfigTemplates {
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
