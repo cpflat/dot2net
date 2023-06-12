@@ -142,6 +142,9 @@ func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, e
 		// add mount points for file outputs
 		for _, filename := range n.Files.FileNames() {
 			file := n.Files.GetFile(filename)
+			if file.FileDefinition.Path == "" {
+				continue
+			}
 			dirpath, err := filepath.Abs(n.Name) // requires absolute path
 			if err != nil {
 				return nil, fmt.Errorf("directory path panic")

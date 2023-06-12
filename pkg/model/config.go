@@ -232,6 +232,7 @@ type GlobalSettings struct {
 type FileDefinition struct {
 	Name string `yaml:"name" mapstructure:"name"`
 	// Path is the path that the generated file is placed on the node.
+	// If empty, the file is generated but not placed on the node.
 	Path string `yaml:"path" mapstructure:"path"`
 	// Format is used to determine format and the way to aggregate the config blocks
 	// The value can be "shell", "frr", etc. "file" in default.

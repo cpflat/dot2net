@@ -133,6 +133,9 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 		// add mount points
 		for _, filename := range node.Files.FileNames() {
 			file := node.Files.GetFile(filename)
+			if file.FileDefinition.Path == "" {
+				continue
+			}
 			dirpath, err := filepath.Abs(node.Name)
 			if err != nil {
 				return nil, fmt.Errorf("directory path panic")

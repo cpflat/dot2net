@@ -129,7 +129,7 @@ func (a addressedObject) IsAware(layer string) bool {
 	return a.awareLayers.Contains(layer)
 }
 
-// NameSpacer includes Node, Interface, Neighbor, Group
+// NameSpacer includes Node, Interface, Neighbor, Member, Group
 type NameSpacer interface {
 	setNumbered(k string)
 	isNumbered(k string) bool
@@ -222,7 +222,6 @@ func (ns *NameSpace) GetValue(key string) (string, error) {
 	if ok {
 		return val, nil
 	} else {
-		fmt.Printf("%+v, %+v\n", key, ns)
 		return val, fmt.Errorf("unknown key %v", key)
 	}
 }
