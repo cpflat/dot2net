@@ -154,9 +154,9 @@ func generateConfigBlock(cfg *Config, ct *ConfigTemplate, files *ConfigFiles, ns
 
 func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) error {
 	for _, node := range nm.Nodes {
-		if node.Virtual {
-			continue
-		}
+		//if node.Virtual {
+		//	continue
+		//}
 		files := &ConfigFiles{mapper: map[string]*ConfigFile{}}
 
 		for _, cls := range node.GetClasses() {
@@ -181,9 +181,9 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 		}
 
 		for _, iface := range node.Interfaces {
-			if iface.Virtual {
-				continue
-			}
+			//if iface.Virtual {
+			//	continue
+			//}
 			for _, cls := range iface.GetClasses() {
 				ic := cls.(*InterfaceClass)
 				for _, ct := range ic.ConfigTemplates {

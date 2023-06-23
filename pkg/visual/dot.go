@@ -8,9 +8,10 @@ import (
 
 	"github.com/awalterschulze/gographviz"
 
-	"github.com/cpflat/dot2tinet/pkg/model"
+	"github.com/cpflat/dot2net/pkg/model"
 )
 
+const ABBREVIATE_IPADDRESS = false
 const KEY_NODE_LABEL = "label"
 const KEY_NODE_XLABEL = "xlabel"
 const KEY_NODE_STYLE = "style"
@@ -19,6 +20,10 @@ const KEY_EDGE_HEADLABEL = "headlabel"
 const KEY_EDGE_TAILLABEL = "taillabel"
 
 func abbreviateIPAddress(addr string, plen string) (string, error) {
+	if ABBREVIATE_IPADDRESS == false {
+		return addr, nil
+	}
+
 	ip, err := netip.ParseAddr(addr)
 	if err != nil {
 		return addr, err
@@ -114,7 +119,7 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 		flag := false
 		var lo string
 		for _, l := range layers {
-			if node.IsAware(l.Name) {
+			if node.IsAware(l.Name) || node.HasAwareInterface(l.Name) {
 				flag = true
 				lo, _ = getNodeLoopback(node, l)
 			}
@@ -175,7 +180,7 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 				continue
 			}
 
-			if !conn.Src.IsAware(l.Name) && conn.Dst.IsAware(l.Name) {
+			if !conn.Src.IsAware(l.Name) && !conn.Dst.IsAware(l.Name) {
 				continue
 			}
 

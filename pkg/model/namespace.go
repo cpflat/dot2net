@@ -34,7 +34,7 @@ func checkPlaceLabelOwner(ns NameSpacer, o labelOwner, globalNumbers map[string]
 		}
 		globalNumbers[plabel] = map[string]string{}
 
-		for k, v := range ns.(*NameSpace).numbers {
+		for k, v := range ns.GetNumbers() {
 			globalNumbers[plabel][k] = v
 		}
 	}
@@ -239,7 +239,7 @@ func setMemberClassNameSpace(nm *NetworkModel, mr memberReferer) error {
 			}
 
 			for _, memberObject := range members {
-				if mc.IncludeSelf || memberObject == mr.(NameSpacer) {
+				if !mc.IncludeSelf && memberObject == mr.(NameSpacer) {
 					continue
 				}
 				member := &Member{

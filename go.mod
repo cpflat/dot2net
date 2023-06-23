@@ -1,4 +1,4 @@
-module github.com/cpflat/dot2tinet
+module github.com/cpflat/dot2net
 
 go 1.18
 

@@ -8,12 +8,12 @@ import (
 )
 
 const (
-	dir         = "dot2tinet"
-	description = "Generate configuration file for large-scale emulation networks from DOT files"
+	dir         = "dot2net"
+	description = "Generate config files for large-scale emulation networks from DOT files"
 )
 
 var (
-	Version = "0.2.4"
+	Version = "0.2.5"
 )
 
 func main() {

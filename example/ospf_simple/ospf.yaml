@@ -1,0 +1,51 @@
+name: ospf-simple
+
+file:
+  - name: frr.conf
+    path: /etc/frr/frr.conf
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+
+ipspace:
+  - name: ip
+    range: 10.0.0.0/16
+    prefix: 24
+    loopback_range: 10.0.255.0/24
+    default_connect: true
+
+nodeclass:
+  - name: router
+    primary: true
+    tinet:
+      image: quay.io/frrouting/frr:8.5.0
+    clab:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+    config:
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - file: frr.conf
+        template:
+          - "ip forwarding"
+          - "!"
+          - "router ospf"
+          - " ospf router-id {{ .ip_loopback }}"
+          - "!"
+
+interfaceclass:
+  - name: default
+    primary: true
+    ipaware: [ip]
+    config:
+      - file: frr.conf
+        template: 
+          - "interface {{ .name }}"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - "!"
+          - "router ospf"
+          - " network {{ .ip_net }} area 0"
+          - "!"

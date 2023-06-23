@@ -1,10 +1,10 @@
-# dot2tinet
+# dot2net
 
-Dot2tinet generates configuration files for large-scale emulation networks
-from a network topology (in DOT language) and configuration template (in YAML).
+Dot2net generates config files for large-scale emulation networks
+from a network topology (in DOT language) and configuration templates (in YAML).
 It automatically calculate and assign required parameters such as IP addresses to be embedded in the config,
 so you only need to modify the topology graph when you want to chenge the network layout.
-Dot2tinet currently supports [TiNET](https://github.com/tinynetwork/tinet)
+Dot2net currently supports [TiNET](https://github.com/tinynetwork/tinet)
 and [Containerlab](https://containerlab.dev/) as an emulation network platform. 
 
 
@@ -16,16 +16,21 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
 
 # Usage
 
-## Build
+
+## Build on local go environment
+
+    go build .
+
+    // mv dot2net /usr/bin/dot2net  (if required)
+
+## Build on Docker
 
     docker run --rm -i -t -v $PWD:/v -w /v golang:1.18 go build
-
-    // mv dot2tinet /usr/bin/dot2tinet  (if required)
 
 ## Deploy a network with TiNET
 
     // Generate tinet specification file
-    dot2tinet tinet -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > spec.yaml
+    dot2net tinet -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > spec.yaml
     
     // Deploy
     tinet up -c spec.yaml | sudo sh -x
@@ -37,7 +42,7 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
 ## Deploy a network with Containerlab
 
     // Generate containerlab topology file
-    dot2tinet clab -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > topo.yaml
+    dot2net clab -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > topo.yaml
     
     // Deploy
     containerlab deploy --topo topo.yaml
@@ -132,7 +137,7 @@ They are specified inline (anyclass.config.template) or in external files (anycl
 
 ## Variable replacers
 
-Config templates of dot2tinet basically follow [text/template](https://pkg.go.dev/text/template) notation.
+Config templates of dot2net basically follow [text/template](https://pkg.go.dev/text/template) notation.
 
 The available parameters (except IP-related parameters) in the templates are following.
 The optional parameter replacers (e.g., as) can be available only when the corresponding number classifiers (e.g., as) are specified in "anyclass.numbered" of the class.
@@ -180,7 +185,7 @@ of the opposite interface.
 
 The available numbers can be listed with "number" subcommand:
 
-    dot2tinet number -c ./example/basic_bgp/bgp.yaml ./example/basic_bgp/bgp.dot
+    dot2net number -c ./example/basic_bgp/bgp.yaml ./example/basic_bgp/bgp.dot
 
 
 ## IPSpaces
@@ -195,16 +200,16 @@ to describe IPv4/IPv6 dual-stack network.
 
 ## Multiple DOT input
 
-You can specify multiple DOT files in dot2tinet command arguments.
-This feature is simply for easier management of dot2tinet topology files
+You can specify multiple DOT files in dot2net command arguments.
+This feature is simply for easier management of dot2net topology files
 (any network topology can be described in one DOT file in theory).
 
 If multiple DOT files are given,
-dot2tinet will use all the nodes and links in the files.
+dot2net will use all the nodes and links in the files.
 When there are nodes of same name, the nodes are considered as an identical node.
 When there are links beteeen interfaces of same name on same nodes,
 the links are considered as an identical link.
-For the identical nodes and links, dot2tinet simply merge the assigned labels.
+For the identical nodes and links, dot2net simply merge the assigned labels.
 
 Note that the identical nodes or links in multiple DOT file must be named manually on DOT files.
 

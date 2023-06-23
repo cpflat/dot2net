@@ -160,6 +160,7 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 
 		// check connection
 		checked.Add(conn)
+		// fmt.Printf("start with connection: %+v\n", conn)
 		// reserve specified network address on connection
 		if err := seg.checkConnection(conn, ipspace); err != nil {
 			return nil, err
@@ -174,6 +175,7 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 
 			// check interface
 			ipaware, err := seg.checkInterface(iface, ipspace)
+			// fmt.Printf("interface %v: %v\n", iface, ipaware)
 			if err != nil {
 				return nil, err
 			} else if !ipaware {
@@ -201,16 +203,25 @@ func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefin
 
 					// check connection
 					checked.Add(tmpconn)
+					// fmt.Printf("next connection: %+v\n", tmpconn)
 					if err := seg.checkConnection(conn, ipspace); err != nil {
 						return nil, err
 					}
 
 					// check interface
 					ipaware, err := seg.checkInterface(nextIf, ipspace)
+					// fmt.Printf("interface %v: %v\n", nextIf, ipaware)
 					if err != nil {
 						return nil, err
 					}
-					if !ipaware {
+					if ipaware {
+						// ip aware -> check opposite interface, but end searching
+						_, err := seg.checkInterface(nextIf.Opposite, ipspace)
+						// fmt.Printf("interface %v: %v\n", nextIf.Opposite, ipaware)
+						if err != nil {
+							return nil, err
+						}
+					} else {
 						// ip unaware -> search opposite interface (and beyond)
 						// add opposite interface to list for further search
 						todo = append(todo, nextIf.Opposite)
@@ -625,6 +636,8 @@ func assignIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition
 		// no network segment or ipspace-aware interface
 		return nil
 	}
+	// fmt.Printf("%+v\n", ipspace)
+	// fmt.Printf("%+v\n", segs)
 	prefixes, err := segs.pool.getAvailablePrefix(segs.count)
 	if err != nil {
 		return err

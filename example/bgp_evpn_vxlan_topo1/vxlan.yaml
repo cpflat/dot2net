@@ -1,0 +1,156 @@
+name: bgp_evpn_vxlan_topo1
+
+file:
+  - name: zebra.conf
+    path: /etc/frr/zebra.conf
+  - name: bgpd.conf
+    path: /etc/frr/bgpd.conf
+  - name: ospfd.conf
+    path: /etc/frr/ospfd.conf
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+  - name: frr.log
+    path: /var/log/frr.log
+
+ipspace:
+  - name: provider
+    range: 10.1.0.0/16
+    prefix: 24
+    loopback_range: 10.255.0.0/24
+    #default_connect: true
+  - name: customer
+    range: 10.10.0.0/16
+    prefix: 24
+      #default_connect: true
+
+nodeclass:
+  - name: switch
+    primary: true
+    tinet:
+      image: nicolaka/netshoot
+    clab:
+      kind: linux
+      image: nicolaka/netshoot
+    config:
+      - template:
+          - ip link add br0 type bridge
+          - ip link set br0 up
+  - name: router
+    primary: true
+    tinet:
+      image: quay.io/frrouting/frr:8.5.1
+    clab:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.1
+    config:
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - file: frr.log
+        sourcefile: ./frr.log
+      - template:
+          - chown frr:frr /var/log/frr.log 
+  - name: bgp
+    config:
+      - file: bgpd.conf
+        template:
+          - "router bgp 65000"
+          - " timers 3 9"
+          - " bgp router-id {{ .provider_loopback }}"
+          - " no bgp default ipv4-unicast"
+          - " address-family l2vpn evpn"
+          - "  advertise-all-vni"
+          - "  advertise-svi-ip"
+          - " exit-address-family"
+          - "!"
+    classmembers: 
+      - node: bgp
+        config:
+          - file: bgpd.conf
+            template:
+              - "router bgp 65000"
+              - " neighbor {{ .m_provider_loopback }} remote-as 65000"
+              - " neighbor {{ .m_provider_loopback }} update-source lo"
+              - " neighbor {{ .m_provider_loopback }} timers 3 10"
+              - " address-family l2vpn evpn"
+              - "  neighbor {{ .m_provider_loopback}} activate"
+              - " exit-address-family"
+              - "!"
+  - name: ospf
+    ipaware: [provider]
+    config:
+      - template:
+          - "sysctl -w net.ipv4.ip_forward=1"
+      - file: zebra.conf
+        template:
+          - "interface lo"
+          - " ip address {{ .provider_loopback }}"
+          - "!"
+      - file: ospfd.conf
+        template:
+          - "router ospf"
+          - " network {{ .provider_loopback }}/32 area 0"
+          - "!"
+  - name: host
+
+interfaceclass:
+  - name: all
+    config:
+      - node: switch
+        template:
+          - ip link set dev {{ .name }} promisc on
+          - ip link set dev {{ .name }} master br0
+  - name: vxlan
+    primary: true
+    prefix: br
+    ipaware: [customer]
+    config:
+      - node: ospf
+        template:
+          - "ip link add name {{ .name }} type bridge stp_state 0"
+          - "ip addr add {{ .customer_addr }}/{{ .customer_plen }} dev {{ .name }}"
+          - "ip link set dev {{ .name }} up"
+          - "ip link add vxlan101 type vxlan id 101 dstport 4789 local {{ .node_provider_loopback }} nolearning"
+          - "ip link set dev vxlan101 master {{ .name }}"
+          - "ip link set up dev vxlan101"
+          - "ip link set dev {{ .attach_name }} master {{ .name }}"
+  - name: ospf
+    ipaware: [provider]
+    config:
+      - file: zebra.conf
+        template:
+          - "interface {{ .name }}"
+          - " ip address {{ .provider_addr }}/{{ .provider_plen }}"
+          - "!"
+      - file: ospfd.conf
+        template:
+          - "router ospf"
+          - " network {{ .provider_net }} area 0"
+          - "!"
+      - file: ospfd.conf
+        priority: 1
+        template:
+          - "interface {{ .name }}"
+          - " ip ospf hello-interval 2"
+          - " ip ospf dead-interval 10"
+          - "!"
+  - name: host
+    ipaware: [customer]
+    config:
+      - file: zebra.conf
+        node: host
+        template:
+          - "interface {{ .name }}"
+          - " ip address {{ .customer_addr }}/{{ .customer_plen }}"
+          - "!"
+
+connectionclass:
+  - name: p
+    ipspaces: [provider]
+  - name: c
+    ipspaces: [customer]
+  - name: v
+    virtual: true

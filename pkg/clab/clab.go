@@ -8,7 +8,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 
-	"github.com/cpflat/dot2tinet/pkg/model"
+	"github.com/cpflat/dot2net/pkg/model"
 )
 
 const (

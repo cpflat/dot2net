@@ -375,6 +375,15 @@ func (n *Node) setAwareLayers(aware []string, defaults []string, ignoreDefaults 
 	n.addressedObject.awareLayers = defaultset.Union(givenset)
 }
 
+func (n *Node) HasAwareInterface(layer string) bool {
+	for _, iface := range n.Interfaces {
+		if iface.IsAware(layer) {
+			return true
+		}
+	}
+	return false
+}
+
 func (n *Node) ClassDefinition(cfg *Config, cls string) (interface{}, error) {
 	nc, ok := cfg.nodeClassMap[cls]
 	if !ok {
@@ -412,7 +421,7 @@ type Interface struct {
 }
 
 func (iface *Interface) String() string {
-	return fmt.Sprintf("%s@%s", iface.Name, iface.Node.String())
+	return fmt.Sprintf("%s.%s", iface.Node.String(), iface.Name)
 }
 
 func (iface *Interface) GivenIPAddress(ipspace *IPSpaceDefinition) (string, bool) {

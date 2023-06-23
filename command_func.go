@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cpflat/dot2tinet/pkg/clab"
-	"github.com/cpflat/dot2tinet/pkg/model"
-	"github.com/cpflat/dot2tinet/pkg/tinet"
-	"github.com/cpflat/dot2tinet/pkg/visual"
+	"github.com/cpflat/dot2net/pkg/clab"
+	"github.com/cpflat/dot2net/pkg/model"
+	"github.com/cpflat/dot2net/pkg/tinet"
+	"github.com/cpflat/dot2net/pkg/visual"
 	"github.com/urfave/cli/v2"
 )
 
