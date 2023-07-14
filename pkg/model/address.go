@@ -10,253 +10,6 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
-// A netSegment store information for address allocation.
-// It corresponds to a network address block.
-type netSegment struct {
-	prefix  netip.Prefix
-	uifaces []*Interface // ip-aware interfaces
-	rifaces []*Interface // reserved interfaces (check consistency later)
-	raddrs  []netip.Addr // reserved addresses for rifaces
-	bound   bool         // network address is bound (determined by reservation) or not
-	count   int          // number of unspecified interfaces for address assignment
-	bits    int          // default (automatically assigned) prefix length
-}
-
-func (seg *netSegment) String() string {
-	buf := fmt.Sprintf("prefix: %v, bits: %v, ", seg.prefix.String(), seg.bits)
-	buf += fmt.Sprintf("%v free interfaces: [", len(seg.uifaces))
-	ifaces := []string{}
-	for _, iface := range seg.uifaces {
-		ifaces = append(ifaces, iface.String())
-	}
-	buf += strings.Join(ifaces, ", ")
-	buf += fmt.Sprintf("], %v reserved interfaces: [", len(seg.rifaces))
-	ifaces = []string{}
-	for _, iface := range seg.rifaces {
-		ifaces = append(ifaces, iface.String())
-	}
-	buf += strings.Join(ifaces, ", ")
-	buf += "]"
-	return buf
-}
-
-func (seg *netSegment) Interfaces() []*Interface {
-	return append(seg.uifaces, seg.rifaces...)
-}
-
-func (seg *netSegment) checkConnection(conn *Connection, ipspace *IPSpaceDefinition) error {
-	if val, ok := conn.GivenIPNetwork(ipspace); ok {
-		prefix, err := netip.ParsePrefix(val)
-		if err != nil {
-			return fmt.Errorf("invalid given ipprefix (%v)", val)
-		}
-		if seg.bound {
-			// check consistency with other reserved connections
-			if prefix != seg.prefix {
-				return fmt.Errorf("inconsistent specification of ip address (%+v) in a network segment", prefix)
-			}
-		} else {
-			// set segment prefix
-			seg.bound = true
-			seg.prefix = prefix
-		}
-	}
-	return nil
-}
-
-func (seg *netSegment) checkInterface(iface *Interface, ipspace *IPSpaceDefinition) (bool, error) {
-	if val, ok := iface.GivenIPAddress(ipspace); ok {
-		addr, err := netip.ParseAddr(val)
-		if err != nil {
-			return false, fmt.Errorf("invalid given ipaddr (%v)", val)
-		}
-		seg.rifaces = append(seg.rifaces, iface)
-		seg.raddrs = append(seg.raddrs, addr)
-		seg.bound = true
-		return true, nil // ip aware (manually specified)
-	} else if iface.IsAware(ipspace.Name) {
-		seg.uifaces = append(seg.uifaces, iface)
-		seg.count++
-		return true, nil // ip aware (unspecified)
-	}
-	return false, nil // ip non aware
-}
-
-func (seg *netSegment) checkReservedInterfaces() error {
-	if seg.bound {
-		// check consistency with network prefix reserved by connections
-		for _, addr := range seg.raddrs {
-			if !seg.prefix.Contains(addr) {
-				return fmt.Errorf("inconsistent specification of ip address (%+v) in a network segment", addr)
-			}
-		}
-	} else {
-		prev := netip.Prefix{}
-		for _, addr := range seg.raddrs {
-			prefix, err := addr.Prefix(seg.bits)
-			if err != nil {
-				return err
-			}
-			if prev != prefix {
-				return fmt.Errorf("inconsistent specification of ip address (%+v) in a network segment", addr)
-			}
-			prev = prefix
-		}
-	}
-	return nil
-}
-
-// A netSegment stores search results of network segments in the network model.
-// It also manage address allocation considering reservation.
-type netSegments struct {
-	pool     *ipPool
-	segments []*netSegment
-	count    int // number of unbound segments
-}
-
-func (segs *netSegments) String() string {
-	buf := fmt.Sprintf("pool: [%s]\n%d segments:\n", segs.pool.String(), len(segs.segments))
-	tmp := []string{}
-	for _, seg := range segs.segments {
-		tmp = append(tmp, "- "+seg.String())
-	}
-	buf += strings.Join(tmp, "\n")
-	return buf
-}
-
-func (segs *netSegments) setNeighbors(ipspace *IPSpaceDefinition) {
-	for _, seg := range segs.segments {
-		for _, iface := range seg.Interfaces() {
-			iface.Neighbors[ipspace.Name] = []*Neighbor{}
-			for _, n := range seg.Interfaces() {
-				if iface != n {
-					iface.addNeighbor(n, ipspace.Name)
-				}
-			}
-		}
-	}
-}
-
-func searchNetworkSegments(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) (*netSegments, error) {
-	segs := netSegments{pool: pool}
-
-	//fmt.Printf("search segments on %+v\n", ipspace)
-
-	checked := mapset.NewSet[*Connection]()
-	for _, conn := range nm.Connections {
-		// skip connections out of IPSpace
-		if !conn.IPSpaces.Contains(ipspace.Name) {
-			continue
-		}
-
-		// skip connections that is already checked
-		if checked.Contains(conn) {
-			continue
-		}
-
-		// fmt.Printf("search start with %s\n", conn)
-
-		seg := netSegment{bits: pool.bits}
-
-		// check connection
-		checked.Add(conn)
-		// fmt.Printf("start with connection: %+v\n", conn)
-		// reserve specified network address on connection
-		if err := seg.checkConnection(conn, ipspace); err != nil {
-			return nil, err
-		}
-
-		// search subnet
-		todo := []*Interface{conn.Dst, conn.Src} // stack (Last In First Out)
-		for len(todo) > 0 {
-			// pop iface from todo
-			iface := todo[len(todo)-1]
-			todo = todo[:len(todo)-1]
-
-			// check interface
-			ipaware, err := seg.checkInterface(iface, ipspace)
-			// fmt.Printf("interface %v: %v\n", iface, ipaware)
-			if err != nil {
-				return nil, err
-			} else if !ipaware {
-				// ip unaware -> search adjacent interfaces
-				for _, nextIf := range iface.Node.Interfaces {
-
-					// pass iface itself
-					if nextIf.Name == iface.Name {
-						continue
-					}
-
-					tmpconn := nextIf.Connection
-
-					// skip connections (and end interfaces) out of IPSpace
-					if !tmpconn.IPSpaces.Contains(ipspace.Name) {
-						continue
-					}
-
-					if checked.Contains(tmpconn) {
-						// already checked connection, may cause on networks with closed paths
-						continue
-					}
-
-					// fmt.Printf("check connection %s\n", tmpconn)
-
-					// check connection
-					checked.Add(tmpconn)
-					// fmt.Printf("next connection: %+v\n", tmpconn)
-					if err := seg.checkConnection(conn, ipspace); err != nil {
-						return nil, err
-					}
-
-					// check interface
-					ipaware, err := seg.checkInterface(nextIf, ipspace)
-					// fmt.Printf("interface %v: %v\n", nextIf, ipaware)
-					if err != nil {
-						return nil, err
-					}
-					if ipaware {
-						// ip aware -> check opposite interface, but end searching
-						_, err := seg.checkInterface(nextIf.Opposite, ipspace)
-						// fmt.Printf("interface %v: %v\n", nextIf.Opposite, ipaware)
-						if err != nil {
-							return nil, err
-						}
-					} else {
-						// ip unaware -> search opposite interface (and beyond)
-						// add opposite interface to list for further search
-						todo = append(todo, nextIf.Opposite)
-					}
-				}
-			}
-		}
-		// no ipspace-aware inteface
-		if len(seg.rifaces)+len(seg.uifaces) == 0 {
-			return nil, nil
-		}
-
-		// note: reserved addresses are checked after all reserved connections
-		// (reserved connections can change prefix length)
-		err := seg.checkReservedInterfaces()
-		if err != nil {
-			return nil, err
-		}
-		// reserve address block in ipPool
-		if seg.bound {
-			pool.reservePrefix(seg.prefix)
-		} else {
-			segs.count++
-		}
-		segs.segments = append(segs.segments, &seg)
-
-		// sanity check
-		if len(seg.rifaces)+len(seg.uifaces) <= 0 {
-			// fmt.Printf("%+v, src: %s@%s, dst: %s@%s\n", conn, conn.Src.Name, conn.Src.Node.Name, conn.Dst.Name, conn.Dst.Node.Name)
-			return nil, fmt.Errorf("searchNetworkSegment panic: no %v-aware interfaces in a segment", ipspace.Name)
-		}
-	}
-	return &segs, nil
-}
-
 // An ipPool manage reservation of prefix range.
 // It allocate address blocks considering the address reservation.
 type ipPool struct {
@@ -264,13 +17,15 @@ type ipPool struct {
 	bits          int
 	availableBits int
 	// length      int
-	boundIndex map[int]struct{}
+	boundIndex   map[int]struct{}
+	segments     []*netSegment
+	n_unassigned int
 }
 
 func initIPPool(prefixRange netip.Prefix, bits int) (*ipPool, error) {
 	pbits := prefixRange.Bits()
 	if pbits > bits { // pool range is smaller
-		return nil, fmt.Errorf("prefix range %+v is too small for prefix length %+v", prefixRange, bits)
+		return nil, fmt.Errorf("prefix range %+v is too small for prefixes of length %+v", prefixRange, bits)
 	}
 
 	pool := ipPool{
@@ -421,6 +176,197 @@ func (pool *ipPool) getAvailablePrefix(cnt int) ([]netip.Prefix, error) {
 	return prefixes, nil
 }
 
+// A netSegment store information for address allocation.
+// It corresponds to a network address block.
+type netSegment struct {
+	prefix  netip.Prefix
+	uifaces []*Interface // ip-aware interfaces
+	rifaces []*Interface // reserved interfaces (check consistency later)
+	raddrs  []netip.Addr // reserved addresses for rifaces
+	bound   bool         // network address is bound (determined by reservation) or not
+	count   int          // number of unspecified interfaces for address assignment
+	bits    int          // default (automatically assigned) prefix length
+}
+
+func (seg *netSegment) String() string {
+	buf := fmt.Sprintf("prefix: %v, bits: %v, ", seg.prefix.String(), seg.bits)
+	buf += fmt.Sprintf("%v free interfaces: [", len(seg.uifaces))
+	ifaces := []string{}
+	for _, iface := range seg.uifaces {
+		ifaces = append(ifaces, iface.String())
+	}
+	buf += strings.Join(ifaces, ", ")
+	buf += fmt.Sprintf("], %v reserved interfaces: [", len(seg.rifaces))
+	ifaces = []string{}
+	for _, iface := range seg.rifaces {
+		ifaces = append(ifaces, iface.String())
+	}
+	buf += strings.Join(ifaces, ", ")
+	buf += "]"
+	return buf
+}
+
+func (seg *netSegment) Interfaces() []*Interface {
+	return append(seg.uifaces, seg.rifaces...)
+}
+
+func (seg *netSegment) checkConnection(conn *Connection, layer *Layer) error {
+	if val, ok := conn.GivenIPNetwork(layer); ok {
+		prefix, err := netip.ParsePrefix(val)
+		if err != nil {
+			return fmt.Errorf("invalid given ipprefix (%v)", val)
+		}
+		if seg.bound {
+			// check consistency with other reserved connections
+			if prefix != seg.prefix {
+				return fmt.Errorf("inconsistent specification of ip address (%+v) in a network segment", prefix)
+			}
+		} else {
+			// set segment prefix
+			seg.bound = true
+			seg.prefix = prefix
+		}
+	}
+	return nil
+}
+
+func (seg *netSegment) checkInterface(iface *Interface, layer *Layer) error {
+	if val, ok := iface.GivenIPAddress(layer); ok {
+		addr, err := netip.ParseAddr(val)
+		if err != nil {
+			return fmt.Errorf("invalid given ipaddr (%v)", val)
+		}
+		seg.rifaces = append(seg.rifaces, iface)
+		seg.raddrs = append(seg.raddrs, addr)
+		seg.bound = true
+	} else {
+		seg.uifaces = append(seg.uifaces, iface)
+		seg.count++
+	}
+	return nil
+}
+
+func (seg *netSegment) checkReservedInterfaces() error {
+	if seg.bound {
+		// check consistency with network prefix reserved by connections
+		for _, addr := range seg.raddrs {
+			if !seg.prefix.Contains(addr) {
+				return fmt.Errorf("inconsistent specification of ip address (%+v) in a network segment", addr)
+			}
+		}
+	} else {
+		prev := netip.Prefix{}
+		for _, addr := range seg.raddrs {
+			prefix, err := addr.Prefix(seg.bits)
+			if err != nil {
+				return err
+			}
+			if prev != prefix {
+				return fmt.Errorf("inconsistent specification of ip address (%+v) in a network segment", addr)
+			}
+			prev = prefix
+		}
+	}
+	return nil
+}
+
+func searchSegments(nm *NetworkModel, layer *Layer, verbose bool) ([]*SegmentMembers, error) {
+	if verbose {
+		fmt.Printf("search segments on layer %+v\n", layer.Name)
+	}
+	segs := []*SegmentMembers{}
+
+	checked := mapset.NewSet[*Connection]()
+	for _, conn := range nm.Connections {
+		// skip connections out of layer
+		if !conn.Layers.Contains(layer.Name) {
+			continue
+		}
+
+		// skip connections that is already checked
+		if checked.Contains(conn) {
+			continue
+		}
+
+		// init segment
+		seg := &SegmentMembers{}
+
+		if verbose {
+			fmt.Printf("search start with connection %s\n", conn)
+		}
+		checked.Add(conn)
+		seg.Connections = append(seg.Connections, conn)
+
+		// search subnet
+		todo := []*Interface{conn.Dst, conn.Src} // stack (Last In First Out)
+		for len(todo) > 0 {
+			// pop iface from todo
+			iface := todo[len(todo)-1]
+			todo = todo[:len(todo)-1]
+
+			if iface.AwareLayer(layer.Name) {
+				// aware -> search stop, add the interface to segment
+				seg.Interfaces = append(seg.Interfaces, iface)
+			} else {
+				// unaware -> search adjacent interfaces
+				for _, nextIf := range iface.Node.Interfaces {
+					// pass iface itself
+					if nextIf.Name == iface.Name {
+						continue
+					}
+
+					tmpconn := nextIf.Connection
+
+					// skip connections (and end interfaces) out of layer
+					if !tmpconn.Layers.Contains(layer.Name) {
+						continue
+					}
+
+					if checked.Contains(tmpconn) {
+						// already checked connection, may be caused on networks with closed paths
+						continue
+					}
+
+					checked.Add(tmpconn)
+					seg.Connections = append(seg.Connections, tmpconn)
+					if verbose {
+						fmt.Printf("check next connection %s\n", tmpconn)
+					}
+
+					// check interface
+					if nextIf.AwareLayer(layer.Name) {
+						// aware -> check opposite interface, but end searching
+						seg.Interfaces = append(seg.Interfaces, nextIf)
+						seg.Interfaces = append(seg.Interfaces, nextIf.Opposite)
+					} else {
+						// unaware -> search opposite interface (and beyond)
+						// add opposite interface to list for further search
+						todo = append(todo, nextIf.Opposite)
+					}
+				}
+			}
+		}
+		if verbose {
+			fmt.Printf("determine segment: %+v\n", seg)
+		}
+		segs = append(segs, seg)
+	}
+	return segs, nil
+}
+
+func setNeighbors(segs []*SegmentMembers, layer *Layer) {
+	for _, seg := range segs {
+		for _, iface := range seg.Interfaces {
+			iface.Neighbors[layer.Name] = []*Neighbor{}
+			for _, n := range seg.Interfaces {
+				if iface != n {
+					iface.addNeighbor(n, layer.Name)
+				}
+			}
+		}
+	}
+}
+
 func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix, error) {
 	pbits := poolrange.Bits()
 	err_too_small := fmt.Errorf("poolrange is too small")
@@ -475,19 +421,19 @@ func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix,
 	}
 }
 
-func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) ([]*Node, int, error) {
+func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, layer *Layer) ([]*Node, int, error) {
 	// search ip loopbacks
 	allLoopbacks := []*Node{}
 	cnt := 0
 	for _, node := range nm.Nodes {
 		// check specified (reserved) loopback address -> reserve
-		if val, ok := node.GivenIPLoopback(ipspace); ok {
+		if val, ok := node.GivenIPLoopback(layer); ok {
 			addr, err := netip.ParseAddr(val)
 			if err != nil {
 				return nil, 0, fmt.Errorf("invalid given iploopback (%v)", val)
 			}
 			pool.reserveAddr(addr)
-		} else if node.IsAware(ipspace.Name) {
+		} else if node.AwareLayer(layer.Name) {
 			// ip aware -> add the node to list
 			// count as node with unspecified loopback
 			allLoopbacks = append(allLoopbacks, node)
@@ -498,59 +444,71 @@ func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinitio
 	return allLoopbacks, cnt, nil
 }
 
-func assignIPLoopbacks(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition) error {
-	poolrange, err := netip.ParsePrefix(ipspace.LoopbackRange)
-	if err != nil {
-		return fmt.Errorf("invalid ipspace loopback_range (%v)", ipspace.LoopbackRange)
-	}
-	pool, err := initIPPool(poolrange, poolrange.Addr().BitLen())
-	if err != nil {
-		return err
-	}
-	err = pool.reserveAddr(poolrange.Addr()) // avoid network address
-	if err != nil {
-		return err
-	}
-	if poolrange.Addr().Is4() {
-		// avoid broadcast address on IPv4
-		baddr, err := pool.getitem(-1)
+func assignIPLoopbacks(cfg *Config, nm *NetworkModel, layer *Layer) error {
+	poolmap := map[string]*ipPool{}
+	for _, policy := range layer.loopbackPolicy {
+		poolrange, err := netip.ParsePrefix(policy.AddrRange)
+		if err != nil {
+			return fmt.Errorf("invalid range (%v) for policy (%v)", policy.AddrRange, policy.Name)
+		}
+		bits := poolrange.Addr().BitLen() // always 32 or 128
+		pool, err := initIPPool(poolrange, bits)
 		if err != nil {
 			return err
 		}
-		err = pool.reserveAddr(baddr.Addr())
-		if err != nil {
-			return err
-		}
+		poolmap[policy.Name] = pool
+	}
+	if len(poolmap) == 0 {
+		return nil
 	}
 
-	allLoopbacks, cnt, err := searchIPLoopbacks(nm, pool, ipspace)
-	if err != nil {
-		return err
-	}
-	prefixes, err := pool.getAvailablePrefix(cnt)
-	if err != nil {
-		return err
-	}
-	for i, node := range allLoopbacks {
-		addr := prefixes[i].Addr()
-		node.addNumber(ipspace.IPLoopbackReplacer(), addr.String())
+	for _, pool := range poolmap {
+		// avoid network address
+		err := pool.reserveAddr(pool.prefixRange.Addr())
+		if err != nil {
+			return err
+		}
+		// avoid broadcast address on IPv4
+		if pool.prefixRange.Addr().Is4() {
+			baddr, err := pool.getitem(-1)
+			if err != nil {
+				return err
+			}
+			err = pool.reserveAddr(baddr.Addr())
+			if err != nil {
+				return err
+			}
+		}
+
+		allLoopbacks, cnt, err := searchIPLoopbacks(nm, pool, layer)
+		if err != nil {
+			return err
+		}
+		prefixes, err := pool.getAvailablePrefix(cnt)
+		if err != nil {
+			return err
+		}
+		for i, node := range allLoopbacks {
+			addr := prefixes[i].Addr()
+			node.addNumber(layer.IPLoopbackReplacer(), addr.String())
+		}
 	}
 
 	return nil
 }
 
-func searchManagementInterfaces(nm *NetworkModel, pool *ipPool, ipspace *IPSpaceDefinition) ([]*Interface, int, error) {
+func searchManagementInterfaces(nm *NetworkModel, pool *ipPool, layer *ManagementLayer) ([]*Interface, int, error) {
 	cnt := 0
 	allInterfaces := []*Interface{}
 	for _, node := range nm.Nodes {
 		if iface := node.mgmtInterface; iface != nil {
-			if val, ok := iface.GivenIPAddress(ipspace); ok {
+			if val, ok := iface.GivenIPAddress(layer); ok {
 				addr, err := netip.ParseAddr(val)
 				if err != nil {
 					return nil, 0, fmt.Errorf("invalid given ipaddress (%v)", val)
 				}
 				pool.reserveAddr(addr)
-			} else if iface.IsAware(ipspace.Name) {
+			} else {
 				allInterfaces = append(allInterfaces, iface)
 				cnt++
 			}
@@ -559,21 +517,25 @@ func searchManagementInterfaces(nm *NetworkModel, pool *ipPool, ipspace *IPSpace
 	return allInterfaces, cnt, nil
 }
 
-func assignManagementIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition) error {
-	poolrange, err := netip.ParsePrefix(ipspace.AddrRange)
+func assignManagementIPAddresses(cfg *Config, nm *NetworkModel) error {
+	mlayer := &cfg.ManagementLayer
+	poolrange, err := netip.ParsePrefix(mlayer.AddrRange)
 	if err != nil {
-		return fmt.Errorf("invalid ipspace range (%v)", ipspace.AddrRange)
+		return fmt.Errorf("invalid range (%v) for management layer", mlayer.AddrRange)
 	}
-	pool, err := initIPPool(poolrange, poolrange.Addr().BitLen())
-	if err != nil {
-		return err
-	}
-	err = pool.reserveAddr(poolrange.Addr()) // avoid network address
+	bits := poolrange.Addr().BitLen()
+	pool, err := initIPPool(poolrange, bits)
 	if err != nil {
 		return err
 	}
-	if poolrange.Addr().Is4() {
-		// avoid broadcast address on IPv4
+
+	// avoid network address
+	err = pool.reserveAddr(pool.prefixRange.Addr())
+	if err != nil {
+		return err
+	}
+	// avoid broadcast address on IPv4
+	if pool.prefixRange.Addr().Is4() {
 		baddr, err := pool.getitem(-1)
 		if err != nil {
 			return err
@@ -586,11 +548,11 @@ func assignManagementIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpace
 	// avoid external gateway address
 	// if external gateway address is not given, use first address as default (same as containerlab defaults)
 	var gaddr netip.Addr
-	if ipspace.ExternalGateway == "" {
+	if mlayer.ExternalGateway == "" {
 		gaddr = poolrange.Addr().Next()
-		ipspace.ExternalGateway = gaddr.String()
+		mlayer.ExternalGateway = gaddr.String()
 	} else {
-		gaddr, err = netip.ParseAddr(ipspace.ExternalGateway)
+		gaddr, err = netip.ParseAddr(mlayer.ExternalGateway)
 		if err != nil {
 			return err
 		}
@@ -600,7 +562,7 @@ func assignManagementIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpace
 		return err
 	}
 
-	allInterfaces, cnt, err := searchManagementInterfaces(nm, pool, ipspace)
+	allInterfaces, cnt, err := searchManagementInterfaces(nm, pool, mlayer)
 	if err != nil {
 		return err
 	}
@@ -610,66 +572,115 @@ func assignManagementIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpace
 	}
 	for i, iface := range allInterfaces {
 		addr := prefixes[i].Addr()
-		iface.addNumber(ipspace.IPAddressReplacer(), addr.String())
-		iface.addNumber(ipspace.IPNetworkReplacer(), poolrange.String())
-		iface.addNumber(ipspace.IPPrefixLengthReplacer(), strconv.Itoa(poolrange.Bits()))
+		iface.addNumber(mlayer.IPAddressReplacer(), addr.String())
+		iface.addNumber(mlayer.IPNetworkReplacer(), poolrange.String())
+		iface.addNumber(mlayer.IPPrefixLengthReplacer(), strconv.Itoa(poolrange.Bits()))
 	}
 
 	return nil
 }
 
-func assignIPAddresses(cfg *Config, nm *NetworkModel, ipspace *IPSpaceDefinition) error {
-	poolrange, err := netip.ParsePrefix(ipspace.AddrRange)
-	if err != nil {
-		return fmt.Errorf("invalid ipspace range (%v)", ipspace.AddrRange)
-	}
-	pool, err := initIPPool(poolrange, ipspace.DefaultPrefixLength)
-	if err != nil {
-		return err
-	}
-
-	segs, err := searchNetworkSegments(nm, pool, ipspace)
-	if err != nil {
-		return err
-	}
-	if segs == nil {
-		// no network segment or ipspace-aware interface
-		return nil
-	}
-	// fmt.Printf("%+v\n", ipspace)
-	// fmt.Printf("%+v\n", segs)
-	prefixes, err := segs.pool.getAvailablePrefix(segs.count)
-	if err != nil {
-		return err
-	}
-	for _, seg := range segs.segments {
-		if !seg.bound {
-			if len(prefixes) <= 0 {
-				return fmt.Errorf("address reservation panic")
-			}
-			// pop prefixes
-			seg.prefix = prefixes[0]
-			prefixes = prefixes[1:]
+func assignIPAddresses(cfg *Config, nm *NetworkModel, layer *Layer) error {
+	poolmap := map[string]*ipPool{}
+	for _, policy := range layer.ipPolicy {
+		poolrange, err := netip.ParsePrefix(policy.AddrRange)
+		if err != nil {
+			return fmt.Errorf("invalid range (%v) for policy (%v)", policy.AddrRange, policy.Name)
 		}
-		addrs, err := getIPAddr(seg.prefix, len(seg.uifaces), seg.raddrs)
+		bits := policy.DefaultPrefixLength
+		pool, err := initIPPool(poolrange, bits)
 		if err != nil {
 			return err
 		}
-		for i, iface := range seg.uifaces {
-			iface.addNumber(ipspace.IPAddressReplacer(), addrs[i].String())
-			iface.addNumber(ipspace.IPNetworkReplacer(), seg.prefix.String())
-			iface.addNumber(ipspace.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
+		poolmap[policy.Name] = pool
+	}
+	if len(poolmap) == 0 {
+		return nil
+	}
+
+	segs := nm.NetworkSegments[layer.Name]
+	for _, seg := range segs {
+		// check policy consistency
+		segmentPolicy := ""
+		for _, iface := range seg.Interfaces {
+			if iface.AwareLayer(layer.Name) {
+				p := iface.getLayerPolicy(layer.Name)
+				if p == nil {
+					return fmt.Errorf("no policy defined for interface %s in layer %s", iface, layer.Name)
+				}
+				if _, ok := poolmap[p.Name]; !ok {
+					return fmt.Errorf("undefined IP policy %s for interface %s", p.Name, iface)
+				}
+				if segmentPolicy == "" {
+					segmentPolicy = p.Name
+				} else if segmentPolicy != p.Name {
+					return fmt.Errorf("inconsistent IP policy (%s, %s) for segment %+v", segmentPolicy, p.Name, seg)
+				}
+			} else {
+				return fmt.Errorf("panic: layer-non-aware interface %s included in segment %+v", iface.String(), seg)
+			}
 		}
-		for i, iface := range seg.rifaces {
-			iface.addNumber(ipspace.IPAddressReplacer(), seg.raddrs[i].String())
-			iface.addNumber(ipspace.IPNetworkReplacer(), seg.prefix.String())
-			iface.addNumber(ipspace.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
+		if segmentPolicy == "" {
+			// no segments for the layer
+			return fmt.Errorf("no segment for layer %s", layer.Name)
+		}
+		pool, ok := poolmap[segmentPolicy]
+		if !ok {
+			return fmt.Errorf("no address pool for policy %s", segmentPolicy)
+		}
+
+		// check segment members
+		netSegment := &netSegment{bits: pool.bits}
+		for _, conn := range seg.Connections {
+			netSegment.checkConnection(conn, layer)
+		}
+		for _, iface := range seg.Interfaces {
+			netSegment.checkInterface(iface, layer)
+		}
+		pool.segments = append(pool.segments, netSegment)
+		if !netSegment.bound {
+			pool.n_unassigned += 1
+		}
+
+		// check address reservation consistency
+		err := netSegment.checkReservedInterfaces()
+		if err != nil {
+			return err
 		}
 	}
 
-	segs.setNeighbors(ipspace)
-	if len(prefixes) > 0 {
-		return fmt.Errorf("address reservation panic: %d prefixes unassigned", len(prefixes))
+	for policy, pool := range poolmap {
+		prefixes, err := pool.getAvailablePrefix(pool.n_unassigned)
+		if err != nil {
+			return err
+		}
+		for _, seg := range pool.segments {
+			if !seg.bound {
+				if len(prefixes) <= 0 {
+					return fmt.Errorf("address reservation panic in policy %v", policy)
+				}
+				// pop prefixes
+				seg.prefix = prefixes[0]
+				prefixes = prefixes[1:]
+			}
+			addrs, err := getIPAddr(seg.prefix, len(seg.uifaces), seg.raddrs)
+			if err != nil {
+				return err
+			}
+			for i, iface := range seg.uifaces {
+				iface.addNumber(layer.IPAddressReplacer(), addrs[i].String())
+				iface.addNumber(layer.IPNetworkReplacer(), seg.prefix.String())
+				iface.addNumber(layer.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
+			}
+			for i, iface := range seg.rifaces {
+				iface.addNumber(layer.IPAddressReplacer(), seg.raddrs[i].String())
+				iface.addNumber(layer.IPNetworkReplacer(), seg.prefix.String())
+				iface.addNumber(layer.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
+			}
+		}
+		if len(prefixes) > 0 {
+			return fmt.Errorf("address reservation panic: %d prefixes unassigned", len(prefixes))
+		}
 	}
 	return nil
 }

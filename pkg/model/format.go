@@ -194,7 +194,7 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 				}
 				for _, nc := range ic.NeighborClasses {
 					for _, ct := range nc.ConfigTemplates {
-						neighbors, ok := iface.Neighbors[nc.IPSpace]
+						neighbors, ok := iface.Neighbors[nc.Layer]
 						if !ok {
 							continue
 							//return fmt.Errorf("neighbors not generated for %s", nc.IPSpace)
@@ -233,7 +233,7 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 				}
 				for _, nc := range cc.NeighborClasses {
 					for _, ct := range nc.ConfigTemplates {
-						neighbors, ok := iface.Neighbors[nc.IPSpace]
+						neighbors, ok := iface.Neighbors[nc.Layer]
 						if !ok {
 							continue
 							// return fmt.Errorf("neighbors not generated for %s", nc.IPSpace)

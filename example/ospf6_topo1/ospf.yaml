@@ -14,12 +14,16 @@ file:
   - name: frr.log
     path: /var/log/frr.log
 
-ipspace:
+layer:
   - name: ip
-    range: fc00::/32
-    prefix: 64
-    loopback_range: 10.0.0.0/24
     default_connect: true
+    policy:
+      - name: ip
+        range: fc00::/32
+        prefix: 64
+      - name: lo
+        type: loopback
+        range: 10.0.0.0/24
 
 nodeclass:
   - name: switch
@@ -35,7 +39,8 @@ nodeclass:
           - ip link set br0 up
   - name: router
     primary: true
-    ipaware: [ip]
+    params: [lo]
+    interface_policy: [ip]
     tinet:
       image: quay.io/frrouting/frr:8.5.0
     clab:
@@ -78,7 +83,8 @@ nodeclass:
           - "!"
   - name: vrouter
     virtual: true
-    ipaware: [ip]
+    params: [lo]
+    interface_policy: [ip]
 
 connectionclass:
   - name: all
@@ -106,7 +112,7 @@ connectionclass:
           - "!"
   - name: to_stub
     neighbors:
-      - ipspace: ip
+      - layer: ip
         config:
           - node: router
             file: staticd.conf

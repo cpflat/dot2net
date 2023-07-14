@@ -81,18 +81,18 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 	}
 
 	// mgmt network settings
-	mgmtspace := cfg.GetManagementIPSpace()
-	if mgmtspace != nil {
-		addrrange, err := netip.ParsePrefix(mgmtspace.AddrRange)
+	mlayer := cfg.ManagementLayer
+	if cfg.HasManagementLayer() {
+		addrrange, err := netip.ParsePrefix(mlayer.AddrRange)
 		if err != nil {
 			return nil, err
 		}
 		if addrrange.Addr().Is4() {
-			config.Mgmt.IPv4Subnet = mgmtspace.AddrRange
-			config.Mgmt.IPv4Gw = mgmtspace.ExternalGateway
+			config.Mgmt.IPv4Subnet = mlayer.AddrRange
+			config.Mgmt.IPv4Gw = mlayer.ExternalGateway
 		} else if addrrange.Addr().Is6() {
-			config.Mgmt.IPv6Subnet = mgmtspace.AddrRange
-			config.Mgmt.IPv6Gw = mgmtspace.ExternalGateway
+			config.Mgmt.IPv6Subnet = mlayer.AddrRange
+			config.Mgmt.IPv6Gw = mlayer.ExternalGateway
 		}
 	}
 
@@ -112,8 +112,8 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 
 		// mgmt interface settings
 		mgmtif := node.GetManagementInterface()
-		if mgmtspace != nil && mgmtif != nil {
-			val, err := mgmtif.GetValue(mgmtspace.IPAddressReplacer())
+		if cfg.HasManagementLayer() && mgmtif != nil {
+			val, err := mgmtif.GetValue(mlayer.IPAddressReplacer())
 			if err != nil {
 				return nil, err
 			}

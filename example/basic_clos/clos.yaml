@@ -1,17 +1,20 @@
 name: clos
 
-ipspace:
+layer:
   - name: ip
-    range: 10.0.0.0/16
-    prefix: 30
-    loopback_range: 10.255.0.0/24
-    default_aware: true
     default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 30
+      - name: lo
+        type: loopback
+        range: 10.255.0.0/24
 
 nodeclass:
   - name: all
     primary: true
-    numbered: [as]
+    params: [lo, as]
     tinet:
       image: slankdev/frr
     clab:
@@ -35,6 +38,7 @@ nodeclass:
 connectionclass:
   - name: default
     primary: true
+    params: [ip]
     config:
       - node: router
         style: frr-vtysh

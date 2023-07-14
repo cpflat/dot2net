@@ -40,18 +40,18 @@ func abbreviateIPAddress(addr string, plen string) (string, error) {
 	return addr, nil
 }
 
-func getNodeLoopback(node *model.Node, layer *model.IPSpaceDefinition) (string, error) {
+func getNodeLoopback(node *model.Node, layer *model.Layer) (string, error) {
 	var addr string
 	var err error
 	addr, err = node.GetValue(layer.IPLoopbackReplacer())
 	return addr, err
 }
 
-func getConnectionNetwork(conn *model.Connection, layer *model.IPSpaceDefinition) (string, string, error) {
+func getConnectionNetwork(conn *model.Connection, layer *model.Layer) (string, string, error) {
 	var net string
 	var plen string
 	var err error
-	if conn.Src.IsAware(layer.Name) {
+	if conn.Src.AwareLayer(layer.Name) {
 		net, err = conn.Src.GetValue(layer.IPNetworkReplacer())
 		if err != nil {
 			return "", "", err
@@ -60,7 +60,7 @@ func getConnectionNetwork(conn *model.Connection, layer *model.IPSpaceDefinition
 		if err != nil {
 			return "", "", err
 		}
-	} else if conn.Dst.IsAware(layer.Name) {
+	} else if conn.Dst.AwareLayer(layer.Name) {
 		net, err = conn.Dst.GetValue(layer.IPNetworkReplacer())
 		if err != nil {
 			return "", "", err
@@ -70,12 +70,12 @@ func getConnectionNetwork(conn *model.Connection, layer *model.IPSpaceDefinition
 			return "", "", err
 		}
 	} else {
-		return "", "", fmt.Errorf("panic: Connection %s is not aware of layer %s", conn.String(), layer.Name)
+		return "", "", fmt.Errorf("connection %s is not aware of layer %s", conn.String(), layer.Name)
 	}
 	return net, plen, err
 }
 
-func getInterfaceAddress(iface *model.Interface, layer *model.IPSpaceDefinition) (string, error) {
+func getInterfaceAddress(iface *model.Interface, layer *model.Layer) (string, error) {
 	addr, err := iface.GetValue(layer.IPAddressReplacer())
 	if err != nil {
 		err = fmt.Errorf(
@@ -87,11 +87,11 @@ func getInterfaceAddress(iface *model.Interface, layer *model.IPSpaceDefinition)
 }
 
 func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string, error) {
-	var layers []*model.IPSpaceDefinition
+	var layers []*model.Layer
 	if layer == "" {
-		layers = cfg.IPSpaceDefinitions
+		layers = cfg.Layers
 	} else {
-		l, ok := cfg.IPSpaceDefinitionByName(layer)
+		l, ok := cfg.LayerByName(layer)
 		if !ok {
 			return "", fmt.Errorf("unknown layer %s", layer)
 		}
@@ -119,7 +119,7 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 		flag := false
 		var lo string
 		for _, l := range layers {
-			if node.IsAware(l.Name) || node.HasAwareInterface(l.Name) {
+			if node.AwareLayer(l.Name) || node.HasAwareInterface(l.Name) {
 				flag = true
 				lo, _ = getNodeLoopback(node, l)
 			}
@@ -144,7 +144,7 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 		for _, iface := range node.Interfaces {
 			if iface.Opposite == nil {
 				for _, l := range layers {
-					if !iface.IsAware(l.Name) {
+					if !iface.AwareLayer(l.Name) {
 						continue
 					}
 
@@ -165,7 +165,7 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 	for _, conn := range nm.Connections {
 		flag := false
 		for _, l := range layers {
-			if conn.IPSpaces.Contains(l.Name) {
+			if conn.Layers.Contains(l.Name) {
 				flag = true
 			}
 		}
@@ -176,11 +176,11 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 
 		attrs := map[string]string{"dir": "none"}
 		for _, l := range layers {
-			if !conn.IPSpaces.Contains(l.Name) {
+			if !conn.Layers.Contains(l.Name) {
 				continue
 			}
 
-			if !conn.Src.IsAware(l.Name) && !conn.Dst.IsAware(l.Name) {
+			if !conn.Src.AwareLayer(l.Name) && !conn.Dst.AwareLayer(l.Name) {
 				continue
 			}
 
@@ -194,7 +194,7 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 				attrs[KEY_EDGE_LABEL] = net
 			}
 
-			if conn.Src.IsAware(l.Name) {
+			if conn.Src.AwareLayer(l.Name) {
 				src_addr, err := getInterfaceAddress(conn.Src, l)
 				if err != nil {
 					return "", err
@@ -209,7 +209,7 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 					attrs[KEY_EDGE_TAILLABEL] = src_addr
 				}
 			}
-			if conn.Dst.IsAware(l.Name) {
+			if conn.Dst.AwareLayer(l.Name) {
 				dst_addr, err := getInterfaceAddress(conn.Dst, l)
 				if err != nil {
 					return "", err

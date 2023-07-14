@@ -16,17 +16,25 @@ file:
   - name: frr.log
     path: /var/log/frr.log
 
-ipspace:
-  - name: ip
-    range: 192.168.0.0/16
-    prefix: 24
-    loopback_range: 192.168.255.0/24
+layer:
+  - name: ipv4
     default_connect: true
+    policy:
+      - name: ipv4
+        range: 192.168.0.0/16
+        prefix: 24
+      - name: ipv4lo
+        type: loopback
+        range: 192.168.255.0/24
   - name: ipv6
-    range: fc00::/32
-    prefix: 64
-    loopback_range: fc00:0:0:ffff::/64
     default_connect: true
+    policy:
+      - name: ipv6
+        range: fc00::/32
+        prefix: 64
+      - name: ipv6lo
+        type: loopback
+        range: fc00:0:0:ffff::/64
 
 nodeclass:
   - name: switch
@@ -42,7 +50,8 @@ nodeclass:
           - ip link set br0 up
   - name: router
     primary: true
-    ipaware: [ip, ipv6]
+    params: [ipv4lo, ipv6lo]
+    interface_policy: [ipv4, ipv6]
     tinet:
       image: quay.io/frrouting/frr:8.5.0
     clab:
@@ -62,7 +71,7 @@ nodeclass:
           - "log file /var/log/frr.log"
           - "!"
           - "interface lo"
-          - " ip address {{ .ip_loopback }}/32"
+          - " ip address {{ .ipv4_loopback }}/32"
           - " ipv6 address {{ .ipv6_loopback }}/128"
           - "!"
   - name: bgp
@@ -74,7 +83,7 @@ nodeclass:
           - "router bgp {{ .as }}"
           - " timers bgp 3 10"
           - " coalesce-time 0"
-          - " bgp router-id {{ .ip_loopback }}"
+          - " bgp router-id {{ .ipv4_loopback }}"
           - " bgp log-neighbor-changes"
           - " no bgp ebgp-requires-policy"
           - "!"
@@ -93,7 +102,7 @@ nodeclass:
           - "log file /var/log/frr.log"
           - "!"
           - "router ospf"
-          - " ospf router-id {{ .ip_loopback }}"
+          - " ospf router-id {{ .ipv4_loopback }}"
           - " log-adjacency-changes"
           - " network 192.168.0.0/16 area 0.0.0.0"
           - " timers throttle spf 0 0 0"
@@ -111,7 +120,7 @@ nodeclass:
         priority: 1
         template:
           - "router ospf6"
-          - " ospf6 router-id {{ .ip_loopback }}"
+          - " ospf6 router-id {{ .ipv4_loopback }}"
           - " log-adjacency-changes"
           - " interface lo area 0.0.0.0"
           - "!"
@@ -128,25 +137,25 @@ interfaceclass:
         file: zebra.conf
         template:
           - "interface {{ .name }}"
-          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - " ip address {{ .ipv4_addr }}/{{ .ipv4_plen }}"
           - " ipv6 address {{ .ipv6_addr }}/{{ .ipv6_plen }}"
           - "!"
   - name: ibgp
     neighbors:
-      - ipspace: ip
+      - layer: ipv4
         config:
           - node: bgp
             file: bgpd.conf
             template:
               - "router bgp {{ .node_as }}"
-              - " neighbor {{ .n_node_ip_loopback }} remote-as {{ .n_node_as }}"
-              - " neighbor {{ .n_node_ip_loopback }} timers 3 10"
-              - " neighbor {{ .n_node_ip_loopback }} description Router {{ .n_node_name }} (iBGP)"
-              - " neighbor {{ .n_node_ip_loopback }} update-source lo"
-              - " neighbor {{ .n_node_ip_loopback }} timers connect 5"
+              - " neighbor {{ .n_node_ipv4_loopback }} remote-as {{ .n_node_as }}"
+              - " neighbor {{ .n_node_ipv4_loopback }} timers 3 10"
+              - " neighbor {{ .n_node_ipv4_loopback }} description Router {{ .n_node_name }} (iBGP)"
+              - " neighbor {{ .n_node_ipv4_loopback }} update-source lo"
+              - " neighbor {{ .n_node_ipv4_loopback }} timers connect 5"
               - "!"
               - " address-family ipv4 unicast"
-              - "  network {{ .n_ip_net }}"  # neighbor network
+              - "  network {{ .n_ipv4_net }}"  # neighbor network
               - " exit-address-family"
               - "!"
     classmembers: 
@@ -156,26 +165,26 @@ interfaceclass:
             template:
               - "router bgp {{ .node_as }}"
               - " address-family ipv4 unicast"
-              - "  network {{ .m_ip_net }}"  # advertised network
+              - "  network {{ .m_ipv4_net }}"  # advertised network
               - " exit-address-family"
               - "!"
   - name: ebgp
     neighbors:
-      - ipspace: ip
+      - layer: ipv4
         config:
           - node: bgp
             file: bgpd.conf
             template:
               - "router bgp {{ .node_as }}"
-              - " neighbor {{ .n_ip_addr }} remote-as {{ .n_node_as }}"
-              - " neighbor {{ .n_ip_addr }} timers 3 10"
-              - " neighbor {{ .n_ip_addr }} description Router {{ .n_node_name }} (eBGP AS {{ .n_node_as }})"
-              - " neighbor {{ .n_ip_addr }} timers connect 5"
+              - " neighbor {{ .n_ipv4_addr }} remote-as {{ .n_node_as }}"
+              - " neighbor {{ .n_ipv4_addr }} timers 3 10"
+              - " neighbor {{ .n_ipv4_addr }} description Router {{ .n_node_name }} (eBGP AS {{ .n_node_as }})"
+              - " neighbor {{ .n_ipv4_addr }} timers connect 5"
               - "!"
               - " address-family ipv4 unicast"
-              - "  network {{ .n_ip_net }}"  # neighbor network
-              - "  neighbor {{ .n_ip_addr }} route-map testmap-in in"
-              - "  neighbor {{ .n_ip_addr }} route-map testmap-out out"
+              - "  network {{ .n_ipv4_net }}"  # neighbor network
+              - "  neighbor {{ .n_ipv4_addr }} route-map testmap-in in"
+              - "  neighbor {{ .n_ipv4_addr }} route-map testmap-out out"
               - " exit-address-family"
               - "!"
     classmembers: 
@@ -185,7 +194,7 @@ interfaceclass:
             template:
               - "router bgp {{ .node_as }}"
               - " address-family ipv4 unicast"
-              - "  network {{ .m_ip_net }}"  # advertised network
+              - "  network {{ .m_ipv4_net }}"  # advertised network
               - " exit-address-family"
               - "!"
   - name: ospf

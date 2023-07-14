@@ -1,11 +1,12 @@
 name: test
 
-ipspace:
+layer:
   - name: ip
-    range: 10.0.0.0/16
-    prefix: 24
-    loopback_range: 10.0.255.0/24
     default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
 
 nodeclass:
   - name: switch
@@ -22,7 +23,7 @@ nodeclass:
 
   - name: server
     primary: true
-    ipaware: [ip]
+    interface_policy: [ip]
     tinet:
       image: nicolaka/netshoot
     clab:

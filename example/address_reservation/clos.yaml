@@ -1,25 +1,28 @@
 name: address_reservation
 
 global:
-  mgmt_ipspace: mgmt
   path: local
 
-ipspace:
+layer:
   - name: ip
-    range: 10.0.0.0/16
-    prefix: 30
-    loopback_range: 10.255.0.0/24
-    default_aware: true
     default_connect: true
-  - name: mgmt
-    range: 172.16.0.0/16
-    prefix: 32
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 30
+      - name: lo
+        type: loopback
+        range: 10.255.0.0/24
+
+management_layer:
+  name: mgmt
+  range: 172.16.0.0/16
 
 nodeclass:
   - name: all
     primary: true
-    numbered: [as]
-    mgmt_interface: mgmtif
+    params: [lo, as]
+    mgmt_interfaceclass: mgmtif
     tinet:
       image: slankdev/frr
     config:
@@ -39,11 +42,11 @@ nodeclass:
 
 interfaceclass:
   - name: mgmtif
-    ipaware: [mgmt]
 
 connectionclass:
   - name: default
     primary: true
+    params: [ip]
     config:
       - node: router
         target: frr

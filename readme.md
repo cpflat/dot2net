@@ -45,10 +45,10 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
     dot2net clab -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > topo.yaml
     
     // Deploy
-    containerlab deploy --topo topo.yaml
+    sudo containerlab deploy --topo topo.yaml
 
     // Destroy
-    containerlab destroy --topo topo.yaml
+    sudo containerlab destroy --topo topo.yaml
  
  
 ## Show IPaddress assignment visualization
@@ -129,10 +129,11 @@ There can be multiple non-primary class labels,
 but the non-Primary classes cannot include these setup information.
 
 
-# Config templates
+# Class definitions
 
-Config templates are defined in the definition of Classes.
-They are specified inline (anyclass.config.template) or in external files (anyclass.config.file).
+The class definitions (YAML file) includes config template blocks and some flags.
+
+The config templates can be specified inline (anyclass.config.template) or in external files (anyclass.config.file).
 
 
 ## Variable replacers
@@ -140,7 +141,7 @@ They are specified inline (anyclass.config.template) or in external files (anycl
 Config templates of dot2net basically follow [text/template](https://pkg.go.dev/text/template) notation.
 
 The available parameters (except IP-related parameters) in the templates are following.
-The optional parameter replacers (e.g., as) can be available only when the corresponding number classifiers (e.g., as) are specified in "anyclass.numbered" of the class.
+The optional parameter replacers (e.g., as) can be available only when the corresponding parameter classifiers (e.g., as) are specified in "anyclass.params" of the class.
 
 | Class     | Number | Replacer | Note
 |:----------|:-------|:----------------|--------
@@ -152,16 +153,16 @@ For example, {{ .name }} in node config templates embeds the node name,
 and {{ .name }} in interface (or connection) config templates embeds the corresponding interface name.
 
 IP-related parameters are following.
-These parameters are available for all aware IPspaces of the objects. 
+These parameters are available for all Layers of the objects. 
 
 | Class     | Replacer           | Note
 |:----------|:-------------------|--------
-| Node      | [IPspace]_loopback | Loopback IP addresses, assigned for IPSpaces with loopback_range
-| Interface | [IPspace]_addr     | IP address (e.g., 192.0.2.1)
-| Interface | [IPspace]_net      | IP network (e.g., 192.0.2.0/24)
-| Interface | [IPspace]_plen     | IP prefix length (e.g., 24)
+| Node      | [Layer]_loopback | Loopback IP addresses, assigned for IPSpaces with loopback_range
+| Interface | [Layer]_addr     | IP address (e.g., 192.0.2.1)
+| Interface | [Layer]_net      | IP network (e.g., 192.0.2.0/24)
+| Interface | [Layer]_plen     | IP prefix length (e.g., 24)
 
-For example, if their is one defined IPSpace named "ip",
+For example, if their is one defined layer named "ip",
 {{ .ip_addr }} embeds the IP address automatically calculated on the IPSpace.
 
 For config templates of Interface Classes or Connection Classes,
@@ -180,12 +181,16 @@ Relative prefix can be additionally used for specifying neighbor parameters .
 | Interface | opp_group_      | Node group value of opposite interface
 | Interface | opp_(groupcls)_ | Group value corresponding to specified group class of node
 
-For example, {{ .opp_ipnet }} embeds IP network (such as "192.168.101.0/24")
+For example, {{ .opp_ip_net }} embeds IP network (such as "192.168.101.0/24")
 of the opposite interface. 
 
-The available numbers can be listed with "number" subcommand:
+The available parameters can be listed with "params" subcommand:
 
-    dot2net number -c ./example/basic_bgp/bgp.yaml ./example/basic_bgp/bgp.dot
+    dot2net params -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot
+
+The available parameters can be output as JSON data with "data" subcommand:
+
+    dot2net data -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot
 
 
 ## IPSpaces
@@ -237,7 +242,7 @@ The value specified with Value label is only available in namespase of the speci
 
 Place labels make the object referrable from any other objects.
 The format has a prefix "@".
-For example, any nodes or interfaces can embed IPAddress of n2 with {{ .n2_ipaddr }}.
+For example, any nodes or interfaces can embed IPAddress of n2 with {{ .n2_ip_addr }}.
 Place labels cannot exist on Connections (only available on Nodes or Interfaces).
 
 Meta Value labels define aliases to Place labels. 

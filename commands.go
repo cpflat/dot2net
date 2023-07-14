@@ -6,8 +6,9 @@ var commands = []*cli.Command{
 	commandCommand,
 	commandTinet,
 	commandClab,
-	commandNumber,
+	commandParams,
 	commandVisual,
+	commandData,
 }
 
 var commandCommand = &cli.Command{
@@ -85,10 +86,10 @@ var commandClab = &cli.Command{
 	},
 }
 
-var commandNumber = &cli.Command{
-	Name:   "number",
+var commandParams = &cli.Command{
+	Name:   "params",
 	Usage:  "List available numbers for config templates",
-	Action: CmdNumber,
+	Action: CmdParams,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    "config",
@@ -130,6 +131,20 @@ var commandVisual = &cli.Command{
 			Name:    "verbose",
 			Aliases: []string{"v"},
 			Usage:   "Verbose",
+		},
+	},
+}
+
+var commandData = &cli.Command{
+	Name:   "data",
+	Usage:  "Output parameter data in JSON format",
+	Action: CmdData,
+	Flags: []cli.Flag{
+		&cli.StringFlag{
+			Name:    "config",
+			Aliases: []string{"c"},
+			Usage:   "Specify the Config file.",
+			Value:   "config.yaml",
 		},
 	},
 }

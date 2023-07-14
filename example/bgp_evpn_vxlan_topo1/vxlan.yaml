@@ -14,16 +14,20 @@ file:
   - name: frr.log
     path: /var/log/frr.log
 
-ipspace:
+layer:
   - name: provider
-    range: 10.1.0.0/16
-    prefix: 24
-    loopback_range: 10.255.0.0/24
-    #default_connect: true
+    policy:
+      - name: provider
+        range: 10.1.0.0/16
+        prefix: 24
+      - name: lo
+        type: loopback
+        range: 10.255.0.0/24
   - name: customer
-    range: 10.10.0.0/16
-    prefix: 24
-      #default_connect: true
+    policy:
+      - name: customer
+        range: 10.10.0.0/16
+        prefix: 24
 
 nodeclass:
   - name: switch
@@ -80,7 +84,7 @@ nodeclass:
               - " exit-address-family"
               - "!"
   - name: ospf
-    ipaware: [provider]
+    params: [lo]
     config:
       - template:
           - "sysctl -w net.ipv4.ip_forward=1"
@@ -106,7 +110,7 @@ interfaceclass:
   - name: vxlan
     primary: true
     prefix: br
-    ipaware: [customer]
+    params: [customer]
     config:
       - node: ospf
         template:
@@ -118,7 +122,7 @@ interfaceclass:
           - "ip link set up dev vxlan101"
           - "ip link set dev {{ .attach_name }} master {{ .name }}"
   - name: ospf
-    ipaware: [provider]
+    params: [provider]
     config:
       - file: zebra.conf
         template:
@@ -138,7 +142,7 @@ interfaceclass:
           - " ip ospf dead-interval 10"
           - "!"
   - name: host
-    ipaware: [customer]
+    params: [customer]
     config:
       - file: zebra.conf
         node: host
@@ -149,8 +153,8 @@ interfaceclass:
 
 connectionclass:
   - name: p
-    ipspaces: [provider]
+    layers: [provider]
   - name: c
-    ipspaces: [customer]
+    layers: [customer]
   - name: v
     virtual: true

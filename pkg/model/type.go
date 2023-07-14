@@ -112,21 +112,33 @@ func (mr *memberReference) GetMembers() []*Member {
 // }
 
 type addressedObject struct {
-	awareLayers mapset.Set[string]
+	layerPolicy map[string]*IPPolicy
+	layers      mapset.Set[string]
 }
 
 func newAddressedObject() addressedObject {
 	return addressedObject{
-		awareLayers: mapset.NewSet[string](),
+		layerPolicy: map[string]*IPPolicy{},
+		layers:      mapset.NewSet[string](),
 	}
 }
 
-func (a addressedObject) setAware(layer string) {
-	a.awareLayers.Add(layer)
+func (a addressedObject) AwareLayer(layer string) bool {
+	return a.layers.Contains(layer)
 }
 
-func (a addressedObject) IsAware(layer string) bool {
-	return a.awareLayers.Contains(layer)
+func (a addressedObject) getLayerPolicy(layer string) *IPPolicy {
+	val, ok := a.layerPolicy[layer]
+	if ok {
+		return val
+	} else {
+		return nil
+	}
+}
+
+func (a addressedObject) setPolicy(layer *Layer, policy *IPPolicy) {
+	a.layerPolicy[layer.Name] = policy
+	a.layers.Add(layer.Name)
 }
 
 // NameSpacer includes Node, Interface, Neighbor, Member, Group
@@ -262,6 +274,8 @@ type NetworkModel struct {
 	Connections []*Connection
 	Groups      []*Group
 
+	NetworkSegments map[string][]*SegmentMembers
+
 	nodeMap                  map[string]*Node
 	groupMap                 map[string]*Group
 	nodeClassMemberMap       classMemberMap
@@ -285,9 +299,9 @@ func (nm *NetworkModel) newNode(name string) *Node {
 
 func (nm *NetworkModel) newConnection(src *Interface, dst *Interface) *Connection {
 	conn := &Connection{
-		Src:      src,
-		Dst:      dst,
-		IPSpaces: mapset.NewSet[string](),
+		Src:    src,
+		Dst:    dst,
+		Layers: mapset.NewSet[string](),
 	}
 	nm.Connections = append(nm.Connections, conn)
 	src.Connection = conn
@@ -362,22 +376,22 @@ func (n *Node) GetManagementInterface() *Interface {
 	return n.mgmtInterface
 }
 
-func (n *Node) setAwareLayers(aware []string, defaults []string, ignoreDefaults bool) {
-	var givenset mapset.Set[string]
-	var defaultset mapset.Set[string]
-	if ignoreDefaults {
-		defaultset = mapset.NewSet[string]()
-	} else {
-		defaultset = mapset.NewSet(defaults...)
-	}
-	givenset = mapset.NewSet(aware...)
-
-	n.addressedObject.awareLayers = defaultset.Union(givenset)
-}
+// func (n *Node) setAwareLayers(aware []string, defaults []string, ignoreDefaults bool) {
+// 	var givenset mapset.Set[string]
+// 	var defaultset mapset.Set[string]
+// 	if ignoreDefaults {
+// 		defaultset = mapset.NewSet[string]()
+// 	} else {
+// 		defaultset = mapset.NewSet(defaults...)
+// 	}
+// 	givenset = mapset.NewSet(aware...)
+//
+// 	n.addressedObject.AwareLayers = defaultset.Union(givenset)
+// }
 
 func (n *Node) HasAwareInterface(layer string) bool {
 	for _, iface := range n.Interfaces {
-		if iface.IsAware(layer) {
+		if iface.AwareLayer(layer) {
 			return true
 		}
 	}
@@ -392,9 +406,9 @@ func (n *Node) ClassDefinition(cfg *Config, cls string) (interface{}, error) {
 	return nc, nil
 }
 
-func (n *Node) GivenIPLoopback(ipspace *IPSpaceDefinition) (string, bool) {
+func (n *Node) GivenIPLoopback(layer *Layer) (string, bool) {
 	for k, v := range n.valueLabels {
-		if k == ipspace.IPLoopbackReplacer() {
+		if k == layer.IPLoopbackReplacer() {
 			return v, true
 		}
 	}
@@ -424,32 +438,32 @@ func (iface *Interface) String() string {
 	return fmt.Sprintf("%s.%s", iface.Node.String(), iface.Name)
 }
 
-func (iface *Interface) GivenIPAddress(ipspace *IPSpaceDefinition) (string, bool) {
+func (iface *Interface) GivenIPAddress(layer Layerer) (string, bool) {
 	for k, v := range iface.valueLabels {
-		if k == ipspace.IPAddressReplacer() {
+		if k == layer.IPAddressReplacer() {
 			return v, true
 		}
 	}
 	return "", false
 }
 
-func (iface *Interface) setAwareLayers(aware []string, defaults []string, ignoreNode bool, ignoreDefaults bool) {
-	var givenset mapset.Set[string]
-	var defaultset mapset.Set[string]
-	if ignoreDefaults {
-		defaultset = mapset.NewSet[string]()
-	} else {
-		defaultset = mapset.NewSet(defaults...)
-	}
-	givenset = mapset.NewSet(aware...)
-
-	if ignoreNode {
-		iface.addressedObject.awareLayers = defaultset.Union(givenset)
-	} else {
-		appendum := defaultset.Union(givenset)
-		iface.addressedObject.awareLayers = appendum.Union(iface.Node.addressedObject.awareLayers)
-	}
-}
+// func (iface *Interface) setAwareLayers(aware []string, defaults []string, ignoreNode bool, ignoreDefaults bool) {
+// 	var givenset mapset.Set[string]
+// 	var defaultset mapset.Set[string]
+// 	if ignoreDefaults {
+// 		defaultset = mapset.NewSet[string]()
+// 	} else {
+// 		defaultset = mapset.NewSet(defaults...)
+// 	}
+// 	givenset = mapset.NewSet(aware...)
+//
+// 	if ignoreNode {
+// 		iface.addressedObject.awareLayers = defaultset.Union(givenset)
+// 	} else {
+// 		appendum := defaultset.Union(givenset)
+// 		iface.addressedObject.awareLayers = appendum.Union(iface.Node.addressedObject.awareLayers)
+// 	}
+// }
 
 func (iface *Interface) ClassDefinition(cfg *Config, cls string) (interface{}, error) {
 	ic, ok := cfg.interfaceClassMap[cls]
@@ -471,9 +485,9 @@ func (iface *Interface) addNeighbor(neighbor *Interface, ipspace string) {
 }
 
 type Connection struct {
-	Src      *Interface
-	Dst      *Interface
-	IPSpaces mapset.Set[string]
+	Src    *Interface
+	Dst    *Interface
+	Layers mapset.Set[string]
 
 	*parsedLabels
 }
@@ -490,13 +504,23 @@ func (conn *Connection) ClassDefinition(cfg *Config, cls string) (interface{}, e
 	return cc, nil
 }
 
-func (conn *Connection) GivenIPNetwork(ipspace *IPSpaceDefinition) (string, bool) {
+func (conn *Connection) GivenIPNetwork(layer Layerer) (string, bool) {
 	for k, v := range conn.valueLabels {
-		if k == ipspace.IPNetworkReplacer() {
+		if k == layer.IPNetworkReplacer() {
 			return v, true
 		}
 	}
 	return "", false
+}
+
+// type NetworkSegments struct {
+// 	Layer    *Layer
+// 	Segments []*SegmentMembers
+// }
+
+type SegmentMembers struct {
+	Interfaces  []*Interface
+	Connections []*Connection
 }
 
 type Neighbor struct {

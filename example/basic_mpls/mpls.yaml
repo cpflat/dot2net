@@ -1,16 +1,20 @@
 global:
   path: local
 
-ipspace:
+layer:
   - name: ip
-    range: 10.0.0.0/16
-    prefix: 24
-    loopback_range: 10.255.0.0/24
-    default_aware: true
     default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+      - name: lo
+        type: loopback
+        range: 10.255.0.0/24
 
 nodeclass:
   - name: all
+    params: [lo]
     config:
       - target: local
         template: 
@@ -41,6 +45,7 @@ nodeclass:
 connectionclass:
   - name: default
     primary: true
+    params: [ip]
     config:
       - node: router
         target: local

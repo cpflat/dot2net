@@ -1,4 +1,4 @@
-name: ospf-simple
+name: ospf_simple
 
 file:
   - name: frr.conf
@@ -8,12 +8,16 @@ file:
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
 
-ipspace:
+layer:
   - name: ip
-    range: 10.0.0.0/16
-    prefix: 24
-    loopback_range: 10.0.255.0/24
     default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+      - name: lo
+        type: loopback
+        range: 10.0.255.0/24
 
 nodeclass:
   - name: router
@@ -23,6 +27,7 @@ nodeclass:
     clab:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+    policy: [lo]
     config:
       - file: daemons
         sourcefile: ./daemons
@@ -39,7 +44,7 @@ nodeclass:
 interfaceclass:
   - name: default
     primary: true
-    ipaware: [ip]
+    policy: [ip]
     config:
       - file: frr.conf
         template: 

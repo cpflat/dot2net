@@ -9,17 +9,21 @@ file:
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
 
-ipspace:
+layer:
   - name: ip
-    range: 10.0.0.0/16
-    prefix: 30
-    loopback_range: 10.255.0.0/24
-    default_aware: true
     default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 30
+      - name: lo
+        type: loopback
+        range: 10.255.0.0/24
 
 nodeclass:
   - name: router
     primary: true
+    params: [lo]
     tinet:
       image: quay.io/frrouting/frr:8.5.0
     clab:
@@ -41,6 +45,7 @@ nodeclass:
 connectionclass:
   - name: default
     primary: true
+    params: [ip]
     config:
       - template:
           - ip addr add {{ .ip_addr }}/{{ .ip_plen }} dev {{ .name }}

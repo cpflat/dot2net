@@ -164,7 +164,7 @@ func CmdClab(c *cli.Context) error {
 	return outputString(name, topo)
 }
 
-func CmdNumber(c *cli.Context) error {
+func CmdParams(c *cli.Context) error {
 	nd, cfg, err := loadContext(c)
 	if err != nil {
 		return err
@@ -287,6 +287,26 @@ func CmdVisual(c *cli.Context) error {
 	}
 
 	buf, err := visual.GraphToDot(cfg, nm, layer)
+	if err != nil {
+		return err
+	}
+	err = outputString(name, []byte(buf))
+	return err
+}
+
+func CmdData(c *cli.Context) error {
+	nd, cfg, err := loadContext(c)
+	if err != nil {
+		return err
+	}
+	name := c.String("output")
+
+	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputAsis)
+	if err != nil {
+		return err
+	}
+
+	buf, err := visual.GetDataJSON(cfg, nm)
 	if err != nil {
 		return err
 	}

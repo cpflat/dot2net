@@ -7,11 +7,15 @@ import (
 	"strings"
 )
 
+const IPPolicyTypeDefault = "ip"
+const IPPolicyTypeLoopback = "loopback"
+
 const DefaultNodePrefix string = "node"
 const DefaultInterfacePrefix string = "net"
 const ManagementInterfaceName string = "mgmt"
 
 const NumberReplacerName string = "name"
+const ManagementLayerReplacer string = "mgmt"
 
 const NumberAS string = "as"
 const NumberNumber string = "number"
@@ -80,6 +84,7 @@ func BuildNetworkModel(cfg *Config, d *Diagram, output string) (nm *NetworkModel
 
 func buildSkeleton(cfg *Config, d *Diagram) (*NetworkModel, error) {
 	nm := &NetworkModel{
+		NetworkSegments:          map[string][]*SegmentMembers{},
 		nodeMap:                  map[string]*Node{},
 		groupMap:                 map[string]*Group{},
 		nodeClassMemberMap:       classMemberMap{mapper: map[string][]NameSpacer{}},
@@ -167,8 +172,7 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 		- check flags (IPAware, Numbered and IPSpaces)
 	*/
 
-	defaultIPAware := cfg.DefaultIPAware()
-	defaultIPConnect := cfg.DefaultIPConnect()
+	defaultConnectionLayer := cfg.DefaultConnectionLayer()
 
 	var primaryNC string
 	primaryICMap := map[*Interface]string{}
@@ -176,8 +180,6 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 	// check nodes
 	for _, node := range nm.Nodes {
 		primaryNC = ""
-		nodeIPAware := []string{}
-		nodeIPAwareIgnoreDefaults := false
 
 		// set defaults for nodes without primary class
 		node.namePrefix = DefaultNodePrefix
@@ -186,7 +188,7 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 		for _, cls := range node.classLabels {
 			nc, ok := cfg.nodeClassMap[cls]
 			if !ok {
-				return fmt.Errorf("invalid NodeClass name %s", cls)
+				return fmt.Errorf("invalid nodeclass name %s", cls)
 			}
 			node.parsedLabels.classes = append(node.parsedLabels.classes, nc)
 			nm.nodeClassMemberMap.addClassMember(nc.Name, node)
@@ -196,15 +198,37 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 				node.Virtual = true
 			}
 
-			// check IP aware
-			nodeIPAware = append(nodeIPAware, nc.IPAware...)
-			if nc.IPAwareIgnoreDefaults {
-				nodeIPAwareIgnoreDefaults = true
+			// check ippolicy flags
+			for _, p := range nc.IPPolicy {
+				policy, ok := cfg.policyMap[p]
+				if ok {
+					node.setPolicy(policy.layer, policy)
+				} else {
+					return fmt.Errorf("invalid policy name %s in nodeclass %s", p, nc.Name)
+				}
 			}
 
-			// check numbered
-			for _, num := range nc.Numbered {
-				node.setNumbered(num)
+			// check interface_policy flags
+			for _, p := range nc.InterfaceIPPolicy {
+				policy, ok := cfg.policyMap[p]
+				if ok {
+					for _, iface := range node.Interfaces {
+						iface.setPolicy(policy.layer, policy)
+					}
+				} else {
+					return fmt.Errorf("invalid policy name %s in nodeclass %s", p, nc.Name)
+				}
+			}
+
+			// check parameter flags
+			for _, num := range nc.Parameters {
+				policy, ok := cfg.policyMap[num]
+				if ok {
+					// ip policy
+					node.setPolicy(policy.layer, policy)
+				} else {
+					node.setNumbered(num)
+				}
 			}
 
 			// check MemberClasses
@@ -244,7 +268,6 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 				}
 			}
 		}
-		node.setAwareLayers(nodeIPAware, defaultIPAware, nodeIPAwareIgnoreDefaults)
 
 		if primaryNC == "" && !node.Virtual {
 			fmt.Fprintf(os.Stderr, "warning: no primary node class on node %s\n", node.Name)
@@ -254,21 +277,21 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 	// check connections
 	for _, conn := range nm.Connections {
 
-		for _, space := range defaultIPConnect {
-			conn.IPSpaces.Add(space)
+		for _, layer := range defaultConnectionLayer {
+			conn.Layers.Add(layer)
 		}
 
 		// check connectionclass flags to connections and their interfaces
 		for _, cls := range conn.classLabels {
 			cc, ok := cfg.connectionClassMap[cls]
 			if !ok {
-				return fmt.Errorf("invalid ConnectionClass name %s", cls)
+				return fmt.Errorf("invalid connectionclass name %s", cls)
 			}
 			conn.parsedLabels.classes = append(conn.parsedLabels.classes, cc)
 
-			// connected ip spaces
-			for _, space := range cc.IPSpaces {
-				conn.IPSpaces.Add(space)
+			// connected layer
+			for _, layer := range cc.Layers {
+				conn.Layers.Add(layer)
 			}
 
 			// check primary interface class consistency
@@ -305,10 +328,6 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 	// check interfaces
 	for _, node := range nm.Nodes {
 		for _, iface := range node.Interfaces {
-			ifaceIPAware := []string{}
-			ifaceIPAwareIgnoreNode := false
-			ifaceIPAwareIgnoreDefaults := false
-
 			// set virtual flag to interfaces of virtual nodes as default
 			iface.Virtual = node.Virtual
 
@@ -319,26 +338,37 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 			for _, cls := range iface.Connection.classLabels {
 				cc, ok := cfg.connectionClassMap[cls]
 				if !ok {
-					return fmt.Errorf("invalid ConnectionClass name %s", cls)
+					return fmt.Errorf("invalid connectionclass name %s", cls)
 				}
 				nm.connectionClassMemberMap.addClassMember(cc.Name, iface)
 
 				// check virtual
 				iface.Virtual = iface.Virtual || cc.Virtual
 
-				// aware ip spaces
-				ifaceIPAware = append(ifaceIPAware, cc.IPAware...)
-				ifaceIPAwareIgnoreNode = ifaceIPAwareIgnoreNode || cc.IPAwareIgnoreNode
-				ifaceIPAwareIgnoreDefaults = ifaceIPAwareIgnoreDefaults || cc.IPAwareIgnoreDefaults
+				// check ippolicy flags
+				for _, p := range cc.IPPolicy {
+					policy, ok := cfg.policyMap[p]
+					if ok {
+						iface.setPolicy(policy.layer, policy)
+					} else {
+						return fmt.Errorf("invalid policy name %s in connectionclass %s", p, cc.Name)
+					}
+				}
 
-				// check numbered
-				for _, num := range cc.Numbered {
-					iface.setNumbered(num)
+				// check parameter flags
+				for _, num := range cc.Parameters {
+					policy, ok := cfg.policyMap[num]
+					if ok {
+						// ip policy
+						iface.setPolicy(policy.layer, policy)
+					} else {
+						iface.setNumbered(num)
+					}
 				}
 
 				// check neighbor classes
 				for _, nc := range cc.NeighborClasses {
-					iface.hasNeighborClass[nc.IPSpace] = true
+					iface.hasNeighborClass[nc.Layer] = true
 				}
 
 				// check MemberClasses
@@ -352,7 +382,7 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 			for _, cls := range iface.classLabels {
 				ic, ok := cfg.interfaceClassMap[cls]
 				if !ok {
-					return fmt.Errorf("invalid InterfaceClass name %s", cls)
+					return fmt.Errorf("invalid interfaceclass name %s", cls)
 				}
 				iface.parsedLabels.classes = append(iface.parsedLabels.classes, ic)
 				nm.interfaceClassMemberMap.addClassMember(ic.Name, iface)
@@ -360,19 +390,30 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 				// check virtual
 				iface.Virtual = iface.Virtual || ic.Virtual
 
-				// aware ip spaces
-				ifaceIPAware = append(ifaceIPAware, ic.IPAware...)
-				ifaceIPAwareIgnoreNode = ifaceIPAwareIgnoreNode || ic.IPAwareIgnoreNode
-				ifaceIPAwareIgnoreDefaults = ifaceIPAwareIgnoreDefaults || ic.IPAwareIgnoreDefaults
+				// check ippolicy flags
+				for _, p := range ic.IPPolicy {
+					policy, ok := cfg.policyMap[p]
+					if ok {
+						iface.setPolicy(policy.layer, policy)
+					} else {
+						return fmt.Errorf("invalid policy name %s in interfaceclass %s", p, ic.Name)
+					}
+				}
 
-				// check numbered
-				for _, num := range ic.Numbered {
-					iface.setNumbered(num)
+				// check parameter flags
+				for _, num := range ic.Parameters {
+					policy, ok := cfg.policyMap[num]
+					if ok {
+						// ip policy
+						iface.setPolicy(policy.layer, policy)
+					} else {
+						iface.setNumbered(num)
+					}
 				}
 
 				// check neighbor classes
 				for _, nc := range ic.NeighborClasses {
-					iface.hasNeighborClass[nc.IPSpace] = true
+					iface.hasNeighborClass[nc.Layer] = true
 				}
 
 				// check MemberClasses
@@ -401,7 +442,6 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 					}
 				}
 			}
-			iface.setAwareLayers(ifaceIPAware, defaultIPAware, ifaceIPAwareIgnoreNode, ifaceIPAwareIgnoreDefaults)
 		}
 	}
 
@@ -414,7 +454,7 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 			}
 
 			// check numbered
-			for _, num := range gc.Numbered {
+			for _, num := range gc.Parameters {
 				group.setNumbered(num)
 			}
 		}
@@ -424,45 +464,32 @@ func checkClasses(cfg *Config, nm *NetworkModel) error {
 }
 
 func addSpecialInterfaces(cfg *Config, nm *NetworkModel) error {
-	// setup management ipspace and interfaces only if management ipspace is specified
-	space := cfg.GlobalSettings.ManagementIPSpace
-	if space == "" {
-		return nil
-	}
+	if cfg.HasManagementLayer() {
+		// set mgmt interfaces on nodes
+		name := cfg.ManagementLayer.InterfaceName
+		if name == "" {
+			name = ManagementInterfaceName
+		}
+		for _, node := range nm.Nodes {
+			if ic := node.mgmtInterfaceClass; ic != nil {
 
-	ipspace, ok := cfg.IPSpaceDefinitionByName(space)
-	if !ok {
-		return fmt.Errorf("mgmt IPSpace %v not defined", space)
-	}
-	cfg.mgmtIPSpace = ipspace
-
-	// set mgmt interfaces on nodes
-	name := cfg.GlobalSettings.ManagementInterfaceName
-	if name == "" {
-		name = ManagementInterfaceName
-	}
-	for _, node := range nm.Nodes {
-		if ic := node.mgmtInterfaceClass; ic != nil {
-
-			// check that mgmtInterfaceClass is not used in topology
-			for _, iface := range node.Interfaces {
-				for _, cls := range iface.classLabels {
-					if cls == ic.Name {
-						return fmt.Errorf("mgmt InterfaceClass should not be specified in topology graph (automatically added)")
+				// check that mgmtInterfaceClass is not used in topology
+				for _, iface := range node.Interfaces {
+					for _, cls := range iface.classLabels {
+						if cls == ic.Name {
+							return fmt.Errorf("mgmt InterfaceClass should not be specified in topology graph (automatically added)")
+						}
 					}
 				}
+
+				// add management interface
+				iface := node.newInterface(name)
+				iface.parsedLabels = newParsedLabels()
+				iface.parsedLabels.classLabels = append(iface.parsedLabels.classLabels, ic.Name)
+				node.mgmtInterface = iface
 			}
-
-			// add management interface
-			iface := node.newInterface(name)
-			iface.parsedLabels = newParsedLabels()
-			iface.parsedLabels.classLabels = append(iface.parsedLabels.classLabels, ic.Name)
-			iface.setAware(cfg.mgmtIPSpace.Name)
-			node.mgmtInterface = iface
-
 		}
 	}
-
 	return nil
 }
 
@@ -528,24 +555,35 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) error {
 }
 
 func assignIPParameters(cfg *Config, nm *NetworkModel) error {
-	for _, ipspace := range cfg.IPSpaceDefinitions {
-		if ipspace.LoopbackRange != "" {
-			err := assignIPLoopbacks(cfg, nm, ipspace)
-			if err != nil {
-				return err
-			}
+	if cfg.HasManagementLayer() {
+		err := assignManagementIPAddresses(cfg, nm)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, layer := range cfg.Layers {
+		// loopback
+		err := assignIPLoopbacks(cfg, nm, layer)
+		if err != nil {
+			return err
 		}
 
-		if ipspace.Name == cfg.GlobalSettings.ManagementIPSpace {
-			err := assignManagementIPAddresses(cfg, nm, ipspace)
-			if err != nil {
-				return err
-			}
-		} else {
-			err := assignIPAddresses(cfg, nm, ipspace)
-			if err != nil {
-				return err
-			}
+		// determine network segment
+		segs, err := searchSegments(nm, layer, false)
+		// segs, err := searchSegments(nm, layer, true)
+		if err != nil {
+			return err
+		}
+		if len(segs) > 0 {
+			nm.NetworkSegments[layer.Name] = segs
+		}
+		setNeighbors(segs, layer)
+
+		// assign ip addresses
+		err = assignIPAddresses(cfg, nm, layer)
+		if err != nil {
+			return err
 		}
 	}
 	return nil
@@ -612,7 +650,7 @@ func assignNumbers(cfg *Config, nm *NetworkModel) error {
 		}
 	}
 
-	// add node numbers
+	// add node parameters
 	for num, nodes := range nodesForNumbers {
 		cnt := len(nodes)
 		switch num {
@@ -634,7 +672,7 @@ func assignNumbers(cfg *Config, nm *NetworkModel) error {
 		}
 	}
 
-	// add interface numbers
+	// add interface parameters
 	for num, ifaces := range interfacesForNumbers {
 		cnt := len(ifaces)
 		switch num {
@@ -647,7 +685,7 @@ func assignNumbers(cfg *Config, nm *NetworkModel) error {
 		}
 	}
 
-	// add group numbers
+	// add group parameters
 	for num, groups := range groupsForNumbers {
 		cnt := len(groups)
 		switch num {
@@ -657,7 +695,7 @@ func assignNumbers(cfg *Config, nm *NetworkModel) error {
 				return err
 			}
 			for nid, group := range groups {
-				if group.hasNumber(num) {
+				if group.isNumbered(num) {
 					val := strconv.Itoa(asnumbers[nid])
 					group.addNumber(num, val)
 				}

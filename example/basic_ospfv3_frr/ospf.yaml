@@ -9,13 +9,18 @@ file:
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
 
-ipspace:
+layer:
   - name: ip
-    range: fd00:1234::/32
-    prefix: 64
-    loopback_range: 10.255.0.0/24
-    default_aware: true
     default_connect: true
+    policy:
+      - name: ip
+        range: fd00:1234::/32
+        prefix: 64
+  - name: lo
+    policy:
+      - name: lo
+        type: loopback
+        range: 10.255.0.0/24
 
 nodeclass:
   - name: all
@@ -31,6 +36,7 @@ nodeclass:
           - sysctl -w net.ipv4.conf.default.rp_filter=0
   - name: router
     primary: true
+    params: [lo]
     tinet:
       image: quay.io/frrouting/frr:8.5.0
     clab:
@@ -48,6 +54,7 @@ nodeclass:
           - ospf6 router-id {{ .ip_loopback }}
   - name: server
     primary: true
+    params: [lo]
     tinet:
       image: nicolaka/netshoot
     clab:
@@ -57,6 +64,7 @@ nodeclass:
 connectionclass:
   - name: default
     primary: true
+    params: [ip]
     config:
       - template:
           - sysctl -w net.ipv6.conf.{{ .name }}.disable_ipv6=0

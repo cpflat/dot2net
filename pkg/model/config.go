@@ -29,6 +29,7 @@ const PathSpecificationDefault string = "default" // search files from working d
 const PathSpecificationLocal string = "local"     // search files from the directory with config file
 
 // IP number replacer: [IPSpace]_[IPReplacerXX]
+// const IPLoopbackReplacerFooter string = "loopback"
 const IPLoopbackReplacerFooter string = "loopback"
 const IPAddressReplacerFooter string = "addr"
 const IPNetworkReplacerFooter string = "net"
@@ -44,24 +45,25 @@ func AllOutput() []string {
 }
 
 type Config struct {
-	Name               string               `yaml:"name" mapstructure:"name"`
-	GlobalSettings     GlobalSettings       `yaml:"global" mapstructure:"global"`
-	FileDefinitions    []*FileDefinition    `yaml:"file" mapstructure:"file"`
-	IPSpaceDefinitions []*IPSpaceDefinition `yaml:"ipspace" mapstructure:"ipspace"`
-	NodeClasses        []*NodeClass         `yaml:"nodeclass,flow" mapstructure:"nodes,flow"`
-	InterfaceClasses   []*InterfaceClass    `yaml:"interfaceclass,flow" mapstructure:"interfaces,flow"`
-	ConnectionClasses  []*ConnectionClass   `yaml:"connectionclass,flow" mapstructure:"connections,flow"`
-	GroupClasses       []*GroupClass        `yaml:"groupclass,flow" mapstructure:"group,flow"`
+	Name              string             `yaml:"name" mapstructure:"name"`
+	GlobalSettings    GlobalSettings     `yaml:"global" mapstructure:"global"`
+	FileDefinitions   []*FileDefinition  `yaml:"file" mapstructure:"file"`
+	Layers            []*Layer           `yaml:"layer" mapstructure:"layer"`
+	ManagementLayer   ManagementLayer    `yaml:"mgmt_layer" mapstructure:"mgmt_layer"`
+	NodeClasses       []*NodeClass       `yaml:"nodeclass,flow" mapstructure:"nodes,flow"`
+	InterfaceClasses  []*InterfaceClass  `yaml:"interfaceclass,flow" mapstructure:"interfaces,flow"`
+	ConnectionClasses []*ConnectionClass `yaml:"connectionclass,flow" mapstructure:"connections,flow"`
+	GroupClasses      []*GroupClass      `yaml:"groupclass,flow" mapstructure:"group,flow"`
 
-	fileDefinitionMap    map[string]*FileDefinition
-	ipSpaceDefinitionMap map[string]*IPSpaceDefinition
-	nodeClassMap         map[string]*NodeClass
-	interfaceClassMap    map[string]*InterfaceClass
-	connectionClassMap   map[string]*ConnectionClass
-	groupClassMap        map[string]*GroupClass
-	neighborClassMap     map[string]map[string][]*NeighborClass // interfaceclass name, ipspace name
-	mgmtIPSpace          *IPSpaceDefinition
-	localDir             string
+	fileDefinitionMap  map[string]*FileDefinition
+	layerMap           map[string]*Layer
+	policyMap          map[string]*IPPolicy
+	nodeClassMap       map[string]*NodeClass
+	interfaceClassMap  map[string]*InterfaceClass
+	connectionClassMap map[string]*ConnectionClass
+	groupClassMap      map[string]*GroupClass
+	neighborClassMap   map[string]map[string][]*NeighborClass // interfaceclass name, ipspace name
+	localDir           string
 }
 
 func (cfg *Config) FileDefinitionByName(name string) (*FileDefinition, bool) {
@@ -69,9 +71,9 @@ func (cfg *Config) FileDefinitionByName(name string) (*FileDefinition, bool) {
 	return filedef, ok
 }
 
-func (cfg *Config) IPSpaceDefinitionByName(name string) (*IPSpaceDefinition, bool) {
-	ipspace, ok := cfg.ipSpaceDefinitionMap[name]
-	return ipspace, ok
+func (cfg *Config) LayerByName(name string) (*Layer, bool) {
+	layer, ok := cfg.layerMap[name]
+	return layer, ok
 }
 
 func (cfg *Config) NodeClassByName(name string) (*NodeClass, bool) {
@@ -99,36 +101,14 @@ func (cfg *Config) NeighborClassesByName(iface string, ipspace string) ([]*Neigh
 	return ncs, ok
 }
 
-func (cfg *Config) GetManagementIPSpace() *IPSpaceDefinition {
-	return cfg.mgmtIPSpace
-}
-
-func (cfg *Config) IPSpaceNames() []string {
-	names := make([]string, 0, len(cfg.IPSpaceDefinitions))
-	for _, ipspace := range cfg.IPSpaceDefinitions {
-		names = append(names, ipspace.Name)
-	}
-	return names
-}
-
-func (cfg *Config) DefaultIPAware() []string {
-	spaces := make([]string, 0, len(cfg.IPSpaceDefinitions))
-	for _, ipspace := range cfg.IPSpaceDefinitions {
-		if ipspace.DefaultAware {
-			spaces = append(spaces, ipspace.Name)
+func (cfg *Config) DefaultConnectionLayer() []string {
+	layers := []string{}
+	for _, layer := range cfg.Layers {
+		if layer.DefaultConnect {
+			layers = append(layers, layer.Name)
 		}
 	}
-	return spaces
-}
-
-func (cfg *Config) DefaultIPConnect() []string {
-	spaces := make([]string, 0, len(cfg.IPSpaceDefinitions))
-	for _, ipspace := range cfg.IPSpaceDefinitions {
-		if ipspace.DefaultConnect {
-			spaces = append(spaces, ipspace.Name)
-		}
-	}
-	return spaces
+	return layers
 }
 
 func (cfg *Config) classifyLabels(given []string) *parsedLabels {
@@ -215,13 +195,13 @@ func (cfg *Config) getValidGroupClasses(given []string) *parsedLabels {
 	return cfg.getValidClasses(given, hasAllGroupClass, hasDefaultGroupClass)
 }
 
+func (cfg *Config) HasManagementLayer() bool {
+	return cfg.ManagementLayer.AddrRange != ""
+}
+
 type GlobalSettings struct {
 	PathSpecification string `yaml:"path" mapstructure:"path"`
 	NodeAutoRename    bool   `yaml:"nodeautoname" mapstructure:"nodeautoname"`
-	// If mgmt_ipspace is given, specified ipspace is used only for management network (connection with host machine)
-	ManagementIPSpace string `yaml:"mgmt_ipspace" mapstructure:"mgmt_ipspace"`
-	// If mgmt_name is given, used for management interface name as is
-	ManagementInterfaceName string `yaml:"mgmt_name" mapstructure:"mgmt_name"`
 	// ASNumberMin and ASNumberMAX are optional, considered in AssignASNumbers if specified
 	ASNumberMin int `yaml:"asnumber_min" mapstructure:"asnumber_min"`
 	ASNumberMax int `yaml:"asnumber_max" mapstructure:"asnumber_max"`
@@ -239,38 +219,75 @@ type FileDefinition struct {
 	Format string `yaml:"format" mapstructure:"format"`
 }
 
-type IPSpaceDefinition struct {
-	Name                string `yaml:"name" mapstructure:"name"`
-	AddrRange           string `yaml:"range" mapstructure:"range"`
-	LoopbackRange       string `yaml:"loopback_range" mapstructure:"loopback_range"`
-	DefaultPrefixLength int    `yaml:"prefix" mapstructure:"prefix"`
+type Layerer interface {
+	IPAddressReplacer() string
+	IPNetworkReplacer() string
+	IPPrefixLengthReplacer() string
+}
+
+type Layer struct {
+	Name string `yaml:"name" mapstructure:"name"`
+	// If default_connect is true, ConnectionClasses without ipspaces field are considered as connected on this Layer
+	DefaultConnect bool        `yaml:"default_connect" mapstructure:"default_connect"`
+	Policies       []*IPPolicy `yaml:"policy" mapstructure:"policy"`
+
+	Layerer
+
+	ipPolicy       []*IPPolicy
+	loopbackPolicy []*IPPolicy
+}
+
+func (layer *Layer) IPAddressReplacer() string {
+	return layer.Name + "_" + IPAddressReplacerFooter
+}
+
+func (layer *Layer) IPNetworkReplacer() string {
+	return layer.Name + "_" + IPNetworkReplacerFooter
+}
+
+func (layer *Layer) IPPrefixLengthReplacer() string {
+	return layer.Name + "_" + IPPrefixLengthReplacerFooter
+}
+
+func (layer *Layer) IPProtocolReplacer() string {
+	return layer.Name + "_" + IPProtocolReplacerFooter
+}
+
+func (layer *Layer) IPLoopbackReplacer() string {
+	return layer.Name + "_" + IPLoopbackReplacerFooter
+}
+
+type ManagementLayer struct {
+	Name      string `yaml:"name" mapstructure:"name"`
+	AddrRange string `yaml:"range" mapstructure:"range"`
 	// gateway is used only for management network or external network
 	// the address is avoided in automated IPaddress assignment
 	ExternalGateway string `yaml:"gateway" mapstructure:"gateway"`
-	// If default_aware is true, classes without ipaware field are considered as aware of this IPSpace
-	DefaultAware bool `yaml:"default_aware" mapstructure:"default_aware"`
-	// If default_connect is true, ConnectionClasses without ipspaces field are considered as connected on this IPSpace
-	DefaultConnect bool `yaml:"default_connect" mapstructure:"default_connect"`
+	InterfaceName   string `yaml:"interface_name" mapstructure:"mgmt_name"`
+
+	Layerer
 }
 
-func (ipspace *IPSpaceDefinition) IPAddressReplacer() string {
-	return ipspace.Name + "_" + IPAddressReplacerFooter
+func (layer *ManagementLayer) IPAddressReplacer() string {
+	return layer.Name + "_" + IPAddressReplacerFooter
 }
 
-func (ipspace *IPSpaceDefinition) IPNetworkReplacer() string {
-	return ipspace.Name + "_" + IPNetworkReplacerFooter
+func (layer *ManagementLayer) IPNetworkReplacer() string {
+	return layer.Name + "_" + IPNetworkReplacerFooter
 }
 
-func (ipspace *IPSpaceDefinition) IPPrefixLengthReplacer() string {
-	return ipspace.Name + "_" + IPPrefixLengthReplacerFooter
+func (layer *ManagementLayer) IPPrefixLengthReplacer() string {
+	return layer.Name + "_" + IPPrefixLengthReplacerFooter
 }
 
-func (ipspace *IPSpaceDefinition) IPProtocolReplacer() string {
-	return ipspace.Name + "_" + IPProtocolReplacerFooter
-}
+type IPPolicy struct {
+	Name string `yaml:"name" mapstructure:"name"`
+	// type: ip (deafult), loopback, mgmt
+	Type                string `yaml:"type" mapstructure:"type"`
+	AddrRange           string `yaml:"range" mapstructure:"range"`
+	DefaultPrefixLength int    `yaml:"prefix" mapstructure:"prefix"`
 
-func (ipspace *IPSpaceDefinition) IPLoopbackReplacer() string {
-	return ipspace.Name + "_" + IPLoopbackReplacerFooter
+	layer *Layer
 }
 
 type ObjectClass interface{}
@@ -279,34 +296,32 @@ type NodeClass struct {
 	// A node can have only one "primary" node class.
 	// Unprimary node classes only have "name", "numbered" and "config". Other attributes are ignored.
 	// A virtual node have parameters, but no object nor configuration. It is considered only on parameter assignment.
-	Name                  string            `yaml:"name" mapstructure:"name"`
-	Primary               bool              `yaml:"primary" mapstructure:"primary"`
-	Virtual               bool              `yaml:"virtual" mapstructure:"virtual"`
-	IPAware               []string          `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces for loopback
-	IPAwareIgnoreDefaults bool              `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
-	Numbered              []string          `yaml:"numbered,flow" mapstructure:"numbered,flow"`
-	ConfigTemplates       []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
-	MemberClasses         []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
+	Name              string            `yaml:"name" mapstructure:"name"`
+	Primary           bool              `yaml:"primary" mapstructure:"primary"`
+	Virtual           bool              `yaml:"virtual" mapstructure:"virtual"`
+	IPPolicy          []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
+	Parameters        []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	InterfaceIPPolicy []string          `yaml:"interface_policy,flow" mapstructure:"interface_policy,flow"`
+	ConfigTemplates   []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	MemberClasses     []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
 
 	// Following attributes are valid only on primary interface classes.
-	Prefix        string                 `yaml:"prefix" mapstructure:"prefix"`                 // prefix of auto-naming
-	MgmtInterface string                 `yaml:"mgmt_interface" mapstructure:"mgmt_interface"` // InterfaceClass name for mgmt
-	TinetAttr     map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`                   // tinet attributes
-	ClabAttr      map[string]interface{} `yaml:"clab" mapstructure:"clab"`                     // containerlab attributes
+	Prefix        string                 `yaml:"prefix" mapstructure:"prefix"`                           // prefix of auto-naming
+	MgmtInterface string                 `yaml:"mgmt_interfaceclass" mapstructure:"mgmt_interfaceclass"` // InterfaceClass name for mgmt
+	TinetAttr     map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`                             // tinet attributes
+	ClabAttr      map[string]interface{} `yaml:"clab" mapstructure:"clab"`                               // containerlab attributes
 }
 
 type InterfaceClass struct {
 	// An interface can have only one of "primary" interface class or "primary" connection class.
-	Name                  string            `yaml:"name" mapstructure:"name"`
-	Primary               bool              `yaml:"primary" mapstructure:"primary"`
-	Virtual               bool              `yaml:"virtual" mapstructure:"virtual"`
-	Numbered              []string          `yaml:"numbered,flow" mapstructure:"numbered,flow"`
-	IPAware               []string          `yaml:"ipaware" mapstructure:"ipaware"` // aware ip spaces
-	IPAwareIgnoreNode     bool              `yaml:"ipaware_ignore_node" mapstructure:"ipaware_ignore_node"`
-	IPAwareIgnoreDefaults bool              `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
-	ConfigTemplates       []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
-	NeighborClasses       []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
-	MemberClasses         []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
+	Name            string            `yaml:"name" mapstructure:"name"`
+	Primary         bool              `yaml:"primary" mapstructure:"primary"`
+	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
+	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
+	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	NeighborClasses []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
+	MemberClasses   []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
 
 	// Following attributes are valid only on primary interface classes.
 	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of auto-naming
@@ -316,17 +331,15 @@ type InterfaceClass struct {
 
 // type ConnectionClass struct {
 type ConnectionClass struct {
-	Name                  string            `yaml:"name" mapstructure:"name"`
-	Primary               bool              `yaml:"primary" mapstructure:"primary"`
-	Virtual               bool              `yaml:"virtual" mapstructure:"virtual"`
-	Numbered              []string          `yaml:"numbered,flow" mapstructure:"numbered,flow"` // Numbers to be assigned automatically
-	IPAware               []string          `yaml:"ipaware,flow" mapstructure:"ipaware,flow"`   // aware ip spaces for end interfaces
-	IPAwareIgnoreNode     bool              `yaml:"ipaware_ignore_node" mapstructure:"ipaware_ignore_node"`
-	IPAwareIgnoreDefaults bool              `yaml:"ipaware_ignore_defaults" mapstructure:"ipaware_ignore_defaults"`
-	IPSpaces              []string          `yaml:"ipspaces,flow" mapstructure:"ipspaces,flow"` // Connection is limited to specified spaces
-	ConfigTemplates       []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
-	MemberClasses         []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
-	NeighborClasses       []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
+	Name            string            `yaml:"name" mapstructure:"name"`
+	Primary         bool              `yaml:"primary" mapstructure:"primary"`
+	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
+	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
+	Layers          []string          `yaml:"layers,flow" mapstructure:"layers,flow"` // Connection is limited to specified layers
+	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	MemberClasses   []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
+	NeighborClasses []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
 
 	// Following attributes are valid only on primary interface classes.
 	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of interface auto-naming
@@ -335,12 +348,12 @@ type ConnectionClass struct {
 }
 
 type GroupClass struct {
-	Name     string   `yaml:"name" mapstructure:"name"`
-	Numbered []string `yaml:"numbered,flow" mapstructure:"numbered,flow"`
+	Name       string   `yaml:"name" mapstructure:"name"`
+	Parameters []string `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 }
 
 type NeighborClass struct {
-	IPSpace         string            `yaml:"ipspace" mapstructure:"ipspace"`
+	Layer           string            `yaml:"layer" mapstructure:"layer"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 }
 
@@ -467,9 +480,22 @@ func LoadConfig(path string) (*Config, error) {
 	for _, filedef := range cfg.FileDefinitions {
 		cfg.fileDefinitionMap[filedef.Name] = filedef
 	}
-	cfg.ipSpaceDefinitionMap = map[string]*IPSpaceDefinition{}
-	for _, ipspace := range cfg.IPSpaceDefinitions {
-		cfg.ipSpaceDefinitionMap[ipspace.Name] = ipspace
+	cfg.layerMap = map[string]*Layer{}
+	cfg.policyMap = map[string]*IPPolicy{}
+	for _, layer := range cfg.Layers {
+		cfg.layerMap[layer.Name] = layer
+		for _, policy := range layer.Policies {
+			policy.layer = layer
+			cfg.policyMap[policy.Name] = policy
+			switch policy.Type {
+			case IPPolicyTypeDefault:
+				layer.ipPolicy = append(layer.ipPolicy, policy)
+			case IPPolicyTypeLoopback:
+				layer.loopbackPolicy = append(layer.loopbackPolicy, policy)
+			default:
+				layer.ipPolicy = append(layer.ipPolicy, policy)
+			}
+		}
 	}
 	cfg.nodeClassMap = map[string]*NodeClass{}
 	for _, node := range cfg.NodeClasses {
@@ -483,8 +509,8 @@ func LoadConfig(path string) (*Config, error) {
 			if _, ok := cfg.neighborClassMap[iface.Name]; !ok {
 				cfg.neighborClassMap[iface.Name] = map[string][]*NeighborClass{}
 			}
-			cfg.neighborClassMap[iface.Name][neighbor.IPSpace] = append(
-				cfg.neighborClassMap[iface.Name][neighbor.IPSpace], neighbor,
+			cfg.neighborClassMap[iface.Name][neighbor.Layer] = append(
+				cfg.neighborClassMap[iface.Name][neighbor.Layer], neighbor,
 			)
 		}
 	}
