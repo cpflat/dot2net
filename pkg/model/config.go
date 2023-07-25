@@ -45,19 +45,23 @@ func AllOutput() []string {
 }
 
 type Config struct {
-	Name              string             `yaml:"name" mapstructure:"name"`
-	GlobalSettings    GlobalSettings     `yaml:"global" mapstructure:"global"`
-	FileDefinitions   []*FileDefinition  `yaml:"file" mapstructure:"file"`
-	Layers            []*Layer           `yaml:"layer" mapstructure:"layer"`
-	ManagementLayer   ManagementLayer    `yaml:"mgmt_layer" mapstructure:"mgmt_layer"`
+	Name            string            `yaml:"name" mapstructure:"name"`
+	GlobalSettings  GlobalSettings    `yaml:"global" mapstructure:"global"`
+	FileDefinitions []*FileDefinition `yaml:"file" mapstructure:"file"`
+	Layers          []*Layer          `yaml:"layer" mapstructure:"layer"`
+	ManagementLayer ManagementLayer   `yaml:"mgmt_layer" mapstructure:"mgmt_layer"`
+	ParameterRules  []*ParameterRule  `yaml:"param_rule,flow" mapstructure:"param_rule,flow"`
+
 	NodeClasses       []*NodeClass       `yaml:"nodeclass,flow" mapstructure:"nodes,flow"`
 	InterfaceClasses  []*InterfaceClass  `yaml:"interfaceclass,flow" mapstructure:"interfaces,flow"`
 	ConnectionClasses []*ConnectionClass `yaml:"connectionclass,flow" mapstructure:"connections,flow"`
 	GroupClasses      []*GroupClass      `yaml:"groupclass,flow" mapstructure:"group,flow"`
 
-	fileDefinitionMap  map[string]*FileDefinition
-	layerMap           map[string]*Layer
-	policyMap          map[string]*IPPolicy
+	fileDefinitionMap map[string]*FileDefinition
+	layerMap          map[string]*Layer
+	policyMap         map[string]*IPPolicy
+	parameterRuleMap  map[string]*ParameterRule
+
 	nodeClassMap       map[string]*NodeClass
 	interfaceClassMap  map[string]*InterfaceClass
 	connectionClassMap map[string]*ConnectionClass
@@ -74,6 +78,11 @@ func (cfg *Config) FileDefinitionByName(name string) (*FileDefinition, bool) {
 func (cfg *Config) LayerByName(name string) (*Layer, bool) {
 	layer, ok := cfg.layerMap[name]
 	return layer, ok
+}
+
+func (cfg *Config) ParameterRuleByName(name string) (*ParameterRule, bool) {
+	rule, ok := cfg.parameterRuleMap[name]
+	return rule, ok
 }
 
 func (cfg *Config) NodeClassByName(name string) (*NodeClass, bool) {
@@ -290,6 +299,21 @@ type IPPolicy struct {
 	layer *Layer
 }
 
+type ParameterRule struct {
+	Name string `yaml:"name" mapstructure:"name"`
+	// object (in default) or segment
+	Assign string `yaml:"assign" mapstructure:"assign"`
+	// integer or file
+	Type string `yaml:"type" mapstructure:"type"`
+	// for type integer
+	Max    int    `yaml:"max" mapstructure:"max"`
+	Min    int    `yaml:"min" mapstructure:"min"`
+	Header string `yaml:"header" mapstructure:"header"`
+	Footer string `yaml:"footer" mapstructure:"footer"`
+	// for type file
+	SourceFile string `yaml:"sourcefile" mapstructure:"soucefile"`
+}
+
 type ObjectClass interface{}
 
 type NodeClass struct {
@@ -497,6 +521,11 @@ func LoadConfig(path string) (*Config, error) {
 			}
 		}
 	}
+	cfg.parameterRuleMap = map[string]*ParameterRule{}
+	for _, prule := range cfg.ParameterRules {
+		cfg.parameterRuleMap[prule.Name] = prule
+	}
+
 	cfg.nodeClassMap = map[string]*NodeClass{}
 	for _, node := range cfg.NodeClasses {
 		cfg.nodeClassMap[node.Name] = node

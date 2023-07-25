@@ -82,7 +82,7 @@ nodeclass:
           - "!"
   - name: vrouter
     virtual: true
-    ipaware: [ip]
+    params: [ip]
 
 connectionclass:
   - name: all

@@ -7,8 +7,8 @@ import (
 	"strings"
 )
 
-const IPPolicyTypeDefault = "ip"
-const IPPolicyTypeLoopback = "loopback"
+const IPPolicyTypeDefault string = "ip"
+const IPPolicyTypeLoopback string = "loopback"
 
 const DefaultNodePrefix string = "node"
 const DefaultInterfacePrefix string = "net"
@@ -53,12 +53,17 @@ func BuildNetworkModel(cfg *Config, d *Diagram, output string) (nm *NetworkModel
 	}
 
 	// assign numbers, interface names and addresses
+	err = setGivenParameters(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
 	err = assignIPParameters(cfg, nm)
 	if err != nil {
 		return nil, err
 	}
 
-	err = assignNumbers(cfg, nm)
+	err = assignParameters(cfg, nm)
 	if err != nil {
 		return nil, err
 	}
@@ -554,6 +559,44 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) error {
 	return nil
 }
 
+func setGivenParameters(cfg *Config, nm *NetworkModel) error {
+	// set values in ValueLabels
+	for _, node := range nm.Nodes {
+		for k, v := range node.valueLabels {
+			// check existance (ip numbers may already added)
+			if !node.hasNumber(k) {
+				node.addNumber(k, v)
+			}
+		}
+		for _, iface := range node.Interfaces {
+			for k, v := range iface.valueLabels {
+				// check existance (ip numbers may already added)
+				if !iface.hasNumber(k) {
+					iface.addNumber(k, v)
+				}
+			}
+		}
+	}
+	for _, conn := range nm.Connections {
+		for k, v := range conn.valueLabels {
+			if !conn.Src.hasNumber(k) {
+				conn.Src.addNumber(k, v)
+			}
+			if !conn.Dst.hasNumber(k) {
+				conn.Dst.addNumber(k, v)
+			}
+		}
+	}
+	for _, group := range nm.Groups {
+		for k, v := range group.valueLabels {
+			if !group.hasNumber(k) {
+				group.addNumber(k, v)
+			}
+		}
+	}
+	return nil
+}
+
 func assignIPParameters(cfg *Config, nm *NetworkModel) error {
 	if cfg.HasManagementLayer() {
 		err := assignManagementIPAddresses(cfg, nm)
@@ -589,119 +632,73 @@ func assignIPParameters(cfg *Config, nm *NetworkModel) error {
 	return nil
 }
 
-func assignNumbers(cfg *Config, nm *NetworkModel) error {
+func assignParameters(cfg *Config, nm *NetworkModel) error {
+	nodesForParams := map[string][]*Node{}
+	interfacesForParams := map[string][]*Interface{}
+	groupsForParams := map[string][]*Group{}
 
-	// set values in ValueLabels
-	for _, node := range nm.Nodes {
-		for k, v := range node.valueLabels {
-			// check existance (ip numbers may already added)
-			if !node.hasNumber(k) {
-				node.addNumber(k, v)
-			}
-		}
-		for _, iface := range node.Interfaces {
-			for k, v := range iface.valueLabels {
-				// check existance (ip numbers may already added)
-				if !iface.hasNumber(k) {
-					iface.addNumber(k, v)
-				}
-			}
-		}
-	}
-	for _, conn := range nm.Connections {
-		for k, v := range conn.valueLabels {
-			if !conn.Src.hasNumber(k) {
-				conn.Src.addNumber(k, v)
-			}
-			if !conn.Dst.hasNumber(k) {
-				conn.Dst.addNumber(k, v)
-			}
-		}
-	}
-	for _, group := range nm.Groups {
-		for k, v := range group.valueLabels {
-			if !group.hasNumber(k) {
-				group.addNumber(k, v)
-			}
-		}
-	}
-
-	nodesForNumbers := map[string][]*Node{}
-	interfacesForNumbers := map[string][]*Interface{}
-	groupsForNumbers := map[string][]*Group{}
-
-	// add object names as numbers, and list up numbered objects
+	// add object names as parameters, and list up objects for assignment
 	for _, node := range nm.Nodes {
 		node.addNumber(NumberReplacerName, node.Name)
 		for num := range node.iterNumbered() {
-			nodesForNumbers[num] = append(nodesForNumbers[num], node)
+			nodesForParams[num] = append(nodesForParams[num], node)
 		}
 		for _, iface := range node.Interfaces {
 			iface.addNumber(NumberReplacerName, iface.Name)
 			for num := range iface.iterNumbered() {
-				interfacesForNumbers[num] = append(interfacesForNumbers[num], iface)
+				interfacesForParams[num] = append(interfacesForParams[num], iface)
 			}
 		}
 	}
 	for _, group := range nm.Groups {
 		group.addNumber(NumberReplacerName, group.Name)
 		for num := range group.iterNumbered() {
-			groupsForNumbers[num] = append(groupsForNumbers[num], group)
+			groupsForParams[num] = append(groupsForParams[num], group)
 		}
 	}
 
 	// add node parameters
-	for num, nodes := range nodesForNumbers {
-		cnt := len(nodes)
-		switch num {
-		case NumberNumber:
-			for i, node := range nodes {
-				node.addNumber(num, strconv.Itoa(i))
-			}
-		case NumberAS:
-			asnumbers, err := getASNumber(cfg, cnt)
-			if err != nil {
-				return err
-			}
-			for nid, node := range nodes {
-				val := strconv.Itoa(asnumbers[nid])
-				node.addNumber(num, val)
-			}
-		default:
-			return fmt.Errorf("not implemented number (%v)", num)
+	for key, nodes := range nodesForParams {
+		rule, ok := cfg.ParameterRuleByName(key)
+		if !ok {
+			return fmt.Errorf("invalid parameter rule name %s", key)
+		}
+		params, err := getParameterCandidates(cfg, rule, len(nodes))
+		if err != nil {
+			return err
+		}
+		for i, obj := range nodes {
+			obj.addNumber(key, params[i])
 		}
 	}
 
 	// add interface parameters
-	for num, ifaces := range interfacesForNumbers {
-		cnt := len(ifaces)
-		switch num {
-		default:
-			// TODO assign customized numbers
-			if false {
-				fmt.Printf("cnt %v", cnt)
-			}
-			return fmt.Errorf("not implemented number (%v)", num)
+	for key, ifaces := range interfacesForParams {
+		rule, ok := cfg.ParameterRuleByName(key)
+		if !ok {
+			return fmt.Errorf("invalid parameter rule name %s", key)
+		}
+		params, err := getParameterCandidates(cfg, rule, len(ifaces))
+		if err != nil {
+			return err
+		}
+		for i, obj := range ifaces {
+			obj.addNumber(key, params[i])
 		}
 	}
 
 	// add group parameters
-	for num, groups := range groupsForNumbers {
-		cnt := len(groups)
-		switch num {
-		case NumberAS:
-			asnumbers, err := getASNumber(cfg, cnt)
-			if err != nil {
-				return err
-			}
-			for nid, group := range groups {
-				if group.isNumbered(num) {
-					val := strconv.Itoa(asnumbers[nid])
-					group.addNumber(num, val)
-				}
-			}
-		default:
-			return fmt.Errorf("not implemented number (%v)", num)
+	for key, groups := range groupsForParams {
+		rule, ok := cfg.ParameterRuleByName(key)
+		if !ok {
+			return fmt.Errorf("invalid parameter rule name %s", key)
+		}
+		params, err := getParameterCandidates(cfg, rule, len(groups))
+		if err != nil {
+			return err
+		}
+		for i, obj := range groups {
+			obj.addNumber(key, params[i])
 		}
 	}
 

@@ -17,6 +17,11 @@ layer:
         type: loopback
         range: 10.255.0.0/24
 
+param_rule:
+  - name: as
+    min: 65000
+    max: 65535
+
 nodeclass:
   - name: default
     primary: true

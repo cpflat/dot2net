@@ -136,24 +136,47 @@ The class definitions (YAML file) includes config template blocks and some flags
 The config templates can be specified inline (anyclass.config.template) or in external files (anyclass.config.file).
 
 
+## Variables
+
+Dot2net basically assigns automatically generated parameters.
+There are two kind of generated parameters: Integer-based parameters and IP-related parameters.
+
+Integer-based parameter rules are defined in "param_rule".
+If the name of param_rule is assigned to "anyclass.params",
+the corresponding parameters are generated for the class instances (and registered in their namespaces).
+
+IP-related parameter rules are defined as "layer" rules.
+There can be one IP address for each network objects in a layer.
+In each layer definitions, there can be multiple "policy" items, which means the IP addressing policy (address ranges and prefix length).
+IP addresses are assigned to the objects with policy names given in "anyclass.policy" or "anyclass.params".
+Also, if the policy names are given in "nodeclass.interface_policy",
+the all interfaces of the nodeclass instances will obtain the IP addresses of the policy.
+
+
 ## Variable replacers
 
 Config templates of dot2net basically follow [text/template](https://pkg.go.dev/text/template) notation.
 
-The available parameters (except IP-related parameters) in the templates are following.
-The optional parameter replacers (e.g., as) can be available only when the corresponding parameter classifiers (e.g., as) are specified in "anyclass.params" of the class.
+In dot2net, the available parameters are stored in relative namespaces.
+Basically each object (with config template blocks) has a namespace
+that includes the parameters of the object itself and other related objects.
+
+Following parameters are always available regardless of the parameter flags.
 
 | Class     | Number | Replacer | Note
 |:----------|:-------|:----------------|--------
 | Node      | (none) | name     | Node name
-| Node      | as     | as       | Private AS number
 | Interface | (none) | name     | Interface name
 
 For example, {{ .name }} in node config templates embeds the node name,
 and {{ .name }} in interface (or connection) config templates embeds the corresponding interface name.
 
-IP-related parameters are following.
-These parameters are available for all Layers of the objects. 
+Integer-based parameters can also be available as the replacers of rule names.
+If we define "as" rule in a node,
+{{ .as }} will be replaced with the assigned "as" integer value.
+
+In the case of IP-related parameters, there are multiple parameters for IP-address-aware objects.
+These parameters are specified with the corresponding layer names.
 
 | Class     | Replacer           | Note
 |:----------|:-------------------|--------
@@ -166,7 +189,7 @@ For example, if their is one defined layer named "ip",
 {{ .ip_addr }} embeds the IP address automatically calculated on the IPSpace.
 
 For config templates of Interface Classes or Connection Classes,
-Relative prefix can be additionally used for specifying neighbor parameters .
+Relative prefix can be additionally used for specifying neighbor parameters.
 
 | Class     | Prefix          | Note
 |:----------|:----------------|:-------
@@ -184,21 +207,17 @@ Relative prefix can be additionally used for specifying neighbor parameters .
 For example, {{ .opp_ip_net }} embeds IP network (such as "192.168.101.0/24")
 of the opposite interface. 
 
-The available parameters can be listed with "params" subcommand:
+The assigned parameters can be listed with "params" subcommand:
 
     dot2net params -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot
 
-The available parameters can be output as JSON data with "data" subcommand:
+The relative namespace items can be listed with -a option:
+
+    dot2net params -a -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot
+
+The assigned parameters can also be output as JSON data with "data" subcommand:
 
     dot2net data -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot
-
-
-## IPSpaces
-
-There can be multiple defined IPSpaces.
-IPaddress assignment is independently calculated on each IPSpace.
-For example, you can define two IPSpaces of IPv4 and IPv6
-to describe IPv4/IPv6 dual-stack network.
 
 
 # Advanced settings

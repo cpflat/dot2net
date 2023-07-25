@@ -194,6 +194,11 @@ func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string
 				attrs[KEY_EDGE_LABEL] = net
 			}
 
+			// interface names
+			attrs[KEY_EDGE_TAILLABEL] = conn.Src.Name
+			attrs[KEY_EDGE_HEADLABEL] = conn.Dst.Name
+
+			// addresses
 			if conn.Src.AwareLayer(l.Name) {
 				src_addr, err := getInterfaceAddress(conn.Src, l)
 				if err != nil {
