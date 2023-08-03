@@ -633,74 +633,16 @@ func assignIPParameters(cfg *Config, nm *NetworkModel) error {
 }
 
 func assignParameters(cfg *Config, nm *NetworkModel) error {
-	nodesForParams := map[string][]*Node{}
-	interfacesForParams := map[string][]*Interface{}
-	groupsForParams := map[string][]*Group{}
 
-	// add object names as parameters, and list up objects for assignment
-	for _, node := range nm.Nodes {
-		node.addNumber(NumberReplacerName, node.Name)
-		for num := range node.iterNumbered() {
-			nodesForParams[num] = append(nodesForParams[num], node)
-		}
-		for _, iface := range node.Interfaces {
-			iface.addNumber(NumberReplacerName, iface.Name)
-			for num := range iface.iterNumbered() {
-				interfacesForParams[num] = append(interfacesForParams[num], iface)
-			}
-		}
+	err := assignNodeParameters(cfg, nm)
+	if err != nil {
+		return err
 	}
-	for _, group := range nm.Groups {
-		group.addNumber(NumberReplacerName, group.Name)
-		for num := range group.iterNumbered() {
-			groupsForParams[num] = append(groupsForParams[num], group)
-		}
+	err = assignInterfaceParameters(cfg, nm)
+	if err != nil {
+		return err
 	}
+	err = assignGroupParameters(cfg, nm)
 
-	// add node parameters
-	for key, nodes := range nodesForParams {
-		rule, ok := cfg.ParameterRuleByName(key)
-		if !ok {
-			return fmt.Errorf("invalid parameter rule name %s", key)
-		}
-		params, err := getParameterCandidates(cfg, rule, len(nodes))
-		if err != nil {
-			return err
-		}
-		for i, obj := range nodes {
-			obj.addNumber(key, params[i])
-		}
-	}
-
-	// add interface parameters
-	for key, ifaces := range interfacesForParams {
-		rule, ok := cfg.ParameterRuleByName(key)
-		if !ok {
-			return fmt.Errorf("invalid parameter rule name %s", key)
-		}
-		params, err := getParameterCandidates(cfg, rule, len(ifaces))
-		if err != nil {
-			return err
-		}
-		for i, obj := range ifaces {
-			obj.addNumber(key, params[i])
-		}
-	}
-
-	// add group parameters
-	for key, groups := range groupsForParams {
-		rule, ok := cfg.ParameterRuleByName(key)
-		if !ok {
-			return fmt.Errorf("invalid parameter rule name %s", key)
-		}
-		params, err := getParameterCandidates(cfg, rule, len(groups))
-		if err != nil {
-			return err
-		}
-		for i, obj := range groups {
-			obj.addNumber(key, params[i])
-		}
-	}
-
-	return nil
+	return err
 }

@@ -18,6 +18,16 @@ management_layer:
   name: mgmt
   range: 172.16.0.0/16
 
+param_rule:
+  - name: as
+    min: 65000
+    max: 65535
+  - name: vlan
+    assign: segment
+    layer: ip
+    min: 100
+    max: 1001
+
 nodeclass:
   - name: all
     primary: true
@@ -46,7 +56,7 @@ interfaceclass:
 connectionclass:
   - name: default
     primary: true
-    params: [ip]
+    params: [ip, vlan]
     config:
       - node: router
         target: frr

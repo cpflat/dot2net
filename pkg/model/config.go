@@ -303,7 +303,9 @@ type ParameterRule struct {
 	Name string `yaml:"name" mapstructure:"name"`
 	// object (in default) or segment
 	Assign string `yaml:"assign" mapstructure:"assign"`
-	// integer or file
+	// layer is used only when the assign option is "segment"
+	Layer string `yaml:"layer" mapstructure:"layer"`
+	// integer (in default) or file
 	Type string `yaml:"type" mapstructure:"type"`
 	// for type integer
 	Max    int    `yaml:"max" mapstructure:"max"`
