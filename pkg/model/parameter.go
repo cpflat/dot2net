@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+
+	mapset "github.com/deckarep/golang-set/v2"
 )
 
 func getParameterCandidates(cfg *Config, rule *ParameterRule, cnt int) ([]string, error) {
@@ -68,6 +70,7 @@ func assignNodeParameters(cfg *Config, nm *NetworkModel) error {
 }
 
 func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
+
 	interfacesForParams := map[string][]*Interface{}
 	for _, node := range nm.Nodes {
 		for _, iface := range node.Interfaces {
@@ -90,32 +93,72 @@ func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
 			if rule.Layer == "" {
 				return fmt.Errorf("invalid parameter rule %s: layer is required", key)
 			}
+
+			// list up target interfaces and segments
+			mapper := mapset.NewThreadUnsafeSet(ifaces...)
+			targetSegments := []*SegmentMembers{}
+			targetObjects := map[*SegmentMembers][]*Interface{}
 			segs, ok := nm.NetworkSegments[rule.Layer]
 			if !ok {
 				return fmt.Errorf("invalid parameter rule %s: layer %s not found", key, rule.Layer)
 			}
-			params, err := getParameterCandidates(cfg, rule, len(segs))
+			for _, seg := range segs {
+				for _, conn := range seg.Connections {
+					if mapper.Contains(conn.Src) {
+						targetObjects[seg] = append(targetObjects[seg], conn.Src)
+					}
+					if mapper.Contains(conn.Dst) {
+						targetObjects[seg] = append(targetObjects[seg], conn.Dst)
+					}
+				}
+				if _, ok := targetObjects[seg]; ok {
+					targetSegments = append(targetSegments, seg)
+				}
+			}
+
+			// assign parameters for parameter-aware objects
+			params, err := getParameterCandidates(cfg, rule, len(targetObjects))
 			if err != nil {
 				return err
 			}
-			for i, seg := range segs {
-				for _, conn := range seg.Connections {
-					conn.Src.addNumber(key, params[i])
-					conn.Dst.addNumber(key, params[i])
+			for i, seg := range targetSegments {
+				for _, iface := range targetObjects[seg] {
+					iface.addNumber(key, params[i])
 				}
 			}
 		case "connection":
 			// assign parameters per connection
 			// interfaces adjacent to the same connection should have the same parameter
-			params, err := getParameterCandidates(cfg, rule, len(nm.Connections))
+
+			// list up target interfaces and connections
+			// mapper := mapset.NewSet[*Interface](ifaces...)
+			mapper := mapset.NewThreadUnsafeSet(ifaces...)
+			targetConnections := []*Connection{}
+			targetObjects := map[*Connection][]*Interface{}
+			for _, conn := range nm.Connections {
+				if mapper.Contains(conn.Src) {
+					targetObjects[conn] = append(targetObjects[conn], conn.Src)
+				}
+				if mapper.Contains(conn.Dst) {
+					targetObjects[conn] = append(targetObjects[conn], conn.Dst)
+				}
+				if _, ok := targetObjects[conn]; ok {
+					targetConnections = append(targetConnections, conn)
+				}
+			}
+
+			// assign parameters for parameter-aware objects
+			params, err := getParameterCandidates(cfg, rule, len(targetObjects))
 			if err != nil {
 				return err
 			}
-			for i, conn := range nm.Connections {
-				conn.Src.addNumber(key, params[i])
-				conn.Dst.addNumber(key, params[i])
+			for i, conn := range targetConnections {
+				for _, iface := range targetObjects[conn] {
+					iface.addNumber(key, params[i])
+				}
 			}
 		default:
+			// assign parameters per interface
 			params, err := getParameterCandidates(cfg, rule, len(ifaces))
 			if err != nil {
 				return err
