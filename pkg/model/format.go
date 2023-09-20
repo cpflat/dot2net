@@ -21,6 +21,10 @@ type ConfigFiles struct {
 	mapper map[string]*ConfigFile
 }
 
+func newConfigFiles() *ConfigFiles {
+	return &ConfigFiles{mapper: map[string]*ConfigFile{}}
+}
+
 func (files *ConfigFiles) newConfigBlock(cfg *Config, ct *ConfigTemplate) (*configBlock, error) {
 	filedef, ok := cfg.FileDefinitionByName(ct.File)
 	if !ok {
@@ -152,17 +156,34 @@ func generateConfigBlock(cfg *Config, ct *ConfigTemplate, files *ConfigFiles, ns
 	return nil
 }
 
+func getTargetFiles(cfg *Config, nm *NetworkModel, localFiles *ConfigFiles, ct *ConfigTemplate) (*ConfigFiles, error) {
+	// check target file is local or global
+	filedef, ok := cfg.FileDefinitionByName(ct.File)
+	if !ok {
+		return nil, fmt.Errorf("invalid file %s specified in a template", ct.File)
+	}
+	if filedef.Shared {
+		return nm.Files, nil
+	} else {
+		return localFiles, nil
+	}
+}
+
 func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) error {
 	for _, node := range nm.Nodes {
 		//if node.Virtual {
 		//	continue
 		//}
-		files := &ConfigFiles{mapper: map[string]*ConfigFile{}}
+		files := newConfigFiles()
 
 		for _, cls := range node.GetClasses() {
 			nc := cls.(*NodeClass)
 			for _, ct := range nc.ConfigTemplates {
-				err := generateConfigBlock(cfg, ct, files, node, outputPlatform)
+				targetFiles, err := getTargetFiles(cfg, nm, files, ct)
+				if err != nil {
+					return err
+				}
+				err = generateConfigBlock(cfg, ct, targetFiles, node, outputPlatform)
 				if err != nil {
 					return err
 				}
@@ -171,7 +192,11 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 			for _, mc := range nc.MemberClasses {
 				for _, ct := range mc.ConfigTemplates {
 					for _, m := range node.GetMembers() {
-						err := generateConfigBlock(cfg, ct, files, m, outputPlatform)
+						targetFiles, err := getTargetFiles(cfg, nm, files, ct)
+						if err != nil {
+							return err
+						}
+						err = generateConfigBlock(cfg, ct, targetFiles, m, outputPlatform)
 						if err != nil {
 							return err
 						}
@@ -187,7 +212,11 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 			for _, cls := range iface.GetClasses() {
 				ic := cls.(*InterfaceClass)
 				for _, ct := range ic.ConfigTemplates {
-					err := generateConfigBlock(cfg, ct, files, iface, outputPlatform)
+					targetFiles, err := getTargetFiles(cfg, nm, files, ct)
+					if err != nil {
+						return err
+					}
+					err = generateConfigBlock(cfg, ct, targetFiles, iface, outputPlatform)
 					if err != nil {
 						return err
 					}
@@ -200,7 +229,11 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 							//return fmt.Errorf("neighbors not generated for %s", nc.IPSpace)
 						}
 						for _, neighbor := range neighbors {
-							err := generateConfigBlock(cfg, ct, files, neighbor, outputPlatform)
+							targetFiles, err := getTargetFiles(cfg, nm, files, ct)
+							if err != nil {
+								return err
+							}
+							err = generateConfigBlock(cfg, ct, targetFiles, neighbor, outputPlatform)
 							if err != nil {
 								return err
 							}
@@ -211,7 +244,11 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 				for _, mc := range ic.MemberClasses {
 					for _, ct := range mc.ConfigTemplates {
 						for _, m := range iface.GetMembers() {
-							err := generateConfigBlock(cfg, ct, files, m, outputPlatform)
+							targetFiles, err := getTargetFiles(cfg, nm, files, ct)
+							if err != nil {
+								return err
+							}
+							err = generateConfigBlock(cfg, ct, targetFiles, m, outputPlatform)
 							if err != nil {
 								return err
 							}
@@ -226,7 +263,11 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 			for _, cls := range iface.Connection.GetClasses() {
 				cc := cls.(*ConnectionClass)
 				for _, ct := range cc.ConfigTemplates {
-					err := generateConfigBlock(cfg, ct, files, iface, outputPlatform)
+					targetFiles, err := getTargetFiles(cfg, nm, files, ct)
+					if err != nil {
+						return err
+					}
+					err = generateConfigBlock(cfg, ct, targetFiles, iface, outputPlatform)
 					if err != nil {
 						return err
 					}
@@ -239,7 +280,11 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 							// return fmt.Errorf("neighbors not generated for %s", nc.IPSpace)
 						}
 						for _, neighbor := range neighbors {
-							err := generateConfigBlock(cfg, ct, files, neighbor, outputPlatform)
+							targetFiles, err := getTargetFiles(cfg, nm, files, ct)
+							if err != nil {
+								return err
+							}
+							err = generateConfigBlock(cfg, ct, targetFiles, neighbor, outputPlatform)
 							if err != nil {
 								return err
 							}
@@ -250,7 +295,11 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 				for _, mc := range cc.MemberClasses {
 					for _, ct := range mc.ConfigTemplates {
 						for _, m := range iface.GetMembers() {
-							err := generateConfigBlock(cfg, ct, files, m, outputPlatform)
+							targetFiles, err := getTargetFiles(cfg, nm, files, ct)
+							if err != nil {
+								return err
+							}
+							err = generateConfigBlock(cfg, ct, targetFiles, m, outputPlatform)
 							if err != nil {
 								return err
 							}
@@ -260,10 +309,16 @@ func generateConfigFiles(cfg *Config, nm *NetworkModel, outputPlatform string) e
 			}
 		}
 
+		// merge blocks in local files
 		for _, file := range files.mapper {
 			file.Content, _ = mergeConfig(file.blocks, file.FileDefinition.Format)
 		}
 		node.Files = files
+	}
+
+	// merge blocks in global files
+	for _, file := range nm.Files.mapper {
+		file.Content, _ = mergeConfig(file.blocks, file.FileDefinition.Format)
 	}
 
 	return nil

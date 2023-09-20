@@ -1,0 +1,13 @@
+digraph {
+	r1[class="router"];
+	r2[class="router"];
+	r3[class="router"];
+
+	sw1[class="switch"];
+	sw2[class="switch"];
+
+	r1->r2[dir="none"];
+	r2->sw1[dir="none"];
+	sw1->r3[dir="none"];
+	r3->sw2[dir="none"];
+}

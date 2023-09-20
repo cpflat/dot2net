@@ -27,6 +27,10 @@ param_rule:
     layer: ip
     min: 100
     max: 1001
+  - name: cname
+    assign: connection
+    header: conn
+    min: 0
 
 nodeclass:
   - name: all
@@ -56,7 +60,7 @@ interfaceclass:
 connectionclass:
   - name: default
     primary: true
-    params: [ip, vlan]
+    params: [ip, vlan, cname]
     config:
       - node: router
         target: frr

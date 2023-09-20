@@ -88,14 +88,15 @@ func BuildNetworkModel(cfg *Config, d *Diagram, output string) (nm *NetworkModel
 }
 
 func buildSkeleton(cfg *Config, d *Diagram) (*NetworkModel, error) {
-	nm := &NetworkModel{
-		NetworkSegments:          map[string][]*SegmentMembers{},
-		nodeMap:                  map[string]*Node{},
-		groupMap:                 map[string]*Group{},
-		nodeClassMemberMap:       classMemberMap{mapper: map[string][]NameSpacer{}},
-		interfaceClassMemberMap:  classMemberMap{mapper: map[string][]NameSpacer{}},
-		connectionClassMemberMap: classMemberMap{mapper: map[string][]NameSpacer{}},
-	}
+	nm := newNetworkModel()
+	// nm := &NetworkModel{
+	// 	NetworkSegments:          map[string][]*SegmentMembers{},
+	// 	nodeMap:                  map[string]*Node{},
+	// 	groupMap:                 map[string]*Group{},
+	// 	nodeClassMemberMap:       classMemberMap{mapper: map[string][]NameSpacer{}},
+	// 	interfaceClassMemberMap:  classMemberMap{mapper: map[string][]NameSpacer{}},
+	// 	connectionClassMemberMap: classMemberMap{mapper: map[string][]NameSpacer{}},
+	// }
 
 	ifaceCounter := map[string]int{}
 	for _, e := range d.graph.Edges.Edges {

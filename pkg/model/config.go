@@ -226,6 +226,9 @@ type FileDefinition struct {
 	// Format is used to determine format and the way to aggregate the config blocks
 	// The value can be "shell", "frr", etc. "file" in default.
 	Format string `yaml:"format" mapstructure:"format"`
+	// Shared flag is used to determine the file is shared among nodes or not.
+	// If true, the file is placed on the same directory as primary config file.
+	Shared bool `yaml:"shared" mapstructure:"shared"`
 }
 
 type Layerer interface {

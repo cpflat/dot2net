@@ -275,6 +275,7 @@ type NetworkModel struct {
 	Groups      []*Group
 
 	NetworkSegments map[string][]*SegmentMembers
+	Files           *ConfigFiles
 
 	nodeMap                  map[string]*Node
 	groupMap                 map[string]*Group
@@ -283,14 +284,28 @@ type NetworkModel struct {
 	connectionClassMemberMap classMemberMap
 }
 
-func (nm *NetworkModel) newNode(name string) *Node {
-	node := &Node{
-		Name:            name,
-		NameSpace:       newNameSpace(),
-		addressedObject: newAddressedObject(),
-		interfaceMap:    map[string]*Interface{},
-		memberReference: newMemberReference(),
+func newNetworkModel() *NetworkModel {
+	nm := &NetworkModel{
+		NetworkSegments:          map[string][]*SegmentMembers{},
+		Files:                    newConfigFiles(),
+		nodeMap:                  map[string]*Node{},
+		groupMap:                 map[string]*Group{},
+		nodeClassMemberMap:       classMemberMap{mapper: map[string][]NameSpacer{}},
+		interfaceClassMemberMap:  classMemberMap{mapper: map[string][]NameSpacer{}},
+		connectionClassMemberMap: classMemberMap{mapper: map[string][]NameSpacer{}},
 	}
+	return nm
+}
+
+func (nm *NetworkModel) newNode(name string) *Node {
+	node := newNode(name)
+	// node := &Node{
+	// 	Name:            name,
+	// 	NameSpace:       newNameSpace(),
+	// 	addressedObject: newAddressedObject(),
+	// 	interfaceMap:    map[string]*Interface{},
+	// 	memberReference: newMemberReference(),
+	// }
 	nm.Nodes = append(nm.Nodes, node)
 	nm.nodeMap[name] = node
 
@@ -298,11 +313,12 @@ func (nm *NetworkModel) newNode(name string) *Node {
 }
 
 func (nm *NetworkModel) newConnection(src *Interface, dst *Interface) *Connection {
-	conn := &Connection{
-		Src:    src,
-		Dst:    dst,
-		Layers: mapset.NewSet[string](),
-	}
+	conn := newConnection(src, dst)
+	// conn := &Connection{
+	// 	Src:    src,
+	// 	Dst:    dst,
+	// 	Layers: mapset.NewSet[string](),
+	// }
 	nm.Connections = append(nm.Connections, conn)
 	src.Connection = conn
 	dst.Connection = conn
@@ -310,11 +326,12 @@ func (nm *NetworkModel) newConnection(src *Interface, dst *Interface) *Connectio
 }
 
 func (nm *NetworkModel) newGroup(name string) *Group {
-	group := &Group{
-		Name:      name,
-		Nodes:     []*Node{},
-		NameSpace: newNameSpace(),
-	}
+	group := newGroup(name)
+	// group := &Group{
+	// 	Name:      name,
+	// 	Nodes:     []*Node{},
+	// 	NameSpace: newNameSpace(),
+	// }
 	nm.Groups = append(nm.Groups, group)
 	nm.groupMap[name] = group
 
@@ -351,20 +368,32 @@ type Node struct {
 	interfaceMap       map[string]*Interface
 }
 
+func newNode(name string) *Node {
+	node := &Node{
+		Name:            name,
+		NameSpace:       newNameSpace(),
+		addressedObject: newAddressedObject(),
+		interfaceMap:    map[string]*Interface{},
+		memberReference: newMemberReference(),
+	}
+	return node
+}
+
 func (n *Node) String() string {
 	return n.Name
 }
 
 func (n *Node) newInterface(name string) *Interface {
-	iface := &Interface{
-		Name:             name,
-		Node:             n,
-		Neighbors:        map[string][]*Neighbor{},
-		NameSpace:        newNameSpace(),
-		addressedObject:  newAddressedObject(),
-		memberReference:  newMemberReference(),
-		hasNeighborClass: map[string]bool{},
-	}
+	iface := newInterface(n, name)
+	// iface := &Interface{
+	// 	Name:             name,
+	// 	Node:             n,
+	// 	Neighbors:        map[string][]*Neighbor{},
+	// 	NameSpace:        newNameSpace(),
+	// 	addressedObject:  newAddressedObject(),
+	// 	memberReference:  newMemberReference(),
+	// 	hasNeighborClass: map[string]bool{},
+	// }
 	n.Interfaces = append(n.Interfaces, iface)
 	if name != "" {
 		n.interfaceMap[iface.Name] = iface
@@ -434,6 +463,19 @@ type Interface struct {
 	namePrefix       string
 }
 
+func newInterface(node *Node, name string) *Interface {
+	iface := &Interface{
+		Name:             name,
+		Node:             node,
+		Neighbors:        map[string][]*Neighbor{},
+		NameSpace:        newNameSpace(),
+		addressedObject:  newAddressedObject(),
+		memberReference:  newMemberReference(),
+		hasNeighborClass: map[string]bool{},
+	}
+	return iface
+}
+
 func (iface *Interface) String() string {
 	return fmt.Sprintf("%s.%s", iface.Node.String(), iface.Name)
 }
@@ -492,6 +534,15 @@ type Connection struct {
 	*parsedLabels
 }
 
+func newConnection(src *Interface, dst *Interface) *Connection {
+	conn := &Connection{
+		Src:    src,
+		Dst:    dst,
+		Layers: mapset.NewSet[string](),
+	}
+	return conn
+}
+
 func (conn *Connection) String() string {
 	return fmt.Sprintf("%s--%s", conn.Src.String(), conn.Dst.String())
 }
@@ -547,6 +598,15 @@ type Group struct {
 	*parsedLabels
 
 	//numbered mapset.Set[string]
+}
+
+func newGroup(name string) *Group {
+	group := &Group{
+		Name:      name,
+		Nodes:     []*Node{},
+		NameSpace: newNameSpace(),
+	}
+	return group
 }
 
 func (g *Group) ClassDefinition(cfg *Config, cls string) (interface{}, error) {

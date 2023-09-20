@@ -59,29 +59,39 @@ func outputFiles(buffers map[string][]byte, dirname string) error {
 		return nil
 	}
 
-	f, err := os.Stat(dirname)
-	if os.IsNotExist(err) {
-		err = os.Mkdir(dirname, 0755)
-		if err != nil {
-			return err
+	if dirname == "" {
+		for filename, buffer := range buffers {
+			path := filename
+			err := os.WriteFile(path, buffer, 0644)
+			if err != nil {
+				return err
+			}
 		}
-	} else if !f.IsDir() {
-		return fmt.Errorf("file %v already exists", dirname)
-	}
-	for filename, buffer := range buffers {
-		path := filepath.Join(dirname, filename)
-		err = os.WriteFile(path, buffer, 0644)
-		if err != nil {
-			return err
+	} else {
+		f, err := os.Stat(dirname)
+		if os.IsNotExist(err) {
+			err = os.Mkdir(dirname, 0755)
+			if err != nil {
+				return err
+			}
+		} else if !f.IsDir() {
+			return fmt.Errorf("file %v already exists", dirname)
+		}
+		for filename, buffer := range buffers {
+			path := filepath.Join(dirname, filename)
+			err = os.WriteFile(path, buffer, 0644)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func generateBuffers(node *model.Node) map[string][]byte {
+func generateBuffers(files *model.ConfigFiles) map[string][]byte {
 	buffers := map[string][]byte{}
-	for _, filename := range node.Files.FileNames() {
-		file := node.Files.GetFile(filename)
+	for _, filename := range files.FileNames() {
+		file := files.GetFile(filename)
 		buffer := strings.Join(file.Content, "\n")
 		buffers[filename] = []byte(buffer)
 	}
@@ -99,8 +109,10 @@ func CmdCommand(c *cli.Context) error {
 		return err
 	}
 
+	buffers := generateBuffers(nm.Files)
+	outputFiles(buffers, "")
 	for _, n := range nm.Nodes {
-		buffers := generateBuffers(n)
+		buffers := generateBuffers(n.Files)
 		embed := n.Files.GetEmbeddedConfig()
 		if embed != nil {
 			buffer := strings.Join(embed.Content, "\n")
@@ -124,9 +136,11 @@ func CmdTinet(c *cli.Context) error {
 		return err
 	}
 
+	buffers := generateBuffers(nm.Files)
+	outputFiles(buffers, "")
 	for _, n := range nm.Nodes {
 		if !n.Virtual {
-			buffers := generateBuffers(n)
+			buffers := generateBuffers(n.Files)
 			outputFiles(buffers, n.Name)
 		}
 	}
@@ -150,9 +164,11 @@ func CmdClab(c *cli.Context) error {
 		return err
 	}
 
+	buffers := generateBuffers(nm.Files)
+	outputFiles(buffers, "")
 	for _, n := range nm.Nodes {
 		if !n.Virtual {
-			buffers := generateBuffers(n)
+			buffers := generateBuffers(n.Files)
 			outputFiles(buffers, n.Name)
 		}
 	}

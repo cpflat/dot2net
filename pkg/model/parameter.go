@@ -27,7 +27,7 @@ func getParameterCandidates(cfg *Config, rule *ParameterRule, cnt int) ([]string
 			}
 		}
 	default: // "int"
-		if rule.Max-rule.Min < cnt {
+		if rule.Max > 0 && rule.Max-rule.Min < cnt {
 			return nil, fmt.Errorf("not enough candidates for %s (%d required)", rule.Name, cnt)
 		}
 		for i := 0; i < cnt; i++ {
@@ -99,9 +99,21 @@ func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
 				return err
 			}
 			for i, seg := range segs {
-				for _, iface := range seg.Interfaces {
-					iface.addNumber(key, params[i])
+				for _, conn := range seg.Connections {
+					conn.Src.addNumber(key, params[i])
+					conn.Dst.addNumber(key, params[i])
 				}
+			}
+		case "connection":
+			// assign parameters per connection
+			// interfaces adjacent to the same connection should have the same parameter
+			params, err := getParameterCandidates(cfg, rule, len(nm.Connections))
+			if err != nil {
+				return err
+			}
+			for i, conn := range nm.Connections {
+				conn.Src.addNumber(key, params[i])
+				conn.Dst.addNumber(key, params[i])
 			}
 		default:
 			params, err := getParameterCandidates(cfg, rule, len(ifaces))
