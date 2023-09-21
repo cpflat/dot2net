@@ -23,7 +23,8 @@
 
 ## Other TIPS
 
+- switching
 - address_reservation
 - param_share
-- switching
+- vlan_multihost
 

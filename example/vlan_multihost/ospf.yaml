@@ -69,7 +69,7 @@ nodeclass:
 interfaceclass:
   - name: default
     primary: true
-    params: [vlan, cname]
+    params: [cname]
     config:
       - node: switch
         template:
@@ -86,5 +86,14 @@ interfaceclass:
           - "!"
       - file: params.txt
         template:
-          - "connection name {{ .cname }} for vlan {{ .vlan }} ({{.node_name}}.{{ .name }})"
+          - "connection name {{ .cname }} next to {{ .node_name }}.{{ .name }}"
+
+connectionclass:
+  - name: vlan
+    params: [vlan]
+    config:
+      - file: params.txt
+        priority: -1
+        template:
+          - "vlan {{ .vlan }} for {{ .node_name }}.{{ .name }}"
 

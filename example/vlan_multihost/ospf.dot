@@ -1,0 +1,29 @@
+digraph {
+
+	subgraph cluster_host1 {
+                r1[class="router"];
+		r2[class="router"];
+		r3[class="router"];
+        }
+
+        subgraph cluster_host2 {
+		r4[class="router"];
+		r5[class="router"];
+		r6[class="router"];
+        }
+
+        subgraph cluster_host3 {
+		sw1[class="switch"];
+                r7[class="router"];
+        }
+
+	r1->r2[dir="none"];
+	r1->r3[dir="none"];
+	r2->r4[dir="none", label="vlan"];
+	r3->r5[dir="none", label="vlan"];
+	r4->r6[dir="none"];
+	r5->r6[dir="none"];
+	r3->sw1[dir="none", label="vlan"];
+	r5->sw1[dir="none", label="vlan"];
+	r7->sw1[dir="none"];
+}
