@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/pprof"
 	"sort"
 	"strings"
 
@@ -130,6 +131,22 @@ func CmdTinet(c *cli.Context) error {
 		return err
 	}
 	name := c.String("output")
+	profile := c.String("profile")
+
+	// init CPU profiler
+	if profile != "" {
+		f, err := os.Create(profile)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			f.Close()
+		}()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return err
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputTinet)
 	if err != nil {
@@ -158,6 +175,22 @@ func CmdClab(c *cli.Context) error {
 		return err
 	}
 	name := c.String("output")
+	profile := c.String("profile")
+
+	// init CPU profiler
+	if profile != "" {
+		f, err := os.Create(profile)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			f.Close()
+		}()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return err
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputClab)
 	if err != nil {

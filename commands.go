@@ -28,6 +28,12 @@ var commandCommand = &cli.Command{
 			Usage:   "Specify name of directory for per-device configuration.",
 			Value:   "commands",
 		},
+		&cli.StringFlag{
+			Name:    "profile",
+			Aliases: []string{"p"},
+			Usage:   "Profile CPU performance in generating internal config model and output to the specified file.",
+			Value:   "",
+		},
 		&cli.BoolFlag{
 			Name:    "verbose",
 			Aliases: []string{"v"},
@@ -53,6 +59,12 @@ var commandTinet = &cli.Command{
 			Usage:   "Specify name of output specification file.",
 			Value:   "",
 		},
+		&cli.StringFlag{
+			Name:    "profile",
+			Aliases: []string{"p"},
+			Usage:   "Profile CPU performance in generating internal config model and output to the specified file.",
+			Value:   "",
+		},
 		&cli.BoolFlag{
 			Name:    "verbose",
 			Aliases: []string{"v"},
@@ -76,6 +88,12 @@ var commandClab = &cli.Command{
 			Name:    "output",
 			Aliases: []string{"o"},
 			Usage:   "Specify name of output topology file.",
+			Value:   "",
+		},
+		&cli.StringFlag{
+			Name:    "profile",
+			Aliases: []string{"p"},
+			Usage:   "Profile CPU performance in generating internal config model and output to the specified file.",
 			Value:   "",
 		},
 		&cli.BoolFlag{
