@@ -28,6 +28,9 @@ const ValueLabelSeparator string = "="
 const PathSpecificationDefault string = "default" // search files from working directory
 const PathSpecificationLocal string = "local"     // search files from the directory with config file
 
+const MountSourcePathAbs string = "abs" // absolute path
+const MountSourcePathLocal string = "local"
+
 // IP number replacer: [IPSpace]_[IPReplacerXX]
 // const IPLoopbackReplacerFooter string = "loopback"
 const IPLoopbackReplacerFooter string = "loopback"
@@ -208,8 +211,17 @@ func (cfg *Config) HasManagementLayer() bool {
 	return cfg.ManagementLayer.AddrRange != ""
 }
 
+func (cfg *Config) MountSourcePath(path string) (string, error) {
+	if cfg.GlobalSettings.MountSourcePath == MountSourcePathAbs {
+		return filepath.Abs(path)
+	} else {
+		return path, nil
+	}
+}
+
 type GlobalSettings struct {
 	PathSpecification string `yaml:"path" mapstructure:"path"`
+	MountSourcePath   string `yaml:"mountsourcepath" mapstructure:"mountsourcepath"`
 	NodeAutoRename    bool   `yaml:"nodeautoname" mapstructure:"nodeautoname"`
 	// ASNumberMin and ASNumberMAX are optional, considered in AssignASNumbers if specified
 	ASNumberMin int `yaml:"asnumber_min" mapstructure:"asnumber_min"`

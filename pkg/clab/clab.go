@@ -104,7 +104,7 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 
 		// node settings
 		name := node.Name
-		ndef, err := getClabNode(cfg, node)
+		ndef, err := getClabNode(node)
 		if err != nil {
 			return nil, err
 		}
@@ -136,9 +136,9 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 			if file.FileDefinition.Path == "" {
 				continue
 			}
-			dirpath, err := filepath.Abs(node.Name)
+			dirpath, err := cfg.MountSourcePath(node.Name)
 			if err != nil {
-				return nil, fmt.Errorf("directory path panic")
+				return nil, fmt.Errorf("path handling panic for %s", node.Name)
 			}
 			//dirpath = strings.TrimRight(dirpath, "/")
 			cfgpath := filepath.Join(dirpath, file.FileDefinition.Name)
@@ -161,7 +161,7 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 		}
 
 		// link settings
-		link := getClabLink(cfg, conn)
+		link := getClabLink(conn)
 		config.Topology.Links = append(config.Topology.Links, link)
 	}
 
@@ -172,7 +172,7 @@ func GetClabTopology(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) 
 	return bytes, nil
 }
 
-func getClabNode(cfg *model.Config, n *model.Node) (*NodeDefinition, error) {
+func getClabNode(n *model.Node) (*NodeDefinition, error) {
 	// clab node attributes
 	ndef := &NodeDefinition{}
 	if n.ClabAttr == nil {
@@ -191,7 +191,7 @@ func getClabNode(cfg *model.Config, n *model.Node) (*NodeDefinition, error) {
 	return ndef, nil
 }
 
-func getClabLink(cfg *model.Config, conn *model.Connection) *LinkConfig {
+func getClabLink(conn *model.Connection) *LinkConfig {
 	src := conn.Src.Node.Name + ":" + conn.Src.Name
 	dst := conn.Dst.Node.Name + ":" + conn.Dst.Name
 	link := LinkConfig{

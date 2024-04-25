@@ -21,7 +21,7 @@ and [Containerlab](https://containerlab.dev/) as an emulation network platform.
 
     go build .
 
-    // mv dot2net /usr/bin/dot2net  (if required)
+    // mv dot2net /usr/local/bin/dot2net  (if required)
 
 ## Build on Docker
 
@@ -275,4 +275,19 @@ you can set priority values for config templates.
 If priority value is smaller, the config blocks will be on the head of merged configuration.
 The default value of priority is 0,
 which means you can set positive values to place configs on the tail and negative values to place them on the head.
+
+
+# Reference
+
+This tool is demonstrated at [CNSM2023](https://doi.org/10.23919/CNSM59352.2023.10327865).
+
+If you use this code, consider citing:
+
+    @inproceedings{Kobayashi_dot2net2023,
+        author={Kobayashi, Satoru and Shiiba, Ryusei and Miura, Ryosuke and Miwa, Shinsuke and Miyachi, Toshiyuki and Fukuda, Kensuke},
+        booktitle={19th International Conference on Network and Service Management (CNSM)}, 
+        title={dot2net: A Labeled Graph Approach for Template-Based Configuration of Emulation Networks}, 
+        pages={1-9},
+        year={2023}
+    }
 

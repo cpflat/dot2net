@@ -42,18 +42,18 @@ func BuildNetworkModel(cfg *Config, d *Diagram, output string) (nm *NetworkModel
 
 	// assign names for unnamed objects in topology
 	if cfg.GlobalSettings.NodeAutoRename {
-		err = assignNodeNames(cfg, nm)
+		err = assignNodeNames(nm)
 		if err != nil {
 			return nil, err
 		}
 	}
-	err = assignInterfaceNames(cfg, nm)
+	err = assignInterfaceNames(nm)
 	if err != nil {
 		return nil, err
 	}
 
 	// assign numbers, interface names and addresses
-	err = setGivenParameters(cfg, nm)
+	err = setGivenParameters(nm)
 	if err != nil {
 		return nil, err
 	}
@@ -500,7 +500,7 @@ func addSpecialInterfaces(cfg *Config, nm *NetworkModel) error {
 }
 
 // assignNodeNames assign names for unnamed nodes with given name prefix automatically
-func assignNodeNames(cfg *Config, nm *NetworkModel) error {
+func assignNodeNames(nm *NetworkModel) error {
 	prefixMap := map[string][]*Node{}
 	for _, node := range nm.Nodes {
 		prefixMap[node.namePrefix] = append(prefixMap[node.namePrefix], node)
@@ -517,7 +517,7 @@ func assignNodeNames(cfg *Config, nm *NetworkModel) error {
 }
 
 // assignNodeNames assign names for unnamed interfaces with given name prefix automatically
-func assignInterfaceNames(cfg *Config, nm *NetworkModel) error {
+func assignInterfaceNames(nm *NetworkModel) error {
 	for _, node := range nm.Nodes {
 		existingNames := map[string]struct{}{}
 		prefixMap := map[string][]*Interface{} // Interfaces to be named automatically
@@ -560,7 +560,7 @@ func assignInterfaceNames(cfg *Config, nm *NetworkModel) error {
 	return nil
 }
 
-func setGivenParameters(cfg *Config, nm *NetworkModel) error {
+func setGivenParameters(nm *NetworkModel) error {
 	// set values in ValueLabels
 	for _, node := range nm.Nodes {
 		for k, v := range node.valueLabels {
@@ -608,7 +608,7 @@ func assignIPParameters(cfg *Config, nm *NetworkModel) error {
 
 	for _, layer := range cfg.Layers {
 		// loopback
-		err := assignIPLoopbacks(cfg, nm, layer)
+		err := assignIPLoopbacks(nm, layer)
 		if err != nil {
 			return err
 		}
@@ -625,7 +625,7 @@ func assignIPParameters(cfg *Config, nm *NetworkModel) error {
 		setNeighbors(segs, layer)
 
 		// assign ip addresses
-		err = assignIPAddresses(cfg, nm, layer)
+		err = assignIPAddresses(nm, layer)
 		if err != nil {
 			return err
 		}

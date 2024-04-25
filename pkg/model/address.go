@@ -444,7 +444,7 @@ func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, layer *Layer) ([]*Node, i
 	return allLoopbacks, cnt, nil
 }
 
-func assignIPLoopbacks(cfg *Config, nm *NetworkModel, layer *Layer) error {
+func assignIPLoopbacks(nm *NetworkModel, layer *Layer) error {
 	poolmap := map[string]*ipPool{}
 	for _, policy := range layer.loopbackPolicy {
 		poolrange, err := netip.ParsePrefix(policy.AddrRange)
@@ -580,7 +580,7 @@ func assignManagementIPAddresses(cfg *Config, nm *NetworkModel) error {
 	return nil
 }
 
-func assignIPAddresses(cfg *Config, nm *NetworkModel, layer *Layer) error {
+func assignIPAddresses(nm *NetworkModel, layer *Layer) error {
 	poolmap := map[string]*ipPool{}
 	for _, policy := range layer.ipPolicy {
 		poolrange, err := netip.ParsePrefix(policy.AddrRange)

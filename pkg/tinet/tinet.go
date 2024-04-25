@@ -117,7 +117,7 @@ func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, e
 			continue
 		}
 
-		node, err := getTinetNode(cfg, n)
+		node, err := getTinetNode(n)
 		if err != nil {
 			return nil, err
 		}
@@ -129,7 +129,7 @@ func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, e
 				continue
 			}
 
-			iface, err := getTinetInterface(cfg, i)
+			iface, err := getTinetInterface(i)
 			if err != nil {
 				return nil, err
 			}
@@ -145,10 +145,15 @@ func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, e
 			if file.FileDefinition.Path == "" {
 				continue
 			}
-			dirpath, err := filepath.Abs(n.Name) // requires absolute path
+			//dirpath, err := cfg.MountSourcePath(node.Name)
+			dirpath, err := filepath.Abs(n.Name)
 			if err != nil {
-				return nil, fmt.Errorf("directory path panic")
+				return nil, fmt.Errorf("path handling panic for %s", node.Name)
 			}
+			// dirpath, err := filepath.Abs(n.Name) // requires absolute path
+			// if err != nil {
+			// 	return nil, fmt.Errorf("directory path panic")
+			// }
 			//dirpath = strings.TrimRight(dirpath, "/")
 			cfgpath := filepath.Join(dirpath, file.FileDefinition.Name)
 			targetpath := file.FileDefinition.Path
@@ -191,7 +196,7 @@ func GetTinetSpecification(cfg *model.Config, nm *model.NetworkModel) ([]byte, e
 	return bytes, nil
 }
 
-func getTinetNode(cfg *model.Config, n *model.Node) (Node, error) {
+func getTinetNode(n *model.Node) (Node, error) {
 	node := Node{}
 
 	mapper := n.TinetAttr
@@ -210,7 +215,7 @@ func getTinetNode(cfg *model.Config, n *model.Node) (Node, error) {
 	return node, nil
 }
 
-func getTinetInterface(cfg *model.Config, i *model.Interface) (Interface, error) {
+func getTinetInterface(i *model.Interface) (Interface, error) {
 	iface := Interface{
 		Name: i.Name,
 	}
