@@ -62,13 +62,17 @@ def parse_node_options(tierstr):
     help=("Node tier definition. e.g., NUMBER:NAME:LABEL:LABEL:... "
           "NUMBER is the number of nodes. NAME is node name prefix. LABELs are annotated to the nodes.")
 )
-def main(name, nodes):
+@click.option('--count', is_flag=True)
+def main(name, nodes, count):
     rules = []
     for tierstr in nodes:
         rules.append(parse_node_options(tierstr))
-    
+
     G = generate_fabric(name, rules)
-    print(G.string())
+    if count:
+        print("{0} {1}".format(G.number_of_nodes(), G.number_of_edges()))
+    else:
+        print(G.string())
 
 
 if __name__ == "__main__":

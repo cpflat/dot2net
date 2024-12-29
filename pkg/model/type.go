@@ -8,7 +8,7 @@ import (
 
 // abstracted structures
 
-// labelOwner includes Node, Interface, Connection
+// labelOwner includes Node, Interface, Connection, Group
 type labelOwner interface {
 	ClassLabels() []string
 	PlaceLabels() []string
