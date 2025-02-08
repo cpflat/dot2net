@@ -3,19 +3,20 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"runtime/pprof"
 	"sort"
 	"strings"
 
-	"github.com/cpflat/dot2net/pkg/clab"
+	//"github.com/cpflat/dot2net/pkg/clab"
 	"github.com/cpflat/dot2net/pkg/model"
-	"github.com/cpflat/dot2net/pkg/tinet"
+	"github.com/cpflat/dot2net/pkg/types"
+
+	//"github.com/cpflat/dot2net/pkg/tinet"
 	"github.com/cpflat/dot2net/pkg/visual"
 	"github.com/urfave/cli/v2"
 )
 
-func loadContext(c *cli.Context) (d *model.Diagram, cfg *model.Config, err error) {
+func loadContext(c *cli.Context) (d *model.Diagram, cfg *types.Config, err error) {
 
 	dotPaths := c.Args().Slice()
 
@@ -32,7 +33,7 @@ func loadContext(c *cli.Context) (d *model.Diagram, cfg *model.Config, err error
 	}
 
 	cfgPath := c.String("config")
-	cfg, err = model.LoadConfig(cfgPath)
+	cfg, err = types.LoadConfig(cfgPath)
 	if err != nil {
 		return d, cfg, err
 	}
@@ -54,73 +55,77 @@ func outputString(name string, buffer []byte) error {
 	return nil
 }
 
-func outputFiles(buffers map[string][]byte, dirname string) error {
-	if len(buffers) == 0 {
-		// do not generate directories for empty nodes
-		return nil
-	}
+// func outputFiles(buffers map[string][]byte, dirname string) error {
+// 	if len(buffers) == 0 {
+// 		// do not generate directories for empty nodes
+// 		return nil
+// 	}
+//
+// 	if dirname == "" {
+// 		for filename, buffer := range buffers {
+// 			path := filename
+// 			err := os.WriteFile(path, buffer, 0644)
+// 			if err != nil {
+// 				return err
+// 			}
+// 		}
+// 	} else {
+// 		f, err := os.Stat(dirname)
+// 		if os.IsNotExist(err) {
+// 			err = os.Mkdir(dirname, 0755)
+// 			if err != nil {
+// 				return err
+// 			}
+// 		} else if !f.IsDir() {
+// 			return fmt.Errorf("creating directory %s fails because a file already exists", dirname)
+// 		}
+// 		for filename, buffer := range buffers {
+// 			path := filepath.Join(dirname, filename)
+// 			err = os.WriteFile(path, buffer, 0644)
+// 			if err != nil {
+// 				return err
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
+//
+// func generateBuffers(files *types.ConfigFiles) map[string][]byte {
+// 	buffers := map[string][]byte{}
+// 	for _, filename := range files.FileNames() {
+// 		file := files.GetFile(filename)
+// 		buffer := strings.Join(file.Content, "\n")
+// 		buffers[filename] = []byte(buffer)
+// 	}
+// 	return buffers
+// }
 
-	if dirname == "" {
-		for filename, buffer := range buffers {
-			path := filename
-			err := os.WriteFile(path, buffer, 0644)
-			if err != nil {
-				return err
-			}
-		}
-	} else {
-		f, err := os.Stat(dirname)
-		if os.IsNotExist(err) {
-			err = os.Mkdir(dirname, 0755)
-			if err != nil {
-				return err
-			}
-		} else if !f.IsDir() {
-			return fmt.Errorf("file %v already exists", dirname)
-		}
-		for filename, buffer := range buffers {
-			path := filepath.Join(dirname, filename)
-			err = os.WriteFile(path, buffer, 0644)
-			if err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func generateBuffers(files *model.ConfigFiles) map[string][]byte {
-	buffers := map[string][]byte{}
-	for _, filename := range files.FileNames() {
-		file := files.GetFile(filename)
-		buffer := strings.Join(file.Content, "\n")
-		buffers[filename] = []byte(buffer)
-	}
-	return buffers
-}
-
-func CmdCommand(c *cli.Context) error {
+func CmdBuild(c *cli.Context) error {
 	nd, cfg, err := loadContext(c)
 	if err != nil {
 		return err
 	}
 
-	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputAsis)
+	nm, err := model.BuildNetworkModel(cfg, nd)
+	if err != nil {
+		return err
+	}
+	err = model.BuildConfigFiles(cfg, nm, false)
 	if err != nil {
 		return err
 	}
 
-	buffers := generateBuffers(nm.Files)
-	outputFiles(buffers, "")
-	for _, n := range nm.Nodes {
-		buffers := generateBuffers(n.Files)
-		embed := n.Files.GetEmbeddedConfig()
-		if embed != nil {
-			buffer := strings.Join(embed.Content, "\n")
-			buffers[n.Name] = []byte(buffer)
-		}
-		outputFiles(buffers, n.Name)
-	}
+	// buffers := generateBuffers(nm.Files)
+	// outputFiles(buffers, "")
+	// for _, n := range nm.Nodes {
+	// 	buffers := generateBuffers(n.Files)
+	// 	embed := n.Files.GetEmbeddedConfig()
+	// 	if embed != nil {
+	// 		buffer := strings.Join(embed.Content, "\n")
+	// 		buffers[n.Name] = []byte(buffer)
+	// 	}
+	// 	outputFiles(buffers, n.Name)
+	// }
 
 	return nil
 }
@@ -130,7 +135,8 @@ func CmdTinet(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	name := c.String("output")
+	// name := c.String("output")
+	verbose := c.Bool("verbose")
 	profile := c.String("profile")
 
 	// init CPU profiler
@@ -148,25 +154,30 @@ func CmdTinet(c *cli.Context) error {
 		defer pprof.StopCPUProfile()
 	}
 
-	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputTinet)
+	nm, err := model.BuildNetworkModel(cfg, nd)
+	if err != nil {
+		return err
+	}
+	err = model.BuildConfigFiles(cfg, nm, verbose)
 	if err != nil {
 		return err
 	}
 
-	buffers := generateBuffers(nm.Files)
-	outputFiles(buffers, "")
-	for _, n := range nm.Nodes {
-		if !n.Virtual {
-			buffers := generateBuffers(n.Files)
-			outputFiles(buffers, n.Name)
-		}
-	}
+	// buffers := generateBuffers(nm.Files)
+	// outputFiles(buffers, "")
+	// for _, n := range nm.Nodes {
+	// 	if !n.Virtual {
+	// 		buffers := generateBuffers(n.Files)
+	// 		outputFiles(buffers, n.Name)
+	// 	}
+	// }
 
-	spec, err := tinet.GetTinetSpecification(cfg, nm)
-	if err != nil {
-		return err
-	}
-	return outputString(name, spec)
+	// spec, err := tinet.GetTinetSpecification(cfg, nm)
+	// if err != nil {
+	// 	return err
+	// }
+	// return outputString(name, spec)
+	return nil
 }
 
 func CmdClab(c *cli.Context) error {
@@ -174,7 +185,8 @@ func CmdClab(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	name := c.String("output")
+	// name := c.String("output")
+	verbose := c.Bool("verbose")
 	profile := c.String("profile")
 
 	// init CPU profiler
@@ -192,25 +204,30 @@ func CmdClab(c *cli.Context) error {
 		defer pprof.StopCPUProfile()
 	}
 
-	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputClab)
+	nm, err := model.BuildNetworkModel(cfg, nd)
+	if err != nil {
+		return err
+	}
+	err = model.BuildConfigFiles(cfg, nm, verbose)
 	if err != nil {
 		return err
 	}
 
-	buffers := generateBuffers(nm.Files)
-	outputFiles(buffers, "")
-	for _, n := range nm.Nodes {
-		if !n.Virtual {
-			buffers := generateBuffers(n.Files)
-			outputFiles(buffers, n.Name)
-		}
-	}
+	// buffers := generateBuffers(nm.Files)
+	// outputFiles(buffers, "")
+	// for _, n := range nm.Nodes {
+	// 	if !n.Virtual {
+	// 		buffers := generateBuffers(n.Files)
+	// 		outputFiles(buffers, n.Name)
+	// 	}
+	// }
 
-	topo, err := clab.GetClabTopology(cfg, nm)
-	if err != nil {
-		return err
-	}
-	return outputString(name, topo)
+	// topo, err := clab.GetClabTopology(cfg, nm)
+	// if err != nil {
+	// 	return err
+	// }
+	// return outputString(name, topo)
+	return nil
 }
 
 func CmdParams(c *cli.Context) error {
@@ -221,20 +238,36 @@ func CmdParams(c *cli.Context) error {
 	name := c.String("output")
 	flagall := c.Bool("all")
 
-	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputAsis)
+	nm, err := model.BuildNetworkModel(cfg, nd)
 	if err != nil {
 		return err
 	}
 
+	var netNumbers map[string]string
 	var nodeNumbers map[string]string
 	var ifaceNumbers map[string]string
 	var nNumbers map[string]string
 	lines := []string{}
+	if flagall {
+		netNumbers = nm.GetRelativeParams()
+	} else {
+		netNumbers = nm.GetParams()
+	}
+	keys := []string{}
+	for num := range netNumbers {
+		keys = append(keys, num)
+	}
+	sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
+	for _, num := range keys {
+		val := netNumbers[num]
+		lines = append(lines, fmt.Sprintf("network {{ .%+v }} = %+v", num, val))
+	}
+
 	for _, node := range nm.Nodes {
 		if flagall {
-			nodeNumbers = node.GetRelativeNumbers()
+			nodeNumbers = node.GetRelativeParams()
 		} else {
-			nodeNumbers = node.GetNumbers()
+			nodeNumbers = node.GetParams()
 		}
 
 		keys := []string{}
@@ -249,9 +282,9 @@ func CmdParams(c *cli.Context) error {
 
 		for _, iface := range node.Interfaces {
 			if flagall {
-				ifaceNumbers = iface.GetRelativeNumbers()
+				ifaceNumbers = iface.GetRelativeParams()
 			} else {
-				ifaceNumbers = iface.GetNumbers()
+				ifaceNumbers = iface.GetParams()
 			}
 
 			keys := []string{}
@@ -267,7 +300,7 @@ func CmdParams(c *cli.Context) error {
 			if flagall {
 				for layer, neighbors := range iface.Neighbors {
 					for _, n := range neighbors {
-						nNumbers = n.GetRelativeNumbers()
+						nNumbers = n.GetRelativeParams()
 						keys := []string{}
 						for num := range nNumbers {
 							keys = append(keys, num)
@@ -283,7 +316,7 @@ func CmdParams(c *cli.Context) error {
 					}
 				}
 				for _, m := range iface.GetMembers() {
-					mNumbers := m.GetRelativeNumbers()
+					mNumbers := m.GetRelativeParams()
 					keys := []string{}
 					for num := range mNumbers {
 						keys = append(keys, num)
@@ -302,12 +335,12 @@ func CmdParams(c *cli.Context) error {
 
 		for _, group := range node.Groups {
 			keys := []string{}
-			for num := range group.GetNumbers() {
+			for num := range group.GetParams() {
 				keys = append(keys, num)
 			}
 			sort.Slice(keys, func(i, j int) bool { return keys[i] < keys[j] })
 			for _, num := range keys {
-				val, err := group.GetValue(num)
+				val, err := group.GetParamValue(num)
 				if err != nil {
 					return err
 				}
@@ -330,7 +363,7 @@ func CmdVisual(c *cli.Context) error {
 	name := c.String("output")
 	layer := c.String("layer")
 
-	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputAsis)
+	nm, err := model.BuildNetworkModel(cfg, nd)
 	if err != nil {
 		return err
 	}
@@ -350,7 +383,7 @@ func CmdData(c *cli.Context) error {
 	}
 	name := c.String("output")
 
-	nm, err := model.BuildNetworkModel(cfg, nd, model.OutputAsis)
+	nm, err := model.BuildNetworkModel(cfg, nd)
 	if err != nil {
 		return err
 	}

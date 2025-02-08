@@ -1,0 +1,2 @@
+{{ .self_startup }}
+{{ .interfaces_startup }}

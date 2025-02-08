@@ -1,4 +1,4 @@
-package model
+package types
 
 import (
 	"fmt"
@@ -13,12 +13,13 @@ import (
 	// "github.com/spf13/viper"
 )
 
-const ClassTypeNode string = "nodeclass"
-const ClassTypeInterface string = "interfaceclass"
-const ClassTypeConnection string = "connectionclass"
-const ClassTypeGroup string = "groupclass"
-const ClassTypeNeighbor string = "neighborclass"
-const ClassTypeMember string = "memberclass"
+const ClassTypeNetwork string = "network"
+const ClassTypeNode string = "node"
+const ClassTypeInterface string = "interface"
+const ClassTypeConnection string = "connection"
+const ClassTypeGroup string = "group"
+const ClassTypeNeighbor string = "neighbor"
+const ClassTypeMember string = "member"
 
 const ClassAll string = "all"         // all objects
 const ClassDefault string = "default" // all empty objects
@@ -39,6 +40,9 @@ const IPNetworkReplacerFooter string = "net"
 const IPProtocolReplacerFooter string = "protocol"
 const IPPrefixLengthReplacerFooter string = "plen"
 
+const IPPolicyTypeDefault string = "ip"
+const IPPolicyTypeLoopback string = "loopback"
+
 const OutputTinet string = "tinet"
 const OutputClab string = "clab"
 const OutputAsis string = "command"
@@ -47,20 +51,26 @@ func AllOutput() []string {
 	return []string{OutputTinet, OutputClab, OutputAsis}
 }
 
+// config elements
+
 type Config struct {
 	Name            string            `yaml:"name" mapstructure:"name"`
+	Modules         []string          `yaml:"module" mapstructure:"module"`
 	GlobalSettings  GlobalSettings    `yaml:"global" mapstructure:"global"`
 	FileDefinitions []*FileDefinition `yaml:"file" mapstructure:"file"`
+	FileFormats     []*FileFormat     `yaml:"format,flow" mapstructure:"format,flow"`
 	Layers          []*Layer          `yaml:"layer" mapstructure:"layer"`
 	ManagementLayer ManagementLayer   `yaml:"mgmt_layer" mapstructure:"mgmt_layer"`
 	ParameterRules  []*ParameterRule  `yaml:"param_rule,flow" mapstructure:"param_rule,flow"`
 
+	NetworkClasses    []*NetworkClass    `yaml:"networkclass,flow" mapstructure:"network,flow"`
 	NodeClasses       []*NodeClass       `yaml:"nodeclass,flow" mapstructure:"nodes,flow"`
 	InterfaceClasses  []*InterfaceClass  `yaml:"interfaceclass,flow" mapstructure:"interfaces,flow"`
 	ConnectionClasses []*ConnectionClass `yaml:"connectionclass,flow" mapstructure:"connections,flow"`
 	GroupClasses      []*GroupClass      `yaml:"groupclass,flow" mapstructure:"group,flow"`
 
 	fileDefinitionMap map[string]*FileDefinition
+	fileFormatMap     map[string]*FileFormat
 	layerMap          map[string]*Layer
 	policyMap         map[string]*IPPolicy
 	parameterRuleMap  map[string]*ParameterRule
@@ -71,11 +81,18 @@ type Config struct {
 	groupClassMap      map[string]*GroupClass
 	neighborClassMap   map[string]map[string][]*NeighborClass // interfaceclass name, ipspace name
 	localDir           string
+
+	LoadedModules []Module
 }
 
 func (cfg *Config) FileDefinitionByName(name string) (*FileDefinition, bool) {
 	filedef, ok := cfg.fileDefinitionMap[name]
 	return filedef, ok
+}
+
+func (cfg *Config) FileFormatByName(name string) (*FileFormat, bool) {
+	filefmt, ok := cfg.fileFormatMap[name]
+	return filefmt, ok
 }
 
 func (cfg *Config) LayerByName(name string) (*Layer, bool) {
@@ -123,7 +140,7 @@ func (cfg *Config) DefaultConnectionLayer() []string {
 	return layers
 }
 
-func (cfg *Config) classifyLabels(given []string) *parsedLabels {
+func (cfg *Config) classifyLabels(given []string) *ParsedLabels {
 	pl := newParsedLabels()
 	for _, label := range given {
 		if label == "" {
@@ -155,7 +172,7 @@ func (cfg *Config) classifyLabels(given []string) *parsedLabels {
 	return pl
 }
 
-func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool) *parsedLabels {
+func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool) *ParsedLabels {
 	pl := cfg.classifyLabels(given)
 	classLabels := pl.classLabels
 
@@ -183,28 +200,57 @@ func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool)
 	return pl
 }
 
-func (cfg *Config) getValidNodeClasses(given []string) *parsedLabels {
+func (cfg *Config) GetValidNodeClasses(given []string) *ParsedLabels {
 	_, hasAllNodeClass := cfg.nodeClassMap[ClassAll]
 	_, hasDefaultNodeClass := cfg.nodeClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllNodeClass, hasDefaultNodeClass)
 }
 
-func (cfg *Config) getValidInterfaceClasses(given []string) *parsedLabels {
+func (cfg *Config) GetValidInterfaceClasses(given []string) *ParsedLabels {
 	_, hasAllInterfaceClass := cfg.interfaceClassMap[ClassAll]
 	_, hasDefaultInterfaceClass := cfg.interfaceClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllInterfaceClass, hasDefaultInterfaceClass)
 }
 
-func (cfg *Config) getValidConnectionClasses(given []string) *parsedLabels {
+func (cfg *Config) GetValidConnectionClasses(given []string) *ParsedLabels {
 	_, hasAllConnectionClass := cfg.connectionClassMap[ClassAll]
 	_, hasDefaultConnectionClass := cfg.connectionClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllConnectionClass, hasDefaultConnectionClass)
 }
 
-func (cfg *Config) getValidGroupClasses(given []string) *parsedLabels {
+func (cfg *Config) GetValidGroupClasses(given []string) *ParsedLabels {
 	_, hasAllGroupClass := cfg.groupClassMap[ClassAll]
 	_, hasDefaultGroupClass := cfg.groupClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllGroupClass, hasDefaultGroupClass)
+}
+
+func (cfg *Config) AddFileFormat(filefmt *FileFormat) {
+	cfg.FileFormats = append(cfg.FileFormats, filefmt)
+	cfg.fileFormatMap[filefmt.Name] = filefmt
+}
+
+func (cfg *Config) AddFileDefinition(filedef *FileDefinition) {
+	cfg.FileDefinitions = append(cfg.FileDefinitions, filedef)
+	cfg.fileDefinitionMap[filedef.Name] = filedef
+}
+
+func (cfg *Config) AddNetworkClass(nc *NetworkClass) {
+	cfg.NetworkClasses = append(cfg.NetworkClasses, nc)
+}
+
+func (cfg *Config) AddNodeClass(nc *NodeClass) {
+	cfg.NodeClasses = append(cfg.NodeClasses, nc)
+	cfg.nodeClassMap[nc.Name] = nc
+}
+
+func (cfg *Config) AddInterfaceClass(nc *InterfaceClass) {
+	cfg.InterfaceClasses = append(cfg.InterfaceClasses, nc)
+	cfg.interfaceClassMap[nc.Name] = nc
+}
+
+func (cfg *Config) AddConnectionClass(nc *ConnectionClass) {
+	cfg.ConnectionClasses = append(cfg.ConnectionClasses, nc)
+	cfg.connectionClassMap[nc.Name] = nc
 }
 
 func (cfg *Config) HasManagementLayer() bool {
@@ -231,16 +277,30 @@ type GlobalSettings struct {
 }
 
 type FileDefinition struct {
+	// Name is used as the filename of generated file.
 	Name string `yaml:"name" mapstructure:"name"`
 	// Path is the path that the generated file is placed on the node.
 	// If empty, the file is generated but not placed on the node.
 	Path string `yaml:"path" mapstructure:"path"`
-	// Format is used to determine format and the way to aggregate the config blocks
-	// The value can be "shell", "frr", etc. "file" in default.
-	Format string `yaml:"format" mapstructure:"format"`
+	// Format is used to determine the way to format lines in generated config text.
+	Format  string   `yaml:"format" mapstructure:"format"`
+	Formats []string `yaml:"formats,flow" mapstructure:"formats,flow"`
+	// Scope specifies the scope of file creation.
+	// For example, if Scope = "node", the file is created for each node.
+	Scope string `yaml:"scope" mapstructure:"scope"`
 	// Shared flag is used to determine the file is shared among nodes or not.
-	// If true, the file is placed on the same directory as primary config file.
-	Shared bool `yaml:"shared" mapstructure:"shared"`
+	// If true, the file is placed on the same directory as primary config file. -> To be removed
+	// Shared bool `yaml:"shared" mapstructure:"shared"`
+}
+
+type FileFormat struct {
+	Name           string `yaml:"name" mapstructure:"name"`
+	LinePrefix     string `yaml:"lineprefix" mapstructure:"lineprefix"`
+	LineSuffix     string `yaml:"linesuffix" mapstructure:"linesuffix"`
+	LineSeparator  string `yaml:"lineseparator" mapstructure:"lineseparator"`
+	BlockPrefix    string `yaml:"blockprefix" mapstructure:"blockprefix"`
+	BlockSuffix    string `yaml:"blocksuffix" mapstructure:"blocksuffix"`
+	BlockSeparator string `yaml:"blockseparator" mapstructure:"blockseparator"`
 }
 
 type Layerer interface {
@@ -257,8 +317,8 @@ type Layer struct {
 
 	Layerer
 
-	ipPolicy       []*IPPolicy
-	loopbackPolicy []*IPPolicy
+	IPPolicy       []*IPPolicy
+	LoopbackPolicy []*IPPolicy
 }
 
 func (layer *Layer) IPAddressReplacer() string {
@@ -331,7 +391,27 @@ type ParameterRule struct {
 	SourceFile string `yaml:"sourcefile" mapstructure:"soucefile"`
 }
 
+// interfaces and abstracted structs for object classes
+
 type ObjectClass interface{}
+
+type LabelOwnerClass interface {
+	GetGivenValues() map[string]string
+}
+
+// object classes
+
+type NetworkClass struct {
+	Name            string            `yaml:"name" mapstructure:"name"`
+	Values          map[string]string `yaml:"values" mapstructure:"values"`
+	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+
+	LabelOwnerClass
+}
+
+func (nc *NetworkClass) GetGivenValues() map[string]string {
+	return nc.Values
+}
 
 type NodeClass struct {
 	// A node can have only one "primary" node class.
@@ -342,6 +422,7 @@ type NodeClass struct {
 	Virtual           bool              `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy          []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Parameters        []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	Values            map[string]string `yaml:"values" mapstructure:"values"`
 	InterfaceIPPolicy []string          `yaml:"interface_policy,flow" mapstructure:"interface_policy,flow"`
 	ConfigTemplates   []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 	MemberClasses     []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
@@ -351,6 +432,12 @@ type NodeClass struct {
 	MgmtInterface string                 `yaml:"mgmt_interfaceclass" mapstructure:"mgmt_interfaceclass"` // InterfaceClass name for mgmt
 	TinetAttr     map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`                             // tinet attributes
 	ClabAttr      map[string]interface{} `yaml:"clab" mapstructure:"clab"`                               // containerlab attributes
+
+	LabelOwnerClass
+}
+
+func (nc *NodeClass) GetGivenValues() map[string]string {
+	return nc.Values
 }
 
 type InterfaceClass struct {
@@ -360,6 +447,7 @@ type InterfaceClass struct {
 	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	Values          map[string]string `yaml:"values" mapstructure:"values"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 	NeighborClasses []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
 	MemberClasses   []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
@@ -368,9 +456,14 @@ type InterfaceClass struct {
 	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of auto-naming
 	TinetAttr map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`   // tinet attributes
 	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`     // containerlab attributes
+
+	LabelOwnerClass
 }
 
-// type ConnectionClass struct {
+func (ic *InterfaceClass) GetGivenValues() map[string]string {
+	return ic.Values
+}
+
 type ConnectionClass struct {
 	Name            string            `yaml:"name" mapstructure:"name"`
 	Primary         bool              `yaml:"primary" mapstructure:"primary"`
@@ -378,6 +471,7 @@ type ConnectionClass struct {
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Layers          []string          `yaml:"layers,flow" mapstructure:"layers,flow"` // Connection is limited to specified layers
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	Values          map[string]string `yaml:"values" mapstructure:"values"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 	MemberClasses   []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
 	NeighborClasses []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
@@ -386,11 +480,25 @@ type ConnectionClass struct {
 	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of interface auto-naming
 	TinetAttr map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`   // tinet attributes
 	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`     // containerlab attributes
+
+	LabelOwnerClass
+}
+
+func (cc *ConnectionClass) GetGivenValues() map[string]string {
+	return cc.Values
 }
 
 type GroupClass struct {
-	Name       string   `yaml:"name" mapstructure:"name"`
-	Parameters []string `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	Name            string            `yaml:"name" mapstructure:"name"`
+	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	Values          map[string]string `yaml:"values" mapstructure:"values"`
+	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+
+	LabelOwnerClass
+}
+
+func (gc *GroupClass) GetGivenValues() map[string]string {
+	return gc.Values
 }
 
 type NeighborClass struct {
@@ -409,7 +517,44 @@ type MemberClass struct {
 	ConfigTemplates   []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 }
 
+// check MemberClass description and return (classtype, classnames)
+func (mc *MemberClass) GetSpecifiedClasses() (string, []string, error) {
+	classes := []string{}
+	if mc.NodeClass != "" || len(mc.NodeClasses) > 0 {
+		if mc.InterfaceClass != "" || len(mc.InterfaceClasses) > 0 {
+			return "", nil, fmt.Errorf("nodeClass and interfaceClass cannot be specified at the same time")
+		}
+		if mc.ConnectionClass != "" || len(mc.ConnectionClasses) > 0 {
+			return "", nil, fmt.Errorf("nodeClass and connectionClass cannot be specified at the same time")
+		}
+		if mc.NodeClass != "" {
+			classes = append(classes, mc.NodeClass)
+		}
+		classes = append(classes, mc.NodeClasses...)
+		return ClassTypeNode, classes, nil
+	} else if mc.InterfaceClass != "" || len(mc.InterfaceClasses) > 0 {
+		if mc.ConnectionClass != "" || len(mc.ConnectionClasses) > 0 {
+			return "", nil, fmt.Errorf("interfaceClass and connectionClass cannot be specified at the same time")
+		}
+		if mc.InterfaceClass != "" {
+			classes = append(classes, mc.InterfaceClass)
+		}
+		classes = append(classes, mc.InterfaceClasses...)
+		return ClassTypeInterface, classes, nil
+	} else if mc.ConnectionClass != "" || len(mc.ConnectionClasses) > 0 {
+		if mc.ConnectionClass != "" {
+			classes = append(classes, mc.ConnectionClass)
+		}
+		classes = append(classes, mc.ConnectionClasses...)
+		return ClassTypeConnection, classes, nil
+	} else {
+		return "", nil, fmt.Errorf("no class specified for MemberClass")
+	}
+}
+
 type ConfigTemplate struct {
+	// Name is used by parent objects to specify as childs in templates
+	Name string `yaml:"name" mapstructure:"name"`
 	// Target file definition name
 	File string `yaml:"file" mapstructure:"file"`
 	// add config only for interfaces of nodes belongs to the nodeclass(es)
@@ -424,7 +569,8 @@ type ConfigTemplate struct {
 	// If specified, add config only for included output (e.g., tinet only, clab only, etc)
 	Platform []string `yaml:"platform,flow" mapstructure:"platform,flow"`
 	// Style is used to iterpret the given config format. Style can be different on one file. As-is in default.
-	Style string `yaml:"style" mapstructure:"style"`
+	//Style string `yaml:"style" mapstructure:"style"`
+	Format string `yaml:"format" mapstructure:"format"`
 	// Priority is a value to be used for sorting config blocks. 0 in default.
 	Priority int `yaml:"priority" mapstructure:"priority"`
 	// Load config template
@@ -432,8 +578,21 @@ type ConfigTemplate struct {
 	// Load config template from external file
 	SourceFile string `yaml:"sourcefile" mapstructure:"sourcefile"`
 
-	parsedTemplate *template.Template
+	ParsedTemplate *template.Template
 	platformSet    mapset.Set[string]
+}
+
+func (ct *ConfigTemplate) String() string {
+	if ct.Name != "" {
+		if ct.File != "" {
+			return fmt.Sprintf("ConfigTemplate(name:%s,file:%s)", ct.Name, ct.File)
+		} else {
+			return fmt.Sprintf("ConfigTemplate(name:%s)", ct.Name)
+		}
+	} else if ct.File != "" {
+		return fmt.Sprintf("ConfigTemplate(file:%s)", ct.File)
+	}
+	return "ConfigTemplate(no names)"
 }
 
 func (ct *ConfigTemplate) NodeClassCheck(node *Node) bool {
@@ -492,10 +651,10 @@ func convertLineFeed(str, lcode string) string {
 	).Replace(str)
 }
 
-func getPath(path string, cfg *Config) string {
+func GetRelativeFilePath(path string, cfg *Config) string {
 	pathspec := cfg.GlobalSettings.PathSpecification
 	if pathspec == "local" {
-		return cfg.localDir + "/" + path
+		return filepath.Join(cfg.localDir, path)
 	} else {
 		return path
 	}
@@ -521,6 +680,10 @@ func LoadConfig(path string) (*Config, error) {
 	for _, filedef := range cfg.FileDefinitions {
 		cfg.fileDefinitionMap[filedef.Name] = filedef
 	}
+	cfg.fileFormatMap = map[string]*FileFormat{}
+	for _, filefmt := range cfg.FileFormats {
+		cfg.fileFormatMap[filefmt.Name] = filefmt
+	}
 	cfg.layerMap = map[string]*Layer{}
 	cfg.policyMap = map[string]*IPPolicy{}
 	for _, layer := range cfg.Layers {
@@ -530,11 +693,11 @@ func LoadConfig(path string) (*Config, error) {
 			cfg.policyMap[policy.Name] = policy
 			switch policy.Type {
 			case IPPolicyTypeDefault:
-				layer.ipPolicy = append(layer.ipPolicy, policy)
+				layer.IPPolicy = append(layer.IPPolicy, policy)
 			case IPPolicyTypeLoopback:
-				layer.loopbackPolicy = append(layer.loopbackPolicy, policy)
+				layer.LoopbackPolicy = append(layer.LoopbackPolicy, policy)
 			default:
-				layer.ipPolicy = append(layer.ipPolicy, policy)
+				layer.IPPolicy = append(layer.IPPolicy, policy)
 			}
 		}
 	}
@@ -568,6 +731,7 @@ func LoadConfig(path string) (*Config, error) {
 	for _, group := range cfg.GroupClasses {
 		cfg.groupClassMap[group.Name] = group
 	}
+
 	return &cfg, err
 }
 
@@ -609,18 +773,25 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 	// init parsed template object
 	path := ""
 	if ct.SourceFile != "" {
-		path = getPath(ct.SourceFile, cfg)
+		path = GetRelativeFilePath(ct.SourceFile, cfg)
 	}
 	tpl, err := loadTemplate(ct.Template, path)
 	if err != nil {
 		return err
 	}
-	ct.parsedTemplate = tpl
+	ct.ParsedTemplate = tpl
 
 	return nil
 }
 
-func loadTemplates(cfg *Config) (*Config, error) {
+func LoadTemplates(cfg *Config) (*Config, error) {
+	for _, networkClass := range cfg.NetworkClasses {
+		for _, ct := range networkClass.ConfigTemplates {
+			if err := initConfigTemplate(cfg, ct); err != nil {
+				return nil, err
+			}
+		}
+	}
 	for _, nc := range cfg.NodeClasses {
 		for _, ct := range nc.ConfigTemplates {
 			if err := initConfigTemplate(cfg, ct); err != nil {

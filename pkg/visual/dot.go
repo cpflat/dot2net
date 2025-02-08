@@ -8,7 +8,8 @@ import (
 
 	"github.com/awalterschulze/gographviz"
 
-	"github.com/cpflat/dot2net/pkg/model"
+	"github.com/cpflat/dot2net/pkg/types"
+	// "github.com/cpflat/dot2net/pkg/model"
 )
 
 const ABBREVIATE_IPADDRESS = false
@@ -40,32 +41,32 @@ func abbreviateIPAddress(addr string, plen string) (string, error) {
 	return addr, nil
 }
 
-func getNodeLoopback(node *model.Node, layer *model.Layer) (string, error) {
+func getNodeLoopback(node *types.Node, layer *types.Layer) (string, error) {
 	var addr string
 	var err error
-	addr, err = node.GetValue(layer.IPLoopbackReplacer())
+	addr, err = node.GetParamValue(layer.IPLoopbackReplacer())
 	return addr, err
 }
 
-func getConnectionNetwork(conn *model.Connection, layer *model.Layer) (string, string, error) {
+func getConnectionNetwork(conn *types.Connection, layer *types.Layer) (string, string, error) {
 	var net string
 	var plen string
 	var err error
 	if conn.Src.AwareLayer(layer.Name) {
-		net, err = conn.Src.GetValue(layer.IPNetworkReplacer())
+		net, err = conn.Src.GetParamValue(layer.IPNetworkReplacer())
 		if err != nil {
 			return "", "", err
 		}
-		plen, err = conn.Src.GetValue(layer.IPPrefixLengthReplacer())
+		plen, err = conn.Src.GetParamValue(layer.IPPrefixLengthReplacer())
 		if err != nil {
 			return "", "", err
 		}
 	} else if conn.Dst.AwareLayer(layer.Name) {
-		net, err = conn.Dst.GetValue(layer.IPNetworkReplacer())
+		net, err = conn.Dst.GetParamValue(layer.IPNetworkReplacer())
 		if err != nil {
 			return "", "", err
 		}
-		plen, err = conn.Dst.GetValue(layer.IPPrefixLengthReplacer())
+		plen, err = conn.Dst.GetParamValue(layer.IPPrefixLengthReplacer())
 		if err != nil {
 			return "", "", err
 		}
@@ -75,8 +76,8 @@ func getConnectionNetwork(conn *model.Connection, layer *model.Layer) (string, s
 	return net, plen, err
 }
 
-func getInterfaceAddress(iface *model.Interface, layer *model.Layer) (string, error) {
-	addr, err := iface.GetValue(layer.IPAddressReplacer())
+func getInterfaceAddress(iface *types.Interface, layer *types.Layer) (string, error) {
+	addr, err := iface.GetParamValue(layer.IPAddressReplacer())
 	if err != nil {
 		err = fmt.Errorf(
 			"panic: Interface %s of Node %s is aware of layer %s but does not have ip address",
@@ -86,8 +87,8 @@ func getInterfaceAddress(iface *model.Interface, layer *model.Layer) (string, er
 	return addr, err
 }
 
-func GraphToDot(cfg *model.Config, nm *model.NetworkModel, layer string) (string, error) {
-	var layers []*model.Layer
+func GraphToDot(cfg *types.Config, nm *types.NetworkModel, layer string) (string, error) {
+	var layers []*types.Layer
 	if layer == "" {
 		layers = cfg.Layers
 	} else {

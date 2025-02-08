@@ -1,5 +1,9 @@
 name: bgp
 
+module:
+  - tinet
+  - containerlab
+
 file:
   - name: daemons
     path: /etc/frr/daemons
@@ -26,9 +30,7 @@ nodeclass:
   - name: default
     primary: true
     params: [lo]
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
     config:
@@ -36,7 +38,8 @@ nodeclass:
         sourcefile: ./daemons
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
-      - style: frr-vtysh
+      - name: startup
+        format: tinetVtyshCLI
         template:
           - router bgp {{ .group_as }}
           - bgp router-id {{ .ip_loopback }}
@@ -46,7 +49,8 @@ connectionclass:
     primary: true
     params: [ip]
     config:
-      - style: frr-vtysh
+      - name: startup
+        format: tinetVtyshCLI
         template: 
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/{{ .ip_plen }}

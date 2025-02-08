@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/cpflat/dot2net/pkg/model"
+	"github.com/cpflat/dot2net/pkg/types"
 )
 
 type NetworkModelData struct {
@@ -31,17 +31,17 @@ type ConnectionData struct {
 	DstInterface string `json:"dst_interface" mapstructure:"dst_interface"`
 }
 
-func GetDataJSON(cfg *model.Config, nm *model.NetworkModel) ([]byte, error) {
+func GetDataJSON(cfg *types.Config, nm *types.NetworkModel) ([]byte, error) {
 	nmd := &NetworkModelData{Name: cfg.Name}
 	for _, node := range nm.Nodes {
 		nd := &NodeData{
 			Name:   node.Name,
-			Params: node.GetNumbers(),
+			Params: node.GetParams(),
 		}
 		for _, iface := range node.Interfaces {
 			id := &InterfaceData{
 				Name:   iface.Name,
-				Params: iface.GetNumbers(),
+				Params: iface.GetParams(),
 			}
 			nd.Interfaces = append(nd.Interfaces, id)
 		}

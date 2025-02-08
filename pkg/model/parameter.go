@@ -6,14 +6,16 @@ import (
 	"os"
 
 	mapset "github.com/deckarep/golang-set/v2"
+
+	"github.com/cpflat/dot2net/pkg/types"
 )
 
-func getParameterCandidates(cfg *Config, rule *ParameterRule, cnt int) ([]string, error) {
+func getParameterCandidates(cfg *types.Config, rule *types.ParameterRule, cnt int) ([]string, error) {
 	params := []string{}
 
 	switch rule.Type {
 	case "file":
-		data, err := os.Open(getPath(rule.SourceFile, cfg))
+		data, err := os.Open(types.GetRelativeFilePath(rule.SourceFile, cfg))
 		if err != nil {
 			return nil, err
 		}
@@ -40,11 +42,17 @@ func getParameterCandidates(cfg *Config, rule *ParameterRule, cnt int) ([]string
 	return params, nil
 }
 
-func assignNodeParameters(cfg *Config, nm *NetworkModel) error {
-	nodesForParams := map[string][]*Node{}
+func assignNetworkParameters(cfg *types.Config, nm *types.NetworkModel) error {
+	// Note: cfg.NetworkClasses.Name are not used as network name because a network may belong to multiple network classes
+	nm.AddParam(NumberReplacerName, cfg.Name)
+	return nil
+}
+
+func assignNodeParameters(cfg *types.Config, nm *types.NetworkModel) error {
+	nodesForParams := map[string][]*types.Node{}
 	for _, node := range nm.Nodes {
-		node.addNumber(NumberReplacerName, node.Name)
-		for key := range node.iterNumbered() {
+		node.AddParam(NumberReplacerName, node.Name)
+		for key := range node.IterateFlaggedParams() {
 			nodesForParams[key] = append(nodesForParams[key], node)
 		}
 	}
@@ -61,7 +69,7 @@ func assignNodeParameters(cfg *Config, nm *NetworkModel) error {
 				return err
 			}
 			for i, obj := range nodes {
-				obj.addNumber(key, params[i])
+				obj.AddParam(key, params[i])
 			}
 		}
 	}
@@ -69,13 +77,13 @@ func assignNodeParameters(cfg *Config, nm *NetworkModel) error {
 	return nil
 }
 
-func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
+func assignInterfaceParameters(cfg *types.Config, nm *types.NetworkModel) error {
 
-	interfacesForParams := map[string][]*Interface{}
+	interfacesForParams := map[string][]*types.Interface{}
 	for _, node := range nm.Nodes {
 		for _, iface := range node.Interfaces {
-			iface.addNumber(NumberReplacerName, iface.Name)
-			for key := range iface.iterNumbered() {
+			iface.AddParam(NumberReplacerName, iface.Name)
+			for key := range iface.IterateFlaggedParams() {
 				interfacesForParams[key] = append(interfacesForParams[key], iface)
 			}
 		}
@@ -96,8 +104,8 @@ func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
 
 			// list up target interfaces and segments
 			mapper := mapset.NewThreadUnsafeSet(ifaces...)
-			targetSegments := []*SegmentMembers{}
-			targetObjects := map[*SegmentMembers][]*Interface{}
+			targetSegments := []*types.SegmentMembers{}
+			targetObjects := map[*types.SegmentMembers][]*types.Interface{}
 			segs, ok := nm.NetworkSegments[rule.Layer]
 			if !ok {
 				return fmt.Errorf("invalid parameter rule %s: layer %s not found", key, rule.Layer)
@@ -123,7 +131,7 @@ func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
 			}
 			for i, seg := range targetSegments {
 				for _, iface := range targetObjects[seg] {
-					iface.addNumber(key, params[i])
+					iface.AddParam(key, params[i])
 				}
 			}
 		case "connection":
@@ -133,8 +141,8 @@ func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
 			// list up target interfaces and connections
 			// mapper := mapset.NewSet[*Interface](ifaces...)
 			mapper := mapset.NewThreadUnsafeSet(ifaces...)
-			targetConnections := []*Connection{}
-			targetObjects := map[*Connection][]*Interface{}
+			targetConnections := []*types.Connection{}
+			targetObjects := map[*types.Connection][]*types.Interface{}
 			for _, conn := range nm.Connections {
 				if mapper.Contains(conn.Src) {
 					targetObjects[conn] = append(targetObjects[conn], conn.Src)
@@ -154,7 +162,7 @@ func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
 			}
 			for i, conn := range targetConnections {
 				for _, iface := range targetObjects[conn] {
-					iface.addNumber(key, params[i])
+					iface.AddParam(key, params[i])
 				}
 			}
 		default:
@@ -164,7 +172,7 @@ func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
 				return err
 			}
 			for i, iface := range ifaces {
-				iface.addNumber(key, params[i])
+				iface.AddParam(key, params[i])
 			}
 		}
 	}
@@ -172,11 +180,11 @@ func assignInterfaceParameters(cfg *Config, nm *NetworkModel) error {
 	return nil
 }
 
-func assignGroupParameters(cfg *Config, nm *NetworkModel) error {
-	groupsForParams := map[string][]*Group{}
+func assignGroupParameters(cfg *types.Config, nm *types.NetworkModel) error {
+	groupsForParams := map[string][]*types.Group{}
 	for _, group := range nm.Groups {
-		group.addNumber(NumberReplacerName, group.Name)
-		for key := range group.iterNumbered() {
+		group.AddParam(NumberReplacerName, group.Name)
+		for key := range group.IterateFlaggedParams() {
 			groupsForParams[key] = append(groupsForParams[key], group)
 		}
 	}
@@ -193,7 +201,7 @@ func assignGroupParameters(cfg *Config, nm *NetworkModel) error {
 				return err
 			}
 			for i, group := range groups {
-				group.addNumber(key, params[i])
+				group.AddParam(key, params[i])
 			}
 		}
 	}

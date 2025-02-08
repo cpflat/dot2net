@@ -3,7 +3,7 @@ package main
 import "github.com/urfave/cli/v2"
 
 var commands = []*cli.Command{
-	commandCommand,
+	commandBuild,
 	commandTinet,
 	commandClab,
 	commandParams,
@@ -11,10 +11,10 @@ var commands = []*cli.Command{
 	commandData,
 }
 
-var commandCommand = &cli.Command{
-	Name:   "command",
-	Usage:  "Build per-device configurations (commands) to a directory",
-	Action: CmdCommand,
+var commandBuild = &cli.Command{
+	Name:   "build",
+	Usage:  "Build configuration files",
+	Action: CmdBuild,
 	Flags: []cli.Flag{
 		&cli.StringFlag{
 			Name:    "config",

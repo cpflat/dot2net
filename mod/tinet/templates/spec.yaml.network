@@ -1,0 +1,5 @@
+nodes:
+{{ .nodes_tn_spec }}
+
+node_configs:
+{{ .nodes_tn_config }}

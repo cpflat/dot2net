@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
+
+	"github.com/cpflat/dot2net/pkg/types"
 )
 
 // An ipPool manage reservation of prefix range.
@@ -180,12 +182,12 @@ func (pool *ipPool) getAvailablePrefix(cnt int) ([]netip.Prefix, error) {
 // It corresponds to a network address block.
 type netSegment struct {
 	prefix  netip.Prefix
-	uifaces []*Interface // ip-aware interfaces
-	rifaces []*Interface // reserved interfaces (check consistency later)
-	raddrs  []netip.Addr // reserved addresses for rifaces
-	bound   bool         // network address is bound (determined by reservation) or not
-	count   int          // number of unspecified interfaces for address assignment
-	bits    int          // default (automatically assigned) prefix length
+	uifaces []*types.Interface // ip-aware interfaces
+	rifaces []*types.Interface // reserved interfaces (check consistency later)
+	raddrs  []netip.Addr       // reserved addresses for rifaces
+	bound   bool               // network address is bound (determined by reservation) or not
+	count   int                // number of unspecified interfaces for address assignment
+	bits    int                // default (automatically assigned) prefix length
 }
 
 func (seg *netSegment) String() string {
@@ -206,11 +208,11 @@ func (seg *netSegment) String() string {
 	return buf
 }
 
-func (seg *netSegment) Interfaces() []*Interface {
+func (seg *netSegment) Interfaces() []*types.Interface {
 	return append(seg.uifaces, seg.rifaces...)
 }
 
-func (seg *netSegment) checkConnection(conn *Connection, layer *Layer) error {
+func (seg *netSegment) checkConnection(conn *types.Connection, layer *types.Layer) error {
 	if val, ok := conn.GivenIPNetwork(layer); ok {
 		prefix, err := netip.ParsePrefix(val)
 		if err != nil {
@@ -230,7 +232,7 @@ func (seg *netSegment) checkConnection(conn *Connection, layer *Layer) error {
 	return nil
 }
 
-func (seg *netSegment) checkInterface(iface *Interface, layer *Layer) error {
+func (seg *netSegment) checkInterface(iface *types.Interface, layer *types.Layer) error {
 	if val, ok := iface.GivenIPAddress(layer); ok {
 		addr, err := netip.ParseAddr(val)
 		if err != nil {
@@ -270,13 +272,13 @@ func (seg *netSegment) checkReservedInterfaces() error {
 	return nil
 }
 
-func searchSegments(nm *NetworkModel, layer *Layer, verbose bool) ([]*SegmentMembers, error) {
+func searchSegments(nm *types.NetworkModel, layer *types.Layer, verbose bool) ([]*types.SegmentMembers, error) {
 	if verbose {
 		fmt.Printf("search segments on layer %+v\n", layer.Name)
 	}
-	segs := []*SegmentMembers{}
+	segs := []*types.SegmentMembers{}
 
-	checked := mapset.NewSet[*Connection]()
+	checked := mapset.NewSet[*types.Connection]()
 	for _, conn := range nm.Connections {
 		// skip connections out of layer
 		if !conn.Layers.Contains(layer.Name) {
@@ -289,7 +291,7 @@ func searchSegments(nm *NetworkModel, layer *Layer, verbose bool) ([]*SegmentMem
 		}
 
 		// init segment
-		seg := &SegmentMembers{}
+		seg := &types.SegmentMembers{}
 
 		if verbose {
 			fmt.Printf("search start with connection %s\n", conn)
@@ -298,7 +300,7 @@ func searchSegments(nm *NetworkModel, layer *Layer, verbose bool) ([]*SegmentMem
 		seg.Connections = append(seg.Connections, conn)
 
 		// search subnet
-		todo := []*Interface{conn.Dst, conn.Src} // stack (Last In First Out)
+		todo := []*types.Interface{conn.Dst, conn.Src} // stack (Last In First Out)
 		for len(todo) > 0 {
 			// pop iface from todo
 			iface := todo[len(todo)-1]
@@ -354,13 +356,13 @@ func searchSegments(nm *NetworkModel, layer *Layer, verbose bool) ([]*SegmentMem
 	return segs, nil
 }
 
-func setNeighbors(segs []*SegmentMembers, layer *Layer) {
+func setNeighbors(segs []*types.SegmentMembers, layer *types.Layer) {
 	for _, seg := range segs {
 		for _, iface := range seg.Interfaces {
-			iface.Neighbors[layer.Name] = []*Neighbor{}
+			iface.Neighbors[layer.Name] = []*types.Neighbor{}
 			for _, n := range seg.Interfaces {
 				if iface != n {
-					iface.addNeighbor(n, layer.Name)
+					iface.AddNeighbor(n, layer.Name)
 				}
 			}
 		}
@@ -421,9 +423,9 @@ func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix,
 	}
 }
 
-func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, layer *Layer) ([]*Node, int, error) {
+func searchIPLoopbacks(nm *types.NetworkModel, pool *ipPool, layer *types.Layer) ([]*types.Node, int, error) {
 	// search ip loopbacks
-	allLoopbacks := []*Node{}
+	allLoopbacks := []*types.Node{}
 	cnt := 0
 	for _, node := range nm.Nodes {
 		// check specified (reserved) loopback address -> reserve
@@ -444,9 +446,9 @@ func searchIPLoopbacks(nm *NetworkModel, pool *ipPool, layer *Layer) ([]*Node, i
 	return allLoopbacks, cnt, nil
 }
 
-func assignIPLoopbacks(nm *NetworkModel, layer *Layer) error {
+func assignIPLoopbacks(nm *types.NetworkModel, layer *types.Layer) error {
 	poolmap := map[string]*ipPool{}
-	for _, policy := range layer.loopbackPolicy {
+	for _, policy := range layer.LoopbackPolicy {
 		poolrange, err := netip.ParsePrefix(policy.AddrRange)
 		if err != nil {
 			return fmt.Errorf("invalid range (%v) for policy (%v)", policy.AddrRange, policy.Name)
@@ -490,18 +492,18 @@ func assignIPLoopbacks(nm *NetworkModel, layer *Layer) error {
 		}
 		for i, node := range allLoopbacks {
 			addr := prefixes[i].Addr()
-			node.addNumber(layer.IPLoopbackReplacer(), addr.String())
+			node.AddParam(layer.IPLoopbackReplacer(), addr.String())
 		}
 	}
 
 	return nil
 }
 
-func searchManagementInterfaces(nm *NetworkModel, pool *ipPool, layer *ManagementLayer) ([]*Interface, int, error) {
+func searchManagementInterfaces(nm *types.NetworkModel, pool *ipPool, layer *types.ManagementLayer) ([]*types.Interface, int, error) {
 	cnt := 0
-	allInterfaces := []*Interface{}
+	allInterfaces := []*types.Interface{}
 	for _, node := range nm.Nodes {
-		if iface := node.mgmtInterface; iface != nil {
+		if iface := node.GetManagementInterface(); iface != nil {
 			if val, ok := iface.GivenIPAddress(layer); ok {
 				addr, err := netip.ParseAddr(val)
 				if err != nil {
@@ -517,7 +519,7 @@ func searchManagementInterfaces(nm *NetworkModel, pool *ipPool, layer *Managemen
 	return allInterfaces, cnt, nil
 }
 
-func assignManagementIPAddresses(cfg *Config, nm *NetworkModel) error {
+func assignManagementIPAddresses(cfg *types.Config, nm *types.NetworkModel) error {
 	mlayer := &cfg.ManagementLayer
 	poolrange, err := netip.ParsePrefix(mlayer.AddrRange)
 	if err != nil {
@@ -572,17 +574,17 @@ func assignManagementIPAddresses(cfg *Config, nm *NetworkModel) error {
 	}
 	for i, iface := range allInterfaces {
 		addr := prefixes[i].Addr()
-		iface.addNumber(mlayer.IPAddressReplacer(), addr.String())
-		iface.addNumber(mlayer.IPNetworkReplacer(), poolrange.String())
-		iface.addNumber(mlayer.IPPrefixLengthReplacer(), strconv.Itoa(poolrange.Bits()))
+		iface.AddParam(mlayer.IPAddressReplacer(), addr.String())
+		iface.AddParam(mlayer.IPNetworkReplacer(), poolrange.String())
+		iface.AddParam(mlayer.IPPrefixLengthReplacer(), strconv.Itoa(poolrange.Bits()))
 	}
 
 	return nil
 }
 
-func assignIPAddresses(nm *NetworkModel, layer *Layer) error {
+func assignIPAddresses(nm *types.NetworkModel, layer *types.Layer) error {
 	poolmap := map[string]*ipPool{}
-	for _, policy := range layer.ipPolicy {
+	for _, policy := range layer.IPPolicy {
 		poolrange, err := netip.ParsePrefix(policy.AddrRange)
 		if err != nil {
 			return fmt.Errorf("invalid range (%v) for policy (%v)", policy.AddrRange, policy.Name)
@@ -604,7 +606,7 @@ func assignIPAddresses(nm *NetworkModel, layer *Layer) error {
 		segmentPolicy := ""
 		for _, iface := range seg.Interfaces {
 			if iface.AwareLayer(layer.Name) {
-				p := iface.getLayerPolicy(layer.Name)
+				p := iface.GetLayerPolicy(layer.Name)
 				if p == nil {
 					return fmt.Errorf("no policy defined for interface %s in layer %s", iface, layer.Name)
 				}
@@ -668,14 +670,14 @@ func assignIPAddresses(nm *NetworkModel, layer *Layer) error {
 				return err
 			}
 			for i, iface := range seg.uifaces {
-				iface.addNumber(layer.IPAddressReplacer(), addrs[i].String())
-				iface.addNumber(layer.IPNetworkReplacer(), seg.prefix.String())
-				iface.addNumber(layer.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
+				iface.AddParam(layer.IPAddressReplacer(), addrs[i].String())
+				iface.AddParam(layer.IPNetworkReplacer(), seg.prefix.String())
+				iface.AddParam(layer.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
 			}
 			for i, iface := range seg.rifaces {
-				iface.addNumber(layer.IPAddressReplacer(), seg.raddrs[i].String())
-				iface.addNumber(layer.IPNetworkReplacer(), seg.prefix.String())
-				iface.addNumber(layer.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
+				iface.AddParam(layer.IPAddressReplacer(), seg.raddrs[i].String())
+				iface.AddParam(layer.IPNetworkReplacer(), seg.prefix.String())
+				iface.AddParam(layer.IPPrefixLengthReplacer(), strconv.Itoa(seg.prefix.Bits()))
 			}
 		}
 		if len(prefixes) > 0 {
