@@ -288,9 +288,20 @@ type FileDefinition struct {
 	// Scope specifies the scope of file creation.
 	// For example, if Scope = "node", the file is created for each node.
 	Scope string `yaml:"scope" mapstructure:"scope"`
-	// Shared flag is used to determine the file is shared among nodes or not.
-	// If true, the file is placed on the same directory as primary config file. -> To be removed
+	//// Shared flag is used to determine the file is shared among nodes or not.
+	//// If true, the file is placed on the same directory as primary config file. -> To be removed
 	// Shared bool `yaml:"shared" mapstructure:"shared"`
+}
+
+func (fd *FileDefinition) GetFormats() []string {
+	ret := []string{}
+	if fd.Format != "" {
+		ret = append(ret, fd.Format)
+	}
+	if len(fd.Formats) > 0 {
+		ret = append(ret, fd.Formats...)
+	}
+	return ret
 }
 
 type FileFormat struct {
@@ -555,8 +566,12 @@ func (mc *MemberClass) GetSpecifiedClasses() (string, []string, error) {
 type ConfigTemplate struct {
 	// Name is used by parent objects to specify as childs in templates
 	Name string `yaml:"name" mapstructure:"name"`
+	// Required config template names (on same object) to embed
+	Depends []string `yaml:"depends" mapstructure:"depends"`
 	// Target file definition name
 	File string `yaml:"file" mapstructure:"file"`
+
+	// Condition related fields
 	// add config only for interfaces of nodes belongs to the nodeclass(es)
 	// this option is valid only on InterfaceClass, ConnectionClass, and their NeighborClass
 	NodeClass   string   `yaml:"node" mapstructure:"node"`
@@ -565,14 +580,18 @@ type ConfigTemplate struct {
 	// this option is valid only on NeighborClass
 	NeighborNodeClass   string   `yaml:"neighbor_node" mapstructure:"neighbor_node"`
 	NeighborNodeClasses []string `yaml:"neighbor_nodes" mapstructure:"neighbor_nodes"`
+	// put empty file or namespace if conditions are not satisfied
+	Empty bool `yaml:"empty" mapstructure:"empty"`
+
 	// This option is valid only on InterfaceClass or ConnectionClass
 	// If specified, add config only for included output (e.g., tinet only, clab only, etc)
 	Platform []string `yaml:"platform,flow" mapstructure:"platform,flow"`
 	// Style is used to iterpret the given config format. Style can be different on one file. As-is in default.
 	//Style string `yaml:"style" mapstructure:"style"`
-	Format string `yaml:"format" mapstructure:"format"`
+	Format  string   `yaml:"format" mapstructure:"format"`
+	Formats []string `yaml:"formats" mapstructure:"formats"`
 	// Priority is a value to be used for sorting config blocks. 0 in default.
-	Priority int `yaml:"priority" mapstructure:"priority"`
+	// Priority int `yaml:"priority" mapstructure:"priority"`
 	// Load config template
 	Template []string `yaml:"template" mapstructure:"template"`
 	// Load config template from external file
@@ -593,6 +612,17 @@ func (ct *ConfigTemplate) String() string {
 		return fmt.Sprintf("ConfigTemplate(file:%s)", ct.File)
 	}
 	return "ConfigTemplate(no names)"
+}
+
+func (ct *ConfigTemplate) GetFormats() []string {
+	ret := []string{}
+	if ct.Format != "" {
+		ret = append(ret, ct.Format)
+	}
+	if len(ct.Formats) > 0 {
+		ret = append(ret, ct.Formats...)
+	}
+	return ret
 }
 
 func (ct *ConfigTemplate) NodeClassCheck(node *Node) bool {

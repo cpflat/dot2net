@@ -105,27 +105,32 @@ func CmdBuild(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
+	verbose := c.Bool("verbose")
+	profile := c.String("profile")
+
+	// init CPU profiler
+	if profile != "" {
+		f, err := os.Create(profile)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			f.Close()
+		}()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			return err
+		}
+		defer pprof.StopCPUProfile()
+	}
 
 	nm, err := model.BuildNetworkModel(cfg, nd)
 	if err != nil {
 		return err
 	}
-	err = model.BuildConfigFiles(cfg, nm, false)
+	err = model.BuildConfigFiles(cfg, nm, verbose)
 	if err != nil {
 		return err
 	}
-
-	// buffers := generateBuffers(nm.Files)
-	// outputFiles(buffers, "")
-	// for _, n := range nm.Nodes {
-	// 	buffers := generateBuffers(n.Files)
-	// 	embed := n.Files.GetEmbeddedConfig()
-	// 	if embed != nil {
-	// 		buffer := strings.Join(embed.Content, "\n")
-	// 		buffers[n.Name] = []byte(buffer)
-	// 	}
-	// 	outputFiles(buffers, n.Name)
-	// }
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	containerlab "github.com/cpflat/dot2net/mod/containerlab"
+	frr "github.com/cpflat/dot2net/mod/frr"
 	tinet "github.com/cpflat/dot2net/mod/tinet"
 	"github.com/cpflat/dot2net/pkg/types"
 )
@@ -15,6 +16,8 @@ func LoadModules(cfg *types.Config) error {
 
 		// load modules based on given names in Config.Modules
 		switch name {
+		case "frr":
+			m = frr.NewModule()
 		case "tinet":
 			m = tinet.NewModule()
 		case "containerlab":

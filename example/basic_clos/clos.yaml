@@ -1,5 +1,10 @@
 name: clos
 
+module:
+  - frr
+  - tinet
+  - containerlab
+
 layer:
   - name: ip
     default_connect: true
@@ -20,15 +25,12 @@ nodeclass:
   - name: all
     primary: true
     params: [lo, as]
-    tinet:
-      image: slankdev/frr
-    clab:
+    values:
       kind: linux
       image: slankdev/frr
     config:
-      - template: 
-          - /usr/lib/frr/frr start
-      - style: frr-vtysh
+      - name: frr_cmds
+        format: FRRVtyshCLI
         template:
           - ip forwarding
           - int lo
@@ -38,22 +40,38 @@ nodeclass:
           - bgp bestpath as-path multipath-relax
           - bgp bestpath compare-routerid
   - name: router
+    config:
+      - name: startup
+        depends: [frr_cmds]
+        template: 
+          - /usr/lib/frr/frr start
+          - "{{ .self_frr_cmds }}"
+          - "{{ .interfaces_router_cmds }}"
   - name: server
+    config:
+      - name: startup
+        depends: [frr_cmds]
+        template: 
+          - /usr/lib/frr/frr start
+          - "{{ .self_frr_cmds }}"
+          - "{{ .interfaces_server_cmds }}"
 
 connectionclass:
   - name: default
     primary: true
     params: [ip]
     config:
-      - node: router
-        style: frr-vtysh
+      - name: router_cmds
+        node: router
+        format: FRRVtyshCLI
         template: 
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/30
           - router bgp {{ .node_as }}
           - neighbor {{ .opp_ip_addr }} remote-as {{ .opp_node_as }}
-      - node: server
-        style: frr-vtysh
+      - name: server_cmds
+        node: server
+        format: FRRVtyshCLI
         template:
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/30

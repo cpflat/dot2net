@@ -1,5 +1,9 @@
 name: bgp_evpn_vxlan_topo1
 
+module:
+  - tinet
+  - containerlab
+
 file:
   - name: zebra.conf
     path: /etc/frr/zebra.conf
@@ -32,9 +36,7 @@ layer:
 nodeclass:
   - name: switch
     primary: true
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
     config:
@@ -43,11 +45,9 @@ nodeclass:
           - ip link set br0 up
   - name: router
     primary: true
-    tinet:
-      image: quay.io/frrouting/frr:8.5.1
-    clab:
+    values:
       kind: linux
-      image: quay.io/frrouting/frr:8.5.1
+      image: quay.io/frrouting/frr:8.5.0
     config:
       - file: daemons
         sourcefile: ./daemons

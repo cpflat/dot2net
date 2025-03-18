@@ -1,7 +1,8 @@
 name: address_reservation
 
-global:
-  path: local
+module:
+  - tinet
+  - containerlab
 
 layer:
   - name: ip
@@ -36,15 +37,15 @@ nodeclass:
   - name: all
     primary: true
     params: [lo, as]
-    mgmt_interfaceclass: mgmtif
-    tinet:
+    values:
+      kind: linux
       image: slankdev/frr
+    mgmt_interfaceclass: mgmtif
     config:
-      - target: local
-        template: 
-          - /usr/lib/frr/frr start
-      - target: frr
+      - name: frr_cmds
+        format: tinetVtyshCLI
         template:
+          - ip forwarding
           - int lo
           - ip addr {{ .ip_loopback }}/32
           - router bgp {{ .as }}
@@ -52,7 +53,21 @@ nodeclass:
           - bgp bestpath as-path multipath-relax
           - bgp bestpath compare-routerid
   - name: router
+    config:
+      - name: startup
+        depends: [frr_cmds]
+        template: 
+          - /usr/lib/frr/frr start
+          - "{{ .self_frr_cmds }}"
+          - "{{ .interfaces_router_cmds }}"
   - name: server
+    config:
+      - name: startup
+        depends: [frr_cmds]
+        template: 
+          - /usr/lib/frr/frr start
+          - "{{ .self_frr_cmds }}"
+          - "{{ .interfaces_server_cmds }}"
 
 interfaceclass:
   - name: mgmtif
@@ -62,18 +77,20 @@ connectionclass:
     primary: true
     params: [ip, vlan, cname]
     config:
-      - node: router
-        target: frr
+      - name: router_cmds
+        node: router
+        format: tinetVtyshCLI
         template: 
           - int {{ .name }}
-          - ip addr {{ .ip_addr }}/{{ .ip_plen }}
+          - ip addr {{ .ip_addr }}/30
           - router bgp {{ .node_as }}
           - neighbor {{ .opp_ip_addr }} remote-as {{ .opp_node_as }}
-      - node: server
-        target: frr
+      - name: server_cmds
+        node: server
+        format: tinetVtyshCLI
         template:
           - int {{ .name }}
-          - ip addr {{ .ip_addr }}/{{ .ip_plen }}
+          - ip addr {{ .ip_addr }}/30
           - router bgp {{ .node_as }}
           - neighbor {{ .opp_ip_addr }} remote-as external
           - network {{ .ip_net }}

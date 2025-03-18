@@ -1,6 +1,7 @@
 name: bgp
 
 module:
+  - frr
   - tinet
   - containerlab
 
@@ -39,7 +40,12 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
       - name: startup
-        format: tinetVtyshCLI
+        depends: [frr_cmds]
+        format: FRRVtyshCLI
+        template:
+          - "{{ .self_frr_cmds }}"
+          - "{{ .interfaces_frr_cmds }}"
+      - name: frr_cmds
         template:
           - router bgp {{ .group_as }}
           - bgp router-id {{ .ip_loopback }}
@@ -49,8 +55,7 @@ connectionclass:
     primary: true
     params: [ip]
     config:
-      - name: startup
-        format: tinetVtyshCLI
+      - name: frr_cmds
         template: 
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/{{ .ip_plen }}

@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -518,6 +519,36 @@ func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {
 		// 				group.setParamFlag(num)
 		// 			}
 		// 		}
+	}
+
+	// add class members to member referrers
+	for _, mr := range nm.MemberReferrers() {
+		for _, mc := range mr.GetMemberClasses() {
+			classtype, classes, err := mc.GetSpecifiedClasses()
+			if err != nil {
+				return err
+			}
+
+			for _, cls := range classes {
+				var members []types.NameSpacer
+				switch classtype {
+				case types.ClassTypeNode:
+					members = nm.NodeClassMembers(cls)
+				case types.ClassTypeInterface:
+					members = nm.InterfaceClassMembers(cls)
+				case types.ClassTypeConnection:
+					members = nm.ConnectionClassMembers(cls)
+				}
+				if len(members) == 0 {
+					fmt.Fprintf(os.Stderr, "warning: class %s has no members\n", cls)
+					// return fmt.Errorf("class %v has no members", cls)
+				}
+				for _, memberObject := range members {
+					member := types.NewMember(cls, classtype, memberObject, mr)
+					mr.AddMember(member)
+				}
+			}
+		}
 	}
 
 	return nil

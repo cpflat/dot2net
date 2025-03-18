@@ -18,7 +18,8 @@ const TinetBindMountsParamName = "_tn_bindMounts"
 
 const TinetYamlFormatName = "_tinetYaml"
 const SpecCmdFormatName = "tinetSpecCmd"
-const TinetVtyshCLIFormatName = "tinetVtyshCLI"
+
+// const TinetVtyshCLIFormatName = "tinetVtyshCLI"
 
 const NetworkClassName = "_tinetNetwork"
 const NodeClassName = "_tinetNode"
@@ -50,13 +51,13 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 		BlockSeparator: "\n",
 	}
 	cfg.AddFileFormat(fileFormat)
-	fileFormat = &types.FileFormat{
-		Name:          TinetVtyshCLIFormatName,
-		LineSeparator: "\" -c \"",
-		BlockPrefix:   "vtysh -c \"conf t\" -c \"",
-		BlockSuffix:   "\"",
-	}
-	cfg.AddFileFormat(fileFormat)
+	// 	fileFormat = &types.FileFormat{
+	// 		Name:          TinetVtyshCLIFormatName,
+	// 		LineSeparator: "\" -c \"",
+	// 		BlockPrefix:   "vtysh -c \"conf t\" -c \"",
+	// 		BlockSuffix:   "\"",
+	// 	}
+	// 	cfg.AddFileFormat(fileFormat)
 
 	// add file definition
 	fileDef := &types.FileDefinition{
@@ -81,22 +82,22 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	cfg.AddNetworkClass(networkClass)
 
 	// add node class
-	ct1 = &types.ConfigTemplate{Name: "tn_cmds", Format: SpecCmdFormatName}
-	bytes, err = templates.ReadFile("templates/spec.yaml.node_cmd")
+	ct1 = &types.ConfigTemplate{Name: "tn_cmds", Format: SpecCmdFormatName, Depends: []string{"startup"}}
+	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_cmd")
 	if err != nil {
 		return err
 	}
 	ct1.Template = []string{string(bytes)}
 
 	ct2 := &types.ConfigTemplate{Name: "tn_spec"}
-	bytes, err = templates.ReadFile("templates/spec.yaml.node_spec")
+	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_spec")
 	if err != nil {
 		return err
 	}
 	ct2.Template = []string{string(bytes)}
 
-	ct3 := &types.ConfigTemplate{Name: "tn_config"}
-	bytes, err = templates.ReadFile("templates/spec.yaml.node_config")
+	ct3 := &types.ConfigTemplate{Name: "tn_config", Depends: []string{"tn_cmds"}}
+	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_config")
 	if err != nil {
 		return err
 	}

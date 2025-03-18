@@ -11,23 +11,6 @@ import (
 const DefaultNodePrefix string = "node"
 const DefaultInterfacePrefix string = "net"
 
-// namespace related constants
-const NumberSeparator string = "_"
-const NumberPrefixNode string = "node" + NumberSeparator
-const NumberPrefixGroup string = "group" + NumberSeparator
-const NumberPrefixOppositeHeader string = "opp" + NumberSeparator
-const NumberPrefixOppositeInterface string = "opp" + NumberSeparator
-const NumberPrefixNeighbor string = "n" + NumberSeparator
-const NumberPrefixMember string = "m" + NumberSeparator
-
-const SelfConfigHeader string = "self" + NumberSeparator
-
-const ChildNodesConfigHeader string = "nodes" + NumberSeparator
-const ChildInterfacesConfigHeader string = "interfaces" + NumberSeparator
-const ChildGroupsConfigHeader string = "groups" + NumberSeparator
-const ChildNeighborsConfigHeader string = "neighbors" + NumberSeparator
-const ChildMembersConfigHeader string = "members" + NumberSeparator
-
 // abstracted module
 
 type Module interface {
@@ -102,6 +85,7 @@ type NameSpacer interface {
 	HasParam(k string) bool
 	setParams(map[string]string)
 	// BuildRelativeNameSpace() error
+	BuildRelativeNameSpace(globalParams map[string]map[string]string) error
 	SetRelativeParam(k, v string)
 	HasRelativeParam(k string) bool
 	SetRelativeParams(map[string]string)
@@ -539,17 +523,14 @@ func (nm *NetworkModel) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 }
 
 func (nm *NetworkModel) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
+	// global params (place lanels)
+	setGlobalParams(nm, globalParams)
+
 	// self
 	for key, val := range nm.GetParams() {
 		nm.SetRelativeParam(key, val)
 	}
-	// placelabels
-	for header, nums := range globalParams {
-		for k, v := range nums {
-			name := header + NumberSeparator + k
-			nm.SetRelativeParam(name, v)
-		}
-	}
+
 	return nil
 }
 
@@ -597,7 +578,7 @@ func (nm *NetworkModel) NameSpacers() (result []NameSpacer) {
 		}
 	}
 	// member
-	for _, mr := range nm.memberReferers() {
+	for _, mr := range nm.MemberReferrers() {
 		for _, m := range mr.GetMembers() {
 			result = append(result, m)
 		}
@@ -628,7 +609,7 @@ func (nm *NetworkModel) LabelOwners() (result []LabelOwner) {
 	return result
 }
 
-func (nm *NetworkModel) memberReferers() (result []MemberReferrer) {
+func (nm *NetworkModel) MemberReferrers() (result []MemberReferrer) {
 	for _, n := range nm.Nodes {
 		result = append(result, n)
 		for _, iface := range n.Interfaces {
@@ -957,6 +938,35 @@ func (n *Node) GivenIPLoopback(layer *Layer) (string, bool) {
 	return "", false
 }
 
+func (n *Node) setNodeBaseRelativeNameSpace(
+	ns NameSpacer, globalParams map[string]map[string]string, header string) error {
+	// self
+	for k, val := range n.GetParams() {
+		key := header + k
+		ns.SetRelativeParam(key, val)
+	}
+
+	// group params
+	for _, group := range n.Groups {
+		group.SetGroupRelativeParams(ns, header)
+	}
+
+	// meta value labels
+	setMetaValueLabelNameSpace(ns, n, globalParams, header)
+
+	return nil
+}
+
+func (n *Node) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
+	// global params (place lanels)
+	setGlobalParams(n, globalParams)
+
+	// base params
+	n.setNodeBaseRelativeNameSpace(n, globalParams, "")
+
+	return nil
+}
+
 type Interface struct {
 	Name       string
 	Node       *Node
@@ -1249,6 +1259,47 @@ func (iface *Interface) ClassDefinition(cfg *Config, cls string) (interface{}, e
 	return ic, nil
 }
 
+func (iface *Interface) setInterfaceBaseRelativeNameSpace(
+	ns NameSpacer, globalParams map[string]map[string]string, header string) error {
+	// self
+	for k, val := range iface.GetParams() {
+		key := header + k
+		ns.SetRelativeParam(key, val)
+	}
+
+	// node params
+	for k, val := range iface.Node.GetParams() {
+		key := header + NumberPrefixNode + k
+		ns.SetRelativeParam(key, val)
+	}
+
+	// node group params
+	for _, group := range iface.Node.Groups {
+		group.SetGroupRelativeParams(ns, header)
+	}
+
+	// meta value labels
+	setMetaValueLabelNameSpace(ns, iface, globalParams, header)
+
+	return nil
+}
+
+func (iface *Interface) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
+
+	// global params (place lanels)
+	setGlobalParams(iface, globalParams)
+
+	// base params
+	iface.setInterfaceBaseRelativeNameSpace(iface, globalParams, "")
+
+	// opposite interface params
+	if iface.Connection != nil {
+		iface.Opposite.setInterfaceBaseRelativeNameSpace(iface, globalParams, NumberPrefixOppositeInterface)
+	}
+
+	return nil
+}
+
 // add Neighbor object only when the Interface has NeighborClasses of corresponding layer
 func (iface *Interface) AddNeighbor(neighbor *Interface, layer string) {
 	if classes, ok := iface.neighborClassMap[layer]; ok {
@@ -1390,6 +1441,30 @@ func (n *Neighbor) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 	return configTemplates
 }
 
+func (n *Neighbor) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
+
+	// global params (place lanels)
+	setGlobalParams(n, globalParams)
+
+	// base params (n.self)
+	n.Self.setInterfaceBaseRelativeNameSpace(n, globalParams, "")
+
+	// base opposite params
+	if n.Self.Connection != nil {
+		n.Self.Opposite.setInterfaceBaseRelativeNameSpace(n.Self, globalParams, NumberPrefixOppositeInterface)
+	}
+
+	// neighbor params
+	n.Neighbor.setInterfaceBaseRelativeNameSpace(n, globalParams, NumberPrefixNeighbor)
+
+	// neighbor opposite params
+	if n.Neighbor.Connection != nil {
+		n.Neighbor.Opposite.setInterfaceBaseRelativeNameSpace(n.Neighbor, globalParams, NumberPrefixNeighbor+NumberPrefixOppositeInterface)
+	}
+
+	return nil
+}
+
 type Member struct {
 	ClassName string
 	ClassType string
@@ -1428,6 +1503,40 @@ func (m *Member) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 		configTemplates = append(configTemplates, mc.ConfigTemplates...)
 	}
 	return configTemplates
+}
+
+func (m *Member) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
+
+	// placelabels
+	setGlobalParams(m, globalParams)
+
+	mr := m.Referrer
+
+	//switch m.ClassType {
+	//case: ClassTypeNode:
+	//	mr.(*Node).set
+	//}
+
+	// params of member referrer itself
+	for key, val := range mr.GetParams() {
+		m.SetRelativeParam(key, val)
+	}
+
+	// node params for interfaces
+	if m.ClassType == ClassTypeInterface {
+		for nodekey, val := range m.Referrer.(*Interface).Node.GetParams() {
+			key := NumberPrefixNode + nodekey
+			m.SetRelativeParam(key, val)
+		}
+	}
+
+	// member parameters
+	for mkey, val := range m.GetParams() {
+		key := NumberPrefixMember + mkey
+		m.SetRelativeParam(key, val)
+	}
+
+	return nil
 }
 
 type Group struct {
@@ -1507,4 +1616,37 @@ func (g *Group) ClassDefinition(cfg *Config, cls string) (interface{}, error) {
 		return nil, fmt.Errorf("invalid GroupClass name %s", cls)
 	}
 	return gc, nil
+}
+
+// Set relative parameters of the group to the group member namespacers
+func (g *Group) SetGroupRelativeParams(ns NameSpacer, header string) error {
+	// opposite: include opposite prefix in the keys
+
+	for k, val := range g.GetParams() {
+		// prioritize numbers by node-num > smaller-group-num > large-group-num
+		num := header + NumberPrefixGroup + k
+		if !ns.HasRelativeParam(num) {
+			ns.SetRelativeParam(num, val)
+		}
+
+		// alias for group classes (for multi-layer groups)
+		for _, label := range g.ClassLabels() {
+			cnum := header + label + NumberSeparator + k
+			if !ns.HasRelativeParam(cnum) {
+				ns.SetRelativeParam(cnum, val)
+			}
+		}
+	}
+	return nil
+}
+
+func (g *Group) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
+
+	// global params (place lanels)
+	setGlobalParams(g, globalParams)
+
+	// base params
+	g.SetGroupRelativeParams(g, "")
+
+	return nil
 }

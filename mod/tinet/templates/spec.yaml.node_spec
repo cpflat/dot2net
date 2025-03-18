@@ -1,4 +1,0 @@
-  - name: {{ .name }}
-    image: {{ .image }}
-    interfaces: [{{ .interfaces_tn_spec }}]
-    mounts: [{{ ._tn_bindMounts }}]

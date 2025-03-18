@@ -1,5 +1,7 @@
 package model
 
+// Unused
+
 import (
 	"strings"
 )

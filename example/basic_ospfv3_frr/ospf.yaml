@@ -1,5 +1,10 @@
 name: ospf
 
+module:
+  - frr
+  - tinet
+  - containerlab
+
 global:
   path: local
 
@@ -25,7 +30,8 @@ layer:
 nodeclass:
   - name: all
     config:
-      - template:
+      - name: common
+        template:
           - sysctl -w net.ipv6.conf.all.forwarding=1
           - sysctl -w net.ipv6.conf.all.disable_ipv6=0
           - sysctl -w net.ipv6.conf.all.seg6_enabled=1
@@ -37,9 +43,7 @@ nodeclass:
   - name: router
     primary: true
     params: [lo]
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
     config:
@@ -47,40 +51,57 @@ nodeclass:
         sourcefile: ./daemons
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
-      - style: frr-vtysh
-        priority: 1
+      - name: startup
+        depends: [common, cmds]
+        template:
+          - "{{.self_common}}"
+          - "{{.interfaces_common}}"
+          - "{{.interfaces_addrs}}"
+          - "{{.self_cmds}}"
+          - "{{.interfaces_routes}}"
+      - name: cmds
+        format: FRRVtyshCLI
         template: 
           - router ospf6
-          - ospf6 router-id {{ .ip_loopback }}
+          - ospf6 router-id {{ .lo_loopback }}
   - name: server
     primary: true
     params: [lo]
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
-      image: nicolaka/netshoot
+      image: quay.io/frrouting/frr:8.5.0
+    config:
+      - name: startup
+        depends: [common]
+        template:
+          - "{{.self_common}}"
+          - "{{.interfaces_common}}"
+          - "{{.interfaces_addrs}}"
+          - "{{.interfaces_routes}}"
 
 connectionclass:
   - name: default
     primary: true
     params: [ip]
     config:
-      - template:
+      - name: common
+        template:
           - sysctl -w net.ipv6.conf.{{ .name }}.disable_ipv6=0
           - sysctl -w net.ipv6.conf.{{ .name }}.seg6_enabled=1
           - sysctl -w net.ipv4.conf.{{ .name }}.rp_filter=0
-      - template:
+      - name: addrs
+        template:
           - ip -6 addr add {{ .ip_addr }}/{{ .ip_plen}} dev {{ .name }}
-      - node: router
-        style: frr-vtysh
-        priority: 1
+      - name: routes
+        node: router
+        format: FRRVtyshCLI
         template: 
           - interface {{ .name }}
           - ipv6 ospf6 area 0.0.0.0
             #- router ospf6
             #- interface {{ .name }} area 0.0.0.0
-      - node: server
+      - name: routes
+        node: server
         template:
           - ip -6 route replace default via {{ .opp_ip_addr }}
 

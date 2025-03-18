@@ -1,5 +1,10 @@
 name: ospf
 
+module:
+  - frr
+  - tinet
+  - containerlab
+
 global:
   path: local
 
@@ -24,9 +29,7 @@ nodeclass:
   - name: router
     primary: true
     params: [lo]
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
     config:
@@ -34,27 +37,39 @@ nodeclass:
         sourcefile: ./daemons
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
+      - name: startup
+        template: 
+          - /usr/lib/frr/frr start
+          - "{{ .interfaces_common_cmds }}"
+          - "{{ .interfaces_router_cmds }}"
   - name: server
     primary: true
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
+    config:
+      - name: startup
+        template: 
+          - /usr/lib/frr/frr start
+          - "{{ .interfaces_common_cmds }}"
+          - "{{ .interfaces_server_cmds }}"
 
 connectionclass:
   - name: default
     primary: true
     params: [ip]
     config:
-      - template:
+      - name: common_cmds
+        template:
           - ip addr add {{ .ip_addr }}/{{ .ip_plen }} dev {{ .name }}
-      - node: router
-        style: frr-vtysh
+      - name: router_cmds
+        node: router
+        format: FRRVtyshCLI
         template: 
           - router ospf
           - network {{ .ip_net }} area 0
-      - node: server
+      - name: server_cmds
+        node: server
         template:
           - ip route replace default via {{ .opp_ip_addr }}
 
