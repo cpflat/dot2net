@@ -8,6 +8,10 @@ Dot2net currently supports [TiNET](https://github.com/tinynetwork/tinet)
 and [Containerlab](https://containerlab.dev/) as an emulation network platform. 
 
 
+dot2net Tutorial: [English](https://github.com/cpflat/dot2net-evaluation/tree/master/tutorial), [Japanese](https://github.com/cpflat/dot2net-evaluation/blob/master/tutorial/readme-ja.md)
+
+
+
 # Overview
 
 ![flow](image/flow.png)
