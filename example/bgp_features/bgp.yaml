@@ -1,5 +1,9 @@
 name: bgp_features
 
+module:
+  - tinet
+  - containerlab
+
 file:
   - name: zebra.conf
     path: /etc/frr/zebra.conf
@@ -39,22 +43,20 @@ layer:
 nodeclass:
   - name: switch
     primary: true
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - template:
-          - ip link add br0 type bridge
-          - ip link set br0 up
+      - name: startup
+        template:
+          - "ip link add br0 type bridge"
+          - "ip link set br0 up"
+          - "{{ .interfaces_link }}"
   - name: router
     primary: true
     params: [ipv4lo, ipv6lo]
     interface_policy: [ipv4, ipv6]
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
     config:
@@ -64,8 +66,9 @@ nodeclass:
         sourcefile: ./vtysh.conf
       - file: frr.log
         sourcefile: ./frr.log
-      - template:
-          - chown frr:frr /var/log/frr.log 
+      - name: startup
+        template:
+          - "chown frr:frr /var/log/frr.log"
       - file: zebra.conf
         template:
           - "log file /var/log/frr.log"
@@ -74,6 +77,7 @@ nodeclass:
           - " ip address {{ .ipv4_loopback }}/32"
           - " ipv6 address {{ .ipv6_loopback }}/128"
           - "!"
+          - "{{ .interfaces_zebraconf }}"
   - name: bgp
     config:
       - file: bgpd.conf
@@ -86,8 +90,10 @@ nodeclass:
           - " bgp router-id {{ .ipv4_loopback }}"
           - " bgp log-neighbor-changes"
           - " no bgp ebgp-requires-policy"
-          - "!"
+          - "{{ .interfaces_ibgp_nbconf }}{{ .interfaces_ebgp_nbconf }}"
+          - " !"
           - " address-family ipv4 unicast"
+          - "{{ .interfaces_ibgp_afconf }}{{ .interfaces_ebgp_afconf }}"
           - "  network 192.168.255.0/24"  # loopback range
           - " exit-address-family"
           - "!"
@@ -101,6 +107,7 @@ nodeclass:
         template:
           - "log file /var/log/frr.log"
           - "!"
+          - "{{ .interfaces_ospf_ifconf }}"
           - "router ospf"
           - " ospf router-id {{ .ipv4_loopback }}"
           - " log-adjacency-changes"
@@ -116,12 +123,11 @@ nodeclass:
           - "!"
           - "interface lo"
           - "!"
-      - file: ospf6d.conf
-        priority: 1
-        template:
+          - "{{ .interfaces_ospf6_ifconf }}"
           - "router ospf6"
           - " ospf6 router-id {{ .ipv4_loopback }}"
           - " log-adjacency-changes"
+          - "{{ .interfaces_ospf6_rtconf }}"
           - " interface lo area 0.0.0.0"
           - "!"
 
@@ -129,93 +135,99 @@ interfaceclass:
   - name: all
     primary: true
     config:
-      - node: switch
+      - name: link
+        node: switch
         template:
-          - ip link set dev {{ .name }} promisc on
-          - ip link set dev {{ .name }} master br0
-      - node: router
-        file: zebra.conf
+          - "ip link set dev {{ .name }} promisc on"
+          - "ip link set dev {{ .name }} master br0"
+      - name: zebraconf
+        node: router
         template:
           - "interface {{ .name }}"
           - " ip address {{ .ipv4_addr }}/{{ .ipv4_plen }}"
           - " ipv6 address {{ .ipv6_addr }}/{{ .ipv6_plen }}"
           - "!"
   - name: ibgp
+    config:
+      - name: ibgp_nbconf
+        node: bgp
+        template:
+          - "{{ .neighbors_ipv4_ibgp_nbconf_nb }}"
+      - name: ibgp_afconf
+        node: bgp
+        template:
+          - "{{ .neighbors_ipv4_ibgp_afconf_nb }}"
+          - "{{ .members_interface_adv_ibgp_afconf_adv }}"
     neighbors:
       - layer: ipv4
         config:
-          - node: bgp
-            file: bgpd.conf
+          - name: ibgp_nbconf_nb
+            node: bgp
             template:
-              - "router bgp {{ .node_as }}"
               - " neighbor {{ .n_node_ipv4_loopback }} remote-as {{ .n_node_as }}"
               - " neighbor {{ .n_node_ipv4_loopback }} timers 3 10"
               - " neighbor {{ .n_node_ipv4_loopback }} description Router {{ .n_node_name }} (iBGP)"
               - " neighbor {{ .n_node_ipv4_loopback }} update-source lo"
               - " neighbor {{ .n_node_ipv4_loopback }} timers connect 5"
-              - "!"
-              - " address-family ipv4 unicast"
+          - name: ibgp_afconf_nb
+            node: bgp
+            template:
               - "  network {{ .n_ipv4_net }}"  # neighbor network
-              - " exit-address-family"
-              - "!"
     classmembers: 
       - interface: adv
         config:
-          - file: bgpd.conf
+          - name: ibgp_afconf_adv
             template:
-              - "router bgp {{ .node_as }}"
-              - " address-family ipv4 unicast"
               - "  network {{ .m_ipv4_net }}"  # advertised network
-              - " exit-address-family"
-              - "!"
   - name: ebgp
+    config:
+      - name: ebgp_nbconf
+        node: bgp
+        template:
+          - "{{ .neighbors_ipv4_ebgp_nbconf_nb }}"
+      - name: ebgp_afconf
+        node: bgp
+        template:
+          - "{{ .neighbors_ipv4_ebgp_afconf_nb }}"
+          - "{{ .members_interface_adv_ebgp_afconf_adv }}"
     neighbors:
       - layer: ipv4
         config:
-          - node: bgp
-            file: bgpd.conf
+          - name: ebgp_nbconf_nb
+            node: bgp
             template:
-              - "router bgp {{ .node_as }}"
               - " neighbor {{ .n_ipv4_addr }} remote-as {{ .n_node_as }}"
               - " neighbor {{ .n_ipv4_addr }} timers 3 10"
               - " neighbor {{ .n_ipv4_addr }} description Router {{ .n_node_name }} (eBGP AS {{ .n_node_as }})"
               - " neighbor {{ .n_ipv4_addr }} timers connect 5"
-              - "!"
-              - " address-family ipv4 unicast"
+          - name: ebgp_afconf_nb
+            node: bgp
+            template:
               - "  network {{ .n_ipv4_net }}"  # neighbor network
               - "  neighbor {{ .n_ipv4_addr }} route-map testmap-in in"
               - "  neighbor {{ .n_ipv4_addr }} route-map testmap-out out"
-              - " exit-address-family"
-              - "!"
     classmembers: 
       - interface: adv
         config:
-          - file: bgpd.conf
+          - name: ebgp_afconf_adv
             template:
-              - "router bgp {{ .node_as }}"
-              - " address-family ipv4 unicast"
               - "  network {{ .m_ipv4_net }}"  # advertised network
-              - " exit-address-family"
-              - "!"
   - name: ospf
     config:
-      - file: ospfd.conf
+      - name: ospf_ifconf
         template:
           - "interface {{ .name }}"
           - " ip ospf hello-interval 2"
           - " ip ospf dead-interval 10"
           - " ip ospf priority {{ .priority }}"
           - "!"
-      - file: ospf6d.conf
+      - name: ospf6_ifconf
         template:
           - "interface {{ .name }}"
           - " ipv6 ospf6 priority {{ .priority }}"
           - "!"
-      - file: ospf6d.conf
-        priority: 1
+      - name: ospf6_rtconf
         template:
-          - "router ospf6"
           - " interface {{ .name }} area 0.0.0.0"
-          - "!"
   - name: adv
 

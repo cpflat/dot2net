@@ -1,6 +1,7 @@
 name: bgp_evpn_vxlan_topo1
 
 module:
+  - frr
   - tinet
   - containerlab
 
@@ -40,9 +41,12 @@ nodeclass:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - template:
-          - ip link add br0 type bridge
-          - ip link set br0 up
+      - name: startup
+        format: FRRVtyshCLI
+        template:
+          - "ip link add br0 type bridge"
+          - "ip link set br0 up"
+          - "{{ .interfaces_link }}"
   - name: router
     primary: true
     values:
@@ -55,8 +59,10 @@ nodeclass:
         sourcefile: ./vtysh.conf
       - file: frr.log
         sourcefile: ./frr.log
-      - template:
-          - chown frr:frr /var/log/frr.log 
+      - name: startup
+        depends: [ospf_startup]
+        template: 
+          - "chown frr:frr /var/log/frr.log{{ .self_ospf_startup }}"
   - name: bgp
     config:
       - file: bgpd.conf
@@ -65,7 +71,9 @@ nodeclass:
           - " timers 3 9"
           - " bgp router-id {{ .provider_loopback }}"
           - " no bgp default ipv4-unicast"
+          - "{{ .members_node_bgp_nbconfig }}"
           - " address-family l2vpn evpn"
+          - "{{ .members_node_bgp_nbconfig_activate }}"
           - "  advertise-all-vni"
           - "  advertise-svi-ip"
           - " exit-address-family"
@@ -73,37 +81,45 @@ nodeclass:
     classmembers: 
       - node: bgp
         config:
-          - file: bgpd.conf
+          - name: nbconfig
             template:
-              - "router bgp 65000"
               - " neighbor {{ .m_provider_loopback }} remote-as 65000"
               - " neighbor {{ .m_provider_loopback }} update-source lo"
               - " neighbor {{ .m_provider_loopback }} timers 3 10"
-              - " address-family l2vpn evpn"
+          - name: nbconfig_activate
+            template:
               - "  neighbor {{ .m_provider_loopback}} activate"
-              - " exit-address-family"
-              - "!"
   - name: ospf
     params: [lo]
     config:
-      - template:
-          - "sysctl -w net.ipv4.ip_forward=1"
+      - name: ospf_startup
+        template:
+          - ""
+          - "sysctl -w net.ipv4.ip_forward=1{{ .interfaces_vxlan_configs }}"
       - file: zebra.conf
         template:
           - "interface lo"
           - " ip address {{ .provider_loopback }}"
           - "!"
+          - "{{ .interfaces_addresses }}"
       - file: ospfd.conf
         template:
           - "router ospf"
+          - "{{ .interfaces_ospf_networks }}"
           - " network {{ .provider_loopback }}/32 area 0"
           - "!"
+          - "{{ .interfaces_ospf_configs }}"
   - name: host
+    config:
+      - file: zebra.conf
+        template:
+          - "{{ .interfaces_addresses }}"
 
 interfaceclass:
   - name: all
     config:
-      - node: switch
+      - name: link
+        node: switch
         template:
           - ip link set dev {{ .name }} promisc on
           - ip link set dev {{ .name }} master br0
@@ -112,8 +128,10 @@ interfaceclass:
     prefix: br
     params: [customer]
     config:
-      - node: ospf
+      - name: vxlan_configs
+        node: ospf
         template:
+          - ""
           - "ip link add name {{ .name }} type bridge stp_state 0"
           - "ip addr add {{ .customer_addr }}/{{ .customer_plen }} dev {{ .name }}"
           - "ip link set dev {{ .name }} up"
@@ -124,18 +142,15 @@ interfaceclass:
   - name: ospf
     params: [provider]
     config:
-      - file: zebra.conf
+      - name: addresses
         template:
           - "interface {{ .name }}"
           - " ip address {{ .provider_addr }}/{{ .provider_plen }}"
           - "!"
-      - file: ospfd.conf
+      - name: ospf_networks
         template:
-          - "router ospf"
           - " network {{ .provider_net }} area 0"
-          - "!"
-      - file: ospfd.conf
-        priority: 1
+      - name: ospf_configs
         template:
           - "interface {{ .name }}"
           - " ip ospf hello-interval 2"
@@ -144,7 +159,7 @@ interfaceclass:
   - name: host
     params: [customer]
     config:
-      - file: zebra.conf
+      - name: addresses
         node: host
         template:
           - "interface {{ .name }}"

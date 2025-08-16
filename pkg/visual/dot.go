@@ -112,7 +112,7 @@ func GraphToDot(cfg *types.Config, nm *types.NetworkModel, layer string) (string
 		attrs := map[string]string{}
 
 		// check the node is virtual
-		if node.Virtual {
+		if node.IsVirtual() {
 			attrs[KEY_NODE_STYLE] = "dashed"
 		}
 

@@ -1,5 +1,9 @@
 name: test
 
+module:
+  - tinet
+  - containerlab
+
 layer:
   - name: ip
     default_connect: true
@@ -11,33 +15,37 @@ layer:
 nodeclass:
   - name: switch
     primary: true
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - template:
-          - ip link add br0 type bridge
-          - ip link set br0 up
+      - name: startup
+        template:
+          - "ip link add br0 type bridge"
+          - "ip link set br0 up"
+          - "{{ .interfaces_link }}"
 
   - name: server
     primary: true
     interface_policy: [ip]
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
+    config:
+      - name: startup
+        template:
+          - "{{ .interfaces_addr }}"
 
 connectionclass:
   - name: default
     config:
-      - node: switch
+      - name: link
+        node: switch
         template:
           - ip link set dev {{ .name }} promisc on
           - ip link set dev {{ .name }} master br0
-      - node: server
+      - name: addr
+        node: server
         template:
           - ip addr add {{ .ip_addr }}/{{ .ip_plen }} dev {{ .name }}
 

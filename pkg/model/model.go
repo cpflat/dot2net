@@ -25,7 +25,7 @@ const NumberNumber string = "number"
 
 // const DummyIPSpace string = "none"
 
-func BuildNetworkModel(cfg *types.Config, d *Diagram) (nm *types.NetworkModel, err error) {
+func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.NetworkModel, err error) {
 
 	err = LoadModules(cfg)
 	if err != nil {
@@ -71,7 +71,7 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram) (nm *types.NetworkModel, e
 		return nil, err
 	}
 
-	err = assignIPParameters(cfg, nm)
+	err = assignIPParameters(cfg, nm, verbose)
 	if err != nil {
 		return nil, err
 	}
@@ -739,7 +739,7 @@ func setGivenParameters(nm *types.NetworkModel) error {
 	// return nil
 }
 
-func assignIPParameters(cfg *types.Config, nm *types.NetworkModel) error {
+func assignIPParameters(cfg *types.Config, nm *types.NetworkModel, verbose bool) error {
 	if cfg.HasManagementLayer() {
 		err := assignManagementIPAddresses(cfg, nm)
 		if err != nil {
@@ -755,8 +755,7 @@ func assignIPParameters(cfg *types.Config, nm *types.NetworkModel) error {
 		}
 
 		// determine network segment
-		segs, err := searchSegments(nm, layer, false)
-		// segs, err := searchSegments(nm, layer, true)
+		segs, err := searchSegments(nm, layer, verbose)
 		if err != nil {
 			return err
 		}

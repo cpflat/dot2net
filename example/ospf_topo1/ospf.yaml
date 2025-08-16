@@ -1,5 +1,12 @@
 name: ospf-topo1
 
+global:
+  path: local
+
+module:
+  - tinet
+  - containerlab
+
 file:
   - name: zebra.conf
     path: /etc/frr/zebra.conf
@@ -34,26 +41,26 @@ layer:
 nodeclass:
   - name: switch
     primary: true
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - template:
-          - ip link add br0 type bridge
-          - ip link set br0 up
+      - name: startup
+        style: sort
+        sort_group: sw
+        template:
+          - "ip link add br0 type bridge"
+          - "ip link set br0 up"
   - name: router
     primary: true
     params: [lo]
     interface_policy: [ip, ipv6]
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
-      image: quay.io/frrouting/frr:8.5.0
+      image: nicolaka/netshoot
     config:
-      - template:
+      - name: startup
+        template:
           - chown frr:frr /var/log/frr.log 
       - file: daemons
         sourcefile: ./daemons
@@ -62,11 +69,16 @@ nodeclass:
       - file: frr.log
         sourcefile: ./frr.log
       - file: zebra.conf
+        style: sort
+        sort_group: zebra.conf
         template:
           - "log file /var/log/frr.log informational"
           - "ip forwarding"
           - "ipv6 forwarding"
+          - "!"
       - file: ospfd.conf
+        style: sort
+        sort_group: ospfd.conf
         template:
           - "router ospf"
           - " ospf router-id {{ .ip_loopback }}"
@@ -75,6 +87,8 @@ nodeclass:
           - " redistribute static"
           - "!"
       - file: ospf6d.conf
+        style: sort
+        sort_group: ospf6d.conf
         template:
           - "router ospf6"
           - " ospf6 router-id {{ .ip_loopback }}"
@@ -87,19 +101,20 @@ connectionclass:
   - name: default
     primary: true
     config:
-      - node: switch
+      - group: sw
+        node: switch
         template:
-          - ip link set dev {{ .name }} promisc on
-          - ip link set dev {{ .name }} master br0
-      - node: router
-        file: zebra.conf
+          - "ip link set dev {{ .name }} promisc on"
+          - "ip link set dev {{ .name }} master br0"
+      - group: zebra.conf
+        node: router
         template: 
           - "interface {{ .name }}"
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
           - " ipv6 address {{ .ipv6_addr}}/{{ .ipv6_plen }}"
           - "!"
-      - node: router
-        file: ospfd.conf
+      - group: ospfd.conf
+        node: router
         template:
           - "router ospf"
           - " network {{ .ip_net }} area {{ .opp_group_area }}"
@@ -108,8 +123,8 @@ connectionclass:
           - " ip ospf hello-interval 2"
           - " ip ospf dead-interval 10"
           - "!"
-      - node: router
-        file: ospf6d.conf
+      - group: ospf6d.conf
+        node: router
         template:
           - "router ospf6"
           - " interface {{ .name }} area {{ .opp_group_area6 }}"

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -13,7 +14,87 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
+const EmptyOutput string = "#EMPTY#"
 const EmptySeparator string = "#NONE#"
+const NChars int = 32
+
+type SorterConfigBlocks struct {
+	belong map[belongKey][]sorterKey
+	groups map[sorterKey][]*ConfigBlock
+}
+
+func initSorterConfigBlocks() *SorterConfigBlocks {
+	return &SorterConfigBlocks{
+		belong: map[belongKey][]sorterKey{},
+		groups: map[sorterKey][]*ConfigBlock{},
+	}
+}
+
+func (scb *SorterConfigBlocks) addSorterChildren(sorter types.NameSpacer, ns types.NameSpacer, group string) error {
+	// list up candidate children objects that generate grouped configs for the sorter
+	k := belongKey{namespacer: ns, group: group}
+	scb.belong[k] = append(scb.belong[k], sorterKey{sorter: sorter, group: group})
+
+	classes, err := ns.ChildClasses()
+	if err != nil {
+		return err
+	}
+	for _, cls := range classes {
+		objs, err := ns.Childs(cls)
+		if err != nil {
+			return err
+		}
+		for _, child := range objs {
+			scb.addSorterChildren(sorter, child, group)
+		}
+	}
+	return nil
+}
+
+func (scb *SorterConfigBlocks) addSorter(sorter types.NameSpacer, group string) {
+	scb.addSorterChildren(sorter, sorter, group)
+}
+
+func (scb *SorterConfigBlocks) addConfigBlock(ns types.NameSpacer, group string, block *ConfigBlock, top bool) {
+	// add config blocks for sorter objects corresponding to parent objects
+	bk := belongKey{namespacer: ns, group: group}
+	for _, sk := range scb.belong[bk] {
+		if top {
+			scb.groups[sk] = append([]*ConfigBlock{block}, scb.groups[sk]...)
+
+		} else {
+			scb.groups[sk] = append(scb.groups[sk], block)
+		}
+	}
+}
+
+func (scb *SorterConfigBlocks) getConfigBlocks(ns types.NameSpacer, group string) []string {
+	sk := sorterKey{sorter: ns, group: group}
+	blocks := scb.groups[sk]
+	ret := make([]string, 0, len(blocks))
+	for _, cb := range blocks {
+		ret = append(ret, cb.Block)
+	}
+
+	// sort considering Priority
+	sort.SliceStable(ret, func(i, j int) bool { return blocks[i].Priority < blocks[j].Priority })
+	return ret
+}
+
+type sorterKey struct {
+	sorter types.NameSpacer
+	group  string
+}
+
+type belongKey struct {
+	namespacer types.NameSpacer
+	group      string
+}
+
+type ConfigBlock struct {
+	Block    string
+	Priority int
+}
 
 // style
 // const StyleDefault string = "default" // merge with line feed
@@ -113,6 +194,15 @@ const EmptySeparator string = "#NONE#"
 // 	style    string
 // }
 
+// for verbose output
+func headN(s string, n int) string {
+	runes := []rune(s)
+	if len(runes) < n {
+		return s
+	}
+	return string(runes[:n])
+}
+
 func getConfig(tpl *template.Template, namespace map[string]string) (string, error) {
 	if tpl == nil {
 		return "", fmt.Errorf("template is nil")
@@ -142,20 +232,38 @@ func getConfig(tpl *template.Template, namespace map[string]string) (string, err
 
 func generateConfigFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool) error {
 	if verbose {
-		fmt.Fprintf(os.Stderr, "%s", nm.StringAllObjectClasses(cfg))
+		fmt.Printf("Object Classes: \n")
+		for _, ns := range nm.NameSpacers() {
+			fmt.Printf(" %s\n", ns.StringForMessage())
+		}
 	}
-	// files := newConfigFiles()
+
+	scb := initSorterConfigBlocks()
 
 	// post order traversal with depth first search
 	// so that a parent node is processed after all its child nodes
 	var traverse func(types.NameSpacer) error
 	traverse = func(parent types.NameSpacer) error {
+		// do nothing if parent is virtual node
+		// if node, ok := parent.(*types.Node); ok {
+		// 	if node.IsVirtual() {
+		// 		if verbose {
+		// 			fmt.Fprintf(os.Stderr, "skipping virtual node %s\n", node.Name)
+		// 		}
+		// 		return nil
+		// 	}
+		// }
+
+		// list up candidate children objects that generate grouped configs for the sorter
+		checkSorterObjects(cfg, scb, parent)
+
 		// list up child classtype candidates
 		classes, err := parent.ChildClasses()
 		if err != nil {
 			return err
 		}
 		for _, cls := range classes {
+
 			// list up child objects of the classtype
 			objs, err := parent.Childs(cls)
 			if err != nil {
@@ -170,7 +278,7 @@ func generateConfigFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool
 			}
 
 			// generate config blocks for the child objects
-			err = generateConfigForObjects(cfg, objs, parent, verbose)
+			err = generateConfigForObjects(cfg, scb, objs, parent, verbose)
 			if err != nil {
 				return err
 			}
@@ -182,7 +290,7 @@ func generateConfigFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool
 	if err != nil {
 		return err
 	}
-	err = generateConfigForObjects(cfg, []types.NameSpacer{nm}, nil, verbose)
+	err = generateConfigForObjects(cfg, scb, []types.NameSpacer{nm}, nil, verbose)
 	if err != nil {
 		return err
 	}
@@ -190,44 +298,104 @@ func generateConfigFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool
 	return nil
 }
 
-func generateConfigForObjects(cfg *types.Config, objs []types.NameSpacer, parent types.NameSpacer, verbose bool) error {
+func checkSorterObjects(cfg *types.Config, scb *SorterConfigBlocks, ns types.NameSpacer) {
+	cts := ns.GetPossibleConfigTemplates(cfg)
+	for _, ct := range cts {
+		// Check if the config template is valid and sorter
+		_, met := checkConfigTemplateConditions(ns, ct)
+		if met && ct.Style == types.ConfigTemplateStyleSort {
+			scb.addSorter(ns, ct.SortGroup)
+		}
+	}
+}
+
+func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs []types.NameSpacer,
+	parent types.NameSpacer, verbose bool) error {
 
 	// named config can be used for output config, so explicitly generate them
 	formatsmap := make(map[string][]string) // ct.Name -> ct.Format
 	configForNamespace := map[string][]string{}
 	for _, ns := range objs {
-		configTemplates := ns.GetConfigTemplates(cfg)
-		checkedConfigTemplates, err := checkConfigTemplateConditions(ns, configTemplates)
-		if err != nil {
-			return err
-		}
-		named, _ := classifyConfigTemplates(checkedConfigTemplates)
+
+		// do nothing if ns is virtual node
+		// if node, ok := ns.(*types.Node); ok {
+		// 	if node.IsVirtual() {
+		// 		if verbose {
+		// 			fmt.Fprintf(os.Stderr, "skipping virtual node %s\n", node.Name)
+		// 		}
+		// 		continue
+		// 	}
+		// }
+
+		configTemplates := ns.GetPossibleConfigTemplates(cfg)
 		if verbose {
-			fmt.Fprintf(os.Stderr, "processing %s (%d templates)\n", ns.StringForMessage(), len(configTemplates))
+			fmt.Fprintf(os.Stderr, "processing %s (%d possible templates)\n", ns.StringForMessage(), len(configTemplates))
 		}
+		// checkedConfigTemplates, err := checkConfigTemplateConditions(ns, configTemplates)
+		// if err != nil {
+		// 	return err
+		// }
+		// // named, _ := classifyConfigTemplates(checkedConfigTemplates)
+		// if verbose {
+		// 	fmt.Fprintf(os.Stderr, "processing %s (%d templates)\n", ns.StringForMessage(), len(checkedConfigTemplates))
+		// }
 		// reorder named config templates based on dependency
-		reordered, err := reorderNamedConfigTemplates(named)
+		//reordered, err := reorderConfigTemplates(checkedConfigTemplates)
+		reordered, err := reorderConfigTemplates(configTemplates)
 		if err != nil {
-			return fmt.Errorf("generating config blocks for %s: %w", ns.StringForMessage(), err)
+			return fmt.Errorf("failure in reordering config blocks for %s: %w", ns.StringForMessage(), err)
+		}
+		if verbose {
+			fmt.Fprintf(os.Stderr, "processing order: %v\n", reordered)
 		}
 		for _, ct := range reordered {
-
-			if verbose {
-				fmt.Fprintf(
-					os.Stderr, "generating config blocks for %s with %s\n",
-					ns.StringForMessage(), ct.String(),
-				)
+			// generate config block if conditions are met
+			var conf string
+			reason, met := checkConfigTemplateConditions(ns, ct)
+			if met {
+				if verbose {
+					fmt.Fprintf(
+						os.Stderr, "templating config blocks for %s with %s\n",
+						ns.StringForMessage(), ct.String(),
+					)
+				}
+				conf, err = generateConfigBlock(ns, ct)
+				if err != nil {
+					return err
+				}
+			} else {
+				if verbose {
+					fmt.Fprintf(os.Stderr,
+						" skip templating for %s with %s because %s\n", ns.StringForMessage(), ct.String(), reason)
+				}
+				conf = EmptyOutput
 			}
 
-			conf, err := generateConfigBlock(ct, ns)
-			if err != nil {
-				return err
-			}
-			// ignore empty config
-			if conf == "" {
-				continue
+			// store config block for grouping
+			if met && ct.Group != "" {
+				scb.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority}, false)
+				if verbose {
+					fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
+				}
 			}
 
+			// merge grouped config blocks if ct.Style is types.ConfigTemplateStyleSort (sort)
+			if met && ct.Style == types.ConfigTemplateStyleSort {
+				// add self config before merging for priority sort
+				scb.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: conf, Priority: ct.Priority}, true)
+				blocks := scb.getConfigBlocks(ns, ct.SortGroup)
+
+				// merge config blocks of grouped templates
+				conf, err = mergeConfigBlocks(cfg, blocks, ct.GetFormats())
+				if err != nil {
+					return fmt.Errorf("error on merging config blocks of %v, %w", blocks, err)
+				}
+				if verbose {
+					fmt.Fprintf(os.Stderr, " add %d config blocks in group %s\n", len(blocks)-1, ct.SortGroup)
+				}
+			}
+
+			// add (or prepare for adding) to other namespace if ct.Name is specified
 			if ct.Name != "" {
 				// add to self's namespace if ct.Name is specified
 				err := addSelfConfigToNameSpace(cfg, ns, conf, ct, verbose)
@@ -251,31 +419,7 @@ func generateConfigForObjects(cfg *types.Config, objs []types.NameSpacer, parent
 					configForNamespace[ct.Name] = append(configForNamespace[ct.Name], conf)
 				}
 			}
-		}
-	}
-	for name, confs := range configForNamespace {
-		err := addChildsConfigToNameSpace(cfg, parent, objs, confs, name, formatsmap[name], verbose)
-		if err != nil {
-			return err
-		}
-	}
 
-	for _, ns := range objs {
-		configTemplates := ns.GetConfigTemplates(cfg)
-		_, output := classifyConfigTemplates(configTemplates)
-		for _, ct := range output {
-
-			if verbose {
-				fmt.Fprintf(
-					os.Stderr, "generating config blocks for %s with %s\n",
-					ns.StringForMessage(), ct.String(),
-				)
-			}
-
-			conf, err := generateConfigBlock(ct, ns)
-			if err != nil {
-				return err
-			}
 			// output file if ct.File is specified
 			if ct.File != "" {
 				err = outputConfigFile(cfg, ns, conf, ct, verbose)
@@ -283,39 +427,156 @@ func generateConfigForObjects(cfg *types.Config, objs []types.NameSpacer, parent
 					return err
 				}
 			}
+
+			// if met && ct.Group != "" && cfg.SorterConfigTemplateGroups.Contains(ct.Group) {
+			// 	scb.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority})
+			// 	if verbose {
+			// 		fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
+			// 	}
+			// }
 		}
 	}
+	// add config templates of child objects into parent namespace (after generating all config blocks in child objects)
+	for name, confs := range configForNamespace {
+		err := addChildsConfigToNameSpace(cfg, parent, objs, confs, name, formatsmap[name], verbose)
+		if err != nil {
+			return err
+		}
+	}
+
+	// for _, ns := range objs {
+	// 	configTemplates := ns.GetConfigTemplates(cfg)
+	// 	_, output := classifyConfigTemplates(configTemplates)
+	// 	for _, ct := range output {
+
+	// 		if verbose {
+	// 			fmt.Fprintf(
+	// 				os.Stderr, "generating config blocks for %s with %s\n",
+	// 				ns.StringForMessage(), ct.String(),
+	// 			)
+	// 		}
+
+	// 		conf, err := generateConfigBlock(ct, ns)
+	// 		if err != nil {
+	// 			return err
+	// 		}
+	// 		// output file if ct.File is specified
+	// 		if ct.File != "" {
+	// 			err = outputConfigFile(cfg, ns, conf, ct, verbose)
+	// 			if err != nil {
+	// 				return err
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
 
-func reorderNamedConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplate, error) {
-	ctmap := make(map[string]*types.ConfigTemplate)
-	for _, ct := range cts {
-		if _, exists := ctmap[ct.Name]; exists {
-			return nil, fmt.Errorf("duplicated config template name: %s", ct.Name)
+func reorderConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplate, error) {
+	// Policies:
+	// - consider dependency of named config template (with ct.Name and ct.Depends)
+	// - consider dependency in sort config template (sorter and grouped tempaltes)
+
+	//var reversects func(slice []*types.ConfigTemplate)
+	//reversects = func(slice []*types.ConfigTemplate) {
+	//	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
+	//		slice[i], slice[j] = slice[j], slice[i]
+	//	}
+	//}
+
+	//var shufflects func(slice []*types.ConfigTemplate)
+	//shufflects = func(slice []*types.ConfigTemplate) {
+	//	rand.Shuffle(len(slice), func(i, j int) {
+	//		slice[i], slice[j] = slice[j], slice[i]
+	//	})
+	//}
+
+	//// shuffle for testing
+	//shufflects(cts)
+	//// shuffle for testing end
+
+	ctmap := make(map[string][]int)
+	grouped := map[string][]int{}
+	for ind, ct := range cts {
+		if ct.Name != "" {
+			//if _, exists := ctmap[ct.Name]; exists {
+			//	return nil, fmt.Errorf("duplicated config template name: %s", ct.Name)
+			//}
+			ctmap[ct.Name] = append(ctmap[ct.Name], ind)
 		}
-		ctmap[ct.Name] = ct
+
+		// check grouped but not sorter templates
+		if ct.Group != "" {
+			if _, ok := grouped[ct.Name]; ok {
+				grouped[ct.Group] = append(grouped[ct.Group], ind)
+			} else {
+				grouped[ct.Group] = []int{ind}
+			}
+		}
 	}
 
 	sorted := []*types.ConfigTemplate{}
-	parmanent := mapset.NewSet[string]()
-	temporal := mapset.NewSet[string]()
+	parmanent := mapset.NewSet[int]()
+	temporal := mapset.NewSet[int]()
 
-	var visit func(string) error
-	visit = func(node string) error {
+	//var get_depends func(int) ([]int, error)
+	get_depends := func(node int) (depends []int, equivalent []int, err error) {
+		// sorter depends on grouped templates
+		if cts[node].Style == types.ConfigTemplateStyleSort {
+			if _, exists := grouped[cts[node].Group]; exists {
+				depends = append(depends, grouped[cts[node].Group]...)
+			}
+		}
+		// depends described required templates to embed
+		if len(cts[node].Depends) > 0 {
+			for _, dst := range cts[node].Depends {
+				if inds, exists := ctmap[dst]; exists {
+					depends = append(depends, inds...)
+				} else {
+					return nil, nil, fmt.Errorf(
+						"config template %+v depends on non-existing config template %s", cts[node], dst)
+				}
+			}
+		}
+		// check equivalent nodes (same name but different template)
+		for _, ind := range ctmap[cts[node].Name] {
+			if ind != node {
+				equivalent = append(equivalent, ind)
+			}
+		}
+		// sanity check
+		if mapset.NewSet(depends...).Intersect(mapset.NewSet(equivalent...)).Cardinality() > 0 {
+			return nil, nil, fmt.Errorf(
+				"panic in reordering config templates: overlaps in depends (%+v) and equivalent (%+v)", depends, equivalent)
+		}
+		return depends, equivalent, nil
+	}
+
+	// traverse dependency graph
+	var visit func(int) error
+	visit = func(node int) error {
 		if parmanent.Contains(node) {
 			return nil
 		}
 		if temporal.Contains(node) {
-			return fmt.Errorf("cyclic dependency detected in config templates around %s", node)
+			return fmt.Errorf("cyclic dependency detected in config templates around %+v", cts[node])
 		}
 		temporal.Add(node)
 
-		for _, dst := range ctmap[node].Depends {
-			if _, exists := ctmap[dst]; !exists {
-				return fmt.Errorf("config template %s depends on non-existing config template %s", node, dst)
-			}
+		depends, _, err := get_depends(node)
+		// depends, equivalent, err := get_depends(node)
+		if err != nil {
+			return err
+		}
+		// DEBUG
+		// fmt.Printf("  ### depends: %+v depends on %d nodes: ", cts[node], len(depends))
+		// for _, i := range depends {
+		// 	fmt.Printf("%+v,", cts[i])
+		// }
+		// fmt.Printf("\n")
+		// DEBUG END
+		for _, dst := range depends {
 			err := visit(dst)
 			if err != nil {
 				return err
@@ -323,13 +584,19 @@ func reorderNamedConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTe
 		}
 
 		parmanent.Add(node)
-		sorted = append(sorted, ctmap[node])
+		sorted = append(sorted, cts[node])
+		//sorted = append([]*types.ConfigTemplate{cts[node]}, sorted...)
+		//for _, ind := range equivalent {
+		//	parmanent.Add(ind)
+		//	sorted = append(sorted, cts[ind])
+		//	//sorted = append([]*types.ConfigTemplate{cts[ind]}, sorted...)
+		//}
 		return nil
 	}
 
-	for name := range ctmap {
-		if !parmanent.Contains(name) {
-			err := visit(name)
+	for node := range cts {
+		if !parmanent.Contains(node) {
+			err := visit(node)
 			if err != nil {
 				return nil, err
 			}
@@ -337,50 +604,20 @@ func reorderNamedConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTe
 	}
 
 	if len(sorted) != len(cts) {
+		fmt.Printf("cts: %+v\n", cts)
+		fmt.Printf("sorted: %+v\n", sorted)
 		return nil, fmt.Errorf("some config templates are not included in the sorted list")
 	}
 
+	//reversects(sorted)
 	return sorted, nil
 }
 
-func generateConfigBlock(ct *types.ConfigTemplate, ns types.NameSpacer) (string, error) {
-	switch o := ns.(type) {
-	case *types.NetworkModel:
-		// pass
-	case *types.Node:
-		// pass
-	case *types.Interface:
-		// skip if node class does not match
-		if !(ct.NodeClassCheck(o.Node)) {
-			return "", nil
-		}
-	case *types.Neighbor:
-		// skip if self node class does not match
-		if !(ct.NodeClassCheck(o.Self.Node)) {
-			return "", nil
-		}
-		// skip if neighbor node class does not match
-		if !(ct.NodeClassCheck(o.Neighbor.Node)) {
-			return "", nil
-		}
-	case *types.Member:
-		switch t := o.Referrer.(type) {
-		case *types.Node:
-			// pass
-		case *types.Interface:
-			if !(ct.NodeClassCheck(t.Node)) {
-				return "", nil
-			}
-		default:
-			return "", fmt.Errorf("panic: unexpected type of Member Referer: %T", t)
-		}
-	default:
-		return "", fmt.Errorf("unexpected type of NameSpacer: %T", o)
-	}
-
-	conf, err := getConfig(ct.ParsedTemplate, ns.GetRelativeParams())
+// func generateConfigBlock(ct *types.ConfigTemplate, ns types.NameSpacer) (string, error) {
+func generateConfigBlock(ns types.NameSpacer, configTemplate *types.ConfigTemplate) (string, error) {
+	conf, err := getConfig(configTemplate.ParsedTemplate, ns.GetRelativeParams())
 	if err != nil {
-		return "", fmt.Errorf("templating failure for %s, %w", ns.StringForMessage(), err)
+		return EmptyOutput, fmt.Errorf("templating failure for %s, %w", ns.StringForMessage(), err)
 	}
 	return conf, nil
 }
@@ -401,18 +638,11 @@ func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf strin
 	// }
 
 	relativeName := SelfConfigHeader + ct.Name
-	if ns.HasRelativeParam(relativeName) {
-		value, _ := ns.GetParamValue(relativeName)
-		return fmt.Errorf(
-			"parameter name %s of object %s duplicated (existing parameter: %s, new parameter: %s)",
-			relativeName, ns.StringForMessage(), value, conf,
-		)
+	err = setConfigParamForNameSpace(ns, relativeName, conf, verbose)
+	if err != nil {
+		return err
 	}
-	ns.SetRelativeParam(relativeName, conf)
-	if verbose {
-		fmt.Fprintf(os.Stderr, " set relative param to %s: %s\n", ns.StringForMessage(), relativeName)
-		// fmt.Fprintf(os.Stderr, "%s\n", conf)
-	}
+
 	return nil
 }
 
@@ -461,25 +691,52 @@ func addChildsConfigToNameSpace(cfg *types.Config, parent types.NameSpacer, chil
 		return fmt.Errorf("error on merging config blocks of %v, %w", childs, err)
 	}
 
-	// add merged config blocks to parent namespace
-	if parent.HasRelativeParam(relativeName) {
-		value, _ := parent.GetParamValue(relativeName)
-		return fmt.Errorf(
-			// "parameter name %s of object %s duplicated (existing parameter: %s)",
-			// relativeName, parent.StringForMessage(), values,
-			"parameter name %s of object %s duplicated (existing parameter: %s, new parameter: %s)",
-			relativeName, parent.StringForMessage(), value, result,
-		)
+	err = setConfigParamForNameSpace(parent, relativeName, result, verbose)
+	if err != nil {
+		return err
 	}
-	parent.SetRelativeParam(relativeName, result)
+
+	return nil
+}
+
+func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, verbose bool) error {
+	if new == EmptyOutput {
+		// if new config is empty, set "" only when no previous parameter
+		if !ns.HasRelativeParam(name) {
+			ns.SetRelativeParam(name, "")
+			if verbose {
+				fmt.Fprintf(os.Stderr, " set empty relative param to %s: %s \n", ns.StringForMessage(), name)
+			}
+		}
+		return nil
+	} else {
+		if ns.HasRelativeParam(name) {
+			prev, _ := ns.GetParamValue(name)
+			if prev != "" {
+				// if neither is empty (duplicated configuration), raise error
+				return fmt.Errorf(
+					// "parameter name %s of object %s duplicated (existing parameter: %s)",
+					// relativeName, parent.StringForMessage(), values,
+					"parameter name %s of object %s duplicated (existing parameter: %q, new parameter: %q)",
+					name, ns.StringForMessage(), headN(prev, NChars), headN(new, NChars),
+				)
+			}
+			// if previous parameter is empty, just overwrite
+		}
+	}
+	ns.SetRelativeParam(name, new)
 	if verbose {
-		fmt.Fprintf(os.Stderr, " set relative param to %s: %s\n", parent.StringForMessage(), relativeName)
-		// fmt.Fprintf(os.Stderr, "%s\n", result)
+		fmt.Fprintf(os.Stderr, " set relative param to %s: %s (%q)\n", ns.StringForMessage(),
+			name, headN(new, NChars))
 	}
 	return nil
 }
 
 func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *types.ConfigTemplate, verbose bool) error {
+	if conf == EmptyOutput {
+		return nil
+	}
+
 	filedef, ok := cfg.FileDefinitionByName(ct.File)
 	if !ok {
 		return fmt.Errorf("undefined file format %s", ct.File)
@@ -536,60 +793,128 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 	return nil
 }
 
-func checkConfigTemplateConditions(ns types.NameSpacer, configTemplates []*types.ConfigTemplate) ([]*types.ConfigTemplate, error) {
-	ret := make([]*types.ConfigTemplate, 0, len(configTemplates))
+func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.ConfigTemplate) (string, bool) {
+	if lo, ok := ns.(types.LabelOwner); ok {
+		// check virtual object or not if ns is LabelOwner
+		if lo.IsVirtual() {
+			return "virtual object", false
+		}
 
-	for _, ct := range configTemplates {
-		fail := false
-		switch o := ns.(type) {
+		// check classname meets if ns is LabelOwner
+		classType, className := configTemplate.GetClassInfo()
+
+		var check bool
+		switch classType {
+		case types.ClassTypeConnection:
+			check = lo.(*types.Interface).Connection.HasClass(className)
+		case types.ClassTypeMember(types.ClassTypeConnection, ""):
+			check = lo.(*types.Interface).Connection.HasClass(className)
+		default:
+			check = lo.HasClass(className)
+		}
+		if !check {
+			// if verbose {
+			// 	fmt.Fprintf(os.Stderr, " class %s is not included in %v\n",
+			// 		className, ns.StringForMessage())
+			// }
+			return "non-matching class", false
+		}
+	}
+
+	// check optional conditions
+	switch o := ns.(type) {
+	case *types.Interface:
+		// check if parent node class of the interface matches
+		if !configTemplate.NodeClassCheck(o.Node) {
+			return "parent node class condition", false
+		}
+	case *types.Neighbor:
+		// check if self node class of neighbor object match
+		if !configTemplate.NeighborNodeClassCheck(o.Neighbor.Node) {
+			return "self node class condition for neighbor object", false
+		}
+		// check if neighbor node class of neighbor object match
+		if !configTemplate.NodeClassCheck(o.Self.Node) {
+			return "neighbor node class condition for neighbor object", false
+		}
+	case *types.Member:
+		switch t := o.Referrer.(type) {
+		case *types.Node:
+			// pass
 		case *types.Interface:
-			// keep config template only when node condition is satisfied
-			if ct.NodeClassCheck(o.Node) {
-				fail = true
-			}
-		case *types.Neighbor:
-			if ct.NeighborNodeClassCheck(o.Neighbor.Node) {
-				fail = true
-			}
-			if ct.NodeClassCheck(o.Self.Node) {
-				fail = true
+			if !(configTemplate.NodeClassCheck(t.Node)) {
+				return "member node class condition for member object", false
 			}
 		default:
+			panic(fmt.Sprintf("panic: unexpected type of Member Referer: %T", t))
 		}
-		if !fail || ct.Empty {
-			ret = append(ret, ct)
-		}
+	default:
 	}
-	return ret, nil
+
+	return "", true
 }
 
-func classifyConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplate, []*types.ConfigTemplate) {
-	named := []*types.ConfigTemplate{}
-	output := []*types.ConfigTemplate{}
-	for _, ct := range cts {
-		if ct.Name != "" {
-			named = append(named, ct)
-		}
-		if ct.File != "" {
-			output = append(output, ct)
-		}
-	}
-	return named, output
-}
+//func checkConfigTemplatesConditions(ns types.NameSpacer, configTemplates []*types.ConfigTemplate) ([]*types.ConfigTemplate, error) {
+//	ret := make([]*types.ConfigTemplate, 0, len(configTemplates))
+//
+//	for _, ct := range configTemplates {
+//		fail := false
+//		switch o := ns.(type) {
+//		case *types.Interface:
+//			// keep config template only when node condition is satisfied
+//			if !ct.NodeClassCheck(o.Node) {
+//				fail = true
+//			}
+//		case *types.Neighbor:
+//			if !ct.NeighborNodeClassCheck(o.Neighbor.Node) {
+//				fail = true
+//			}
+//			if !ct.NodeClassCheck(o.Self.Node) {
+//				fail = true
+//			}
+//		default:
+//		}
+//		if !fail || ct.Empty {
+//			ret = append(ret, ct)
+//		}
+//	}
+//	return ret, nil
+//}
+
+// func classifyConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplate, []*types.ConfigTemplate) {
+// 	named := []*types.ConfigTemplate{}
+// 	output := []*types.ConfigTemplate{}
+// 	for _, ct := range cts {
+// 		if ct.Name != "" {
+// 			named = append(named, ct)
+// 		}
+// 		if ct.File != "" {
+// 			output = append(output, ct)
+// 		}
+// 	}
+// 	return named, output
+// }
 
 func mergeConfigBlocks(cfg *types.Config, blocks []string, formats []string) (string, error) {
 	formattedBlocks := make([]string, 0, len(blocks))
 	for _, block := range blocks {
-		if block == "" {
+		// ignore empty config blocks
+		if block == "" || block == EmptyOutput {
 			continue
 		}
+		// format each config block
 		formattedBlock, err := formatSingleConfigBlock(cfg, block, formats)
 		if err != nil {
-			return "", err
+			return EmptyOutput, err
 		}
 		formattedBlocks = append(formattedBlocks, formattedBlock)
 	}
 
+	if len(formattedBlocks) == 0 {
+		return EmptyOutput, nil
+	}
+
+	// generate separators to merge config blocks
 	separator := ""
 	for _, format := range formats {
 		if format != "" {
@@ -603,26 +928,21 @@ func mergeConfigBlocks(cfg *types.Config, blocks []string, formats []string) (st
 			separator = filefmt.BlockSeparator
 		}
 	}
-	if separator == "" {
+	switch separator {
+	case "":
 		separator = "\n"
-	} else if separator == EmptySeparator {
+	case EmptySeparator:
 		separator = ""
 	}
 
+	// merge config blocks
 	return strings.Join(formattedBlocks, separator), nil
-	//	if format == "" {
-	//		return strings.Join(blocks, "\n"), nil
-	//	} else {
-	//
-	//		filefmt, ok := cfg.FileFormatByName(format)
-	//		if !ok {
-	//			return "", fmt.Errorf("undefined file format %s", format)
-	//		}
-	//		return strings.Join(formattedBlocks, filefmt.BlockSeparator), nil
-	//	}
 }
 
 func formatSingleConfigBlock(cfg *types.Config, block string, formats []string) (string, error) {
+	if block == EmptyOutput {
+		return EmptyOutput, nil
+	}
 	block, err := formatConfigLines(cfg, block, formats)
 	if err != nil {
 		return "", err
@@ -646,6 +966,9 @@ func formatSingleConfigBlock(cfg *types.Config, block string, formats []string) 
 }
 
 func formatConfigLines(cfg *types.Config, conf string, formats []string) (string, error) {
+	if conf == EmptyOutput {
+		return EmptyOutput, nil
+	}
 	var separator string
 	// format lines
 	for _, format := range formats {
@@ -662,11 +985,12 @@ func formatConfigLines(cfg *types.Config, conf string, formats []string) (string
 			newConf = append(newConf, filefmt.LinePrefix+line+filefmt.LineSuffix)
 		}
 
-		if filefmt.LineSeparator == "" {
+		switch filefmt.LineSeparator {
+		case "":
 			separator = "\n"
-		} else if filefmt.LineSeparator == EmptySeparator {
+		case EmptySeparator:
 			separator = ""
-		} else {
+		default:
 			separator = filefmt.LineSeparator
 		}
 		conf = strings.Join(newConf, separator)

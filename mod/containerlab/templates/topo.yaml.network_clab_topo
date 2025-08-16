@@ -1,0 +1,7 @@
+name: {{ .name }}
+topology:
+  nodes:
+{{ .nodes_clab_topo }}
+
+  links:
+{{ ._clab_link_endpoints }}

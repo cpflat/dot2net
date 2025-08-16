@@ -10,6 +10,11 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
+// special parameter ".virtual" for nodes
+// -> config files for the virtual nodes are not generated and just ignored
+
+const VirtualNodeClassName = "virtual"
+
 const TinetOutputFile = "spec.yaml"
 
 const TinetNetworkNameParamName = "_tn_networkName"
@@ -170,9 +175,13 @@ func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 
 	// parameter {{ .image }}
 	for _, node := range nm.Nodes {
-		_, err := node.GetParamValue(TinetImageParamName)
-		if err != nil {
-			return fmt.Errorf("every node must have {{ .image }} parameter (none for %s)", node.Name)
+		if node.IsVirtual() {
+			break
+		} else {
+			_, err := node.GetParamValue(TinetImageParamName)
+			if err != nil {
+				return fmt.Errorf("every (non-virtual) node must have {{ .image }} parameter (none for %s)", node.Name)
+			}
 		}
 	}
 	return nil

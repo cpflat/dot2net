@@ -54,11 +54,11 @@ nodeclass:
       - name: startup
         depends: [common, cmds]
         template:
-          - "{{.self_common}}"
-          - "{{.interfaces_common}}"
-          - "{{.interfaces_addrs}}"
-          - "{{.self_cmds}}"
-          - "{{.interfaces_routes}}"
+          - "{{ .self_common }}"
+          - "{{ .interfaces_common }}"
+          - "{{ .interfaces_addrs }}"
+          - "{{ .self_cmds }}"
+          - "{{ .interfaces_rt_routes }}"
       - name: cmds
         format: FRRVtyshCLI
         template: 
@@ -74,10 +74,10 @@ nodeclass:
       - name: startup
         depends: [common]
         template:
-          - "{{.self_common}}"
-          - "{{.interfaces_common}}"
-          - "{{.interfaces_addrs}}"
-          - "{{.interfaces_routes}}"
+          - "{{ .self_common }}"
+          - "{{ .interfaces_common }}"
+          - "{{ .interfaces_addrs }}"
+          - "{{ .interfaces_sv_routes }}"
 
 connectionclass:
   - name: default
@@ -92,7 +92,7 @@ connectionclass:
       - name: addrs
         template:
           - ip -6 addr add {{ .ip_addr }}/{{ .ip_plen}} dev {{ .name }}
-      - name: routes
+      - name: rt_routes
         node: router
         format: FRRVtyshCLI
         template: 
@@ -100,7 +100,7 @@ connectionclass:
           - ipv6 ospf6 area 0.0.0.0
             #- router ospf6
             #- interface {{ .name }} area 0.0.0.0
-      - name: routes
+      - name: sv_routes
         node: server
         template:
           - ip -6 route replace default via {{ .opp_ip_addr }}

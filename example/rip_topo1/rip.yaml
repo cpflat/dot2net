@@ -1,5 +1,9 @@
 name: rip-topo1
 
+module:
+  - tinet
+  - containerlab
+
 file:
   - name: zebra.conf
     path: /etc/frr/zebra.conf
@@ -28,24 +32,22 @@ layer:
 nodeclass:
   - name: switch
     primary: true
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - template:
-          - ip link add br0 type bridge
-          - ip link set br0 up
+      - name: startup
+        template:
+          - "ip link add br0 type bridge"
+          - "ip link set br0 up"
+          - "{{ .interfaces_link }}"
   - name: router
     primary: true
     params: [lo]
     interface_policy: [ip]
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
-      image: quay.io/frrouting/frr:8.5.0
+      image: nicolaka/netshoot
     config:
       - template:
           - chown frr:frr /var/log/frr.log 
@@ -56,15 +58,12 @@ nodeclass:
       - file: frr.log
         sourcefile: ./frr.log
       - file: zebra.conf
-        priority: -1
         template:
           - "log file /var/log/frr.log"
           - "ip forwarding"
           - "ipv6 forwarding"
           - "!"
-      - file: zebra.conf
-        priority: 1
-        template:
+          - "{{ .interfaces_ifconf }}"
           - "line vty"
           - "!"
       - file: ripd.conf
@@ -72,44 +71,43 @@ nodeclass:
           - "router rip"
           - " version 2"
           - " timers basic 5 180 5"
+          - "{{ .interfaces_rip_network }}"
           - " redistribute connected"
           - " redistribute static"
           - "!"
-      - file: ripd.conf
-        priority: 1
-        template:
           - "line vty"
           - "!"
+      - file: staticd.conf
+        template:
+          - "{{ .interfaces_static_route }}"
   - name: vrouter
     virtual: true
-    params: [ip]
+    interface_policy: [ip]
 
 connectionclass:
   - name: all
     config:
-      - node: switch
+      - name: link
+        node: switch
         template:
-          - ip link set dev {{ .name }} promisc on
-          - ip link set dev {{ .name }} master br0
+          - "ip link set dev {{ .name }} promisc on"
+          - "ip link set dev {{ .name }} master br0"
   - name: default
     config:
-      - node: router
-        file: zebra.conf
+      - name: ifconf
+        node: router
         template:
           - "interface {{ .name }}"
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
           - "!"
   - name: rip
     config:
-      - node: router
-        file: ripd.conf
+      - name: rip_network
+        node: router
         template:
-          - "router rip"
           - " network {{ .ip_net }}"
-          - "!"
-      - node: router
-        file: zebra.conf
-        priority: -1
+      - name: ifconf
+        node: router
         template:
           - "interface {{ .name }}"
           - " description to {{ .opp_node_name }} - RIPv2 interface"
@@ -118,19 +116,23 @@ connectionclass:
           - "!"
   - name: to_stub
     config:
-      - node: router
-        file: zebra.conf
+      - name: ifconf
+        node: router
         template:
           - "interface {{ .name }}"
           - " description to {{ .opp_node_name }} - Stub interface"
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
           - " no link-detect"
           - "!"
+      - name: static_route
+        node: router
+        template:
+          - "{{ .neighbors_ip_static_route_nb }}"
     neighbors:
       - layer: ip
         config:
-          - node: router
-            file: staticd.conf
+          - name: static_route_nb
+            node: router
             template:
               - "ip route {{ .n_node_stubnet }} {{ .n_ip_addr }}"
   - name: vlink

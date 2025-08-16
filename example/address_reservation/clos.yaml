@@ -1,6 +1,7 @@
 name: address_reservation
 
 module:
+  - frr
   - tinet
   - containerlab
 
@@ -43,7 +44,7 @@ nodeclass:
     mgmt_interfaceclass: mgmtif
     config:
       - name: frr_cmds
-        format: tinetVtyshCLI
+        format: FRRVtyshCLI
         template:
           - ip forwarding
           - int lo
@@ -79,7 +80,7 @@ connectionclass:
     config:
       - name: router_cmds
         node: router
-        format: tinetVtyshCLI
+        format: FRRVtyshCLI
         template: 
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/30
@@ -87,7 +88,7 @@ connectionclass:
           - neighbor {{ .opp_ip_addr }} remote-as {{ .opp_node_as }}
       - name: server_cmds
         node: server
-        format: tinetVtyshCLI
+        format: FRRVtyshCLI
         template:
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/30

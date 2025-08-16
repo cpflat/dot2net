@@ -1,5 +1,12 @@
 name: ospf_simple
 
+global:
+  path: local
+
+module:
+  - tinet
+  - containerlab
+
 file:
   - name: frr.conf
     path: /etc/frr/frr.conf
@@ -22,11 +29,9 @@ layer:
 nodeclass:
   - name: router
     primary: true
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
-      image: quay.io/frrouting/frr:8.5.0
+      image: nicolaka/netshoot
     policy: [lo]
     config:
       - file: daemons
@@ -39,18 +44,22 @@ nodeclass:
           - "!"
           - "router ospf"
           - " ospf router-id {{ .ip_loopback }}"
+          - "{{ .interfaces_ospf_net }}"
           - "!"
+          - "{{ .interfaces_ospf_addr }}"
+      - name: startup
+        template: []
 
 interfaceclass:
   - name: default
     primary: true
     policy: [ip]
     config:
-      - file: frr.conf
+      - name: ospf_addr
         template: 
           - "interface {{ .name }}"
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
           - "!"
-          - "router ospf"
+      - name: ospf_net
+        template:
           - " network {{ .ip_net }} area 0"
-          - "!"

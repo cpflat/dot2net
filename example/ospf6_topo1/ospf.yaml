@@ -1,4 +1,11 @@
-name: ospf-topo1
+name: ospf6-topo1
+
+global:
+  path: local
+
+module:
+  - tinet
+  - containerlab
 
 file:
   - name: zebra.conf
@@ -28,24 +35,23 @@ layer:
 nodeclass:
   - name: switch
     primary: true
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - template:
-          - ip link add br0 type bridge
-          - ip link set br0 up
+      - name: startup
+        style: sort
+        sort_group: sw
+        template:
+          - "ip link add br0 type bridge"
+          - "ip link set br0 up"
   - name: router
     primary: true
     params: [lo]
     interface_policy: [ip]
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
-      image: quay.io/frrouting/frr:8.5.0
+      image: nicolaka/netshoot
     config:
       - file: daemons
         sourcefile: ./daemons
@@ -53,7 +59,8 @@ nodeclass:
         sourcefile: ./vtysh.conf
       - file: frr.log
         sourcefile: ./frr.log
-      - template:
+      - name: startup
+        template:
           - chown frr:frr /var/log/frr.log 
       - file: zebra.conf
         priority: -1
@@ -61,17 +68,16 @@ nodeclass:
           - "log file /var/log/frr.log"
           - "!"
       - file: zebra.conf
+        style: sort
+        sort_group: zebra.conf
         priority: 1
         template:
           - "interface lo"
           - "ipv6 forwarding"
           - "!"
       - file: ospf6d.conf
-        priority: -1
-        template:
-          - "log file /var/log/frr.log"
-          - "!"
-      - file: ospf6d.conf
+        style: sort
+        sort_group: ospf6d.conf
         template:
           - "router ospf6"
           - " ospf6 router-id {{ .ip_loopback }}"
@@ -81,6 +87,15 @@ nodeclass:
           - "line vty"
           - " exec-timeout 0 0"
           - "!"
+      - group: ospf6d.conf
+        priority: -1
+        template:
+          - "log file /var/log/frr.log"
+          - "!"
+      - file: staticd.conf
+        style: sort
+        sort_group: staticd.conf
+        template: []
   - name: vrouter
     virtual: true
     params: [lo]
@@ -90,18 +105,19 @@ connectionclass:
   - name: all
     primary: true
     config:
-      - node: switch
+      - group: sw
+        node: switch
         template:
-          - ip link set dev {{ .name }} promisc on
-          - ip link set dev {{ .name }} master br0
-      - node: router
-        file: zebra.conf
+          - "ip link set dev {{ .name }} promisc on"
+          - "ip link set dev {{ .name }} master br0"
+      - group: zebra.conf
+        node: router
         template: 
           - "interface {{ .name }}"
           - " ipv6 address {{ .ip_addr}}/{{ .ip_plen }}"
           - "!"
-      - node: router
-        file: ospf6d.conf
+      - group: ospf6d.conf
+        node: router
         priority: -1
         template:
           - "interface {{ .name }}"
@@ -114,8 +130,8 @@ connectionclass:
     neighbors:
       - layer: ip
         config:
-          - node: router
-            file: staticd.conf
+          - group: staticd.conf
+            node: router
             template:
               - "ipv6 route {{ .n_node_stubnet }} {{ .n_ip_addr }}"
               - "!"

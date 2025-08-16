@@ -1,5 +1,12 @@
 name: ospf_simple
 
+global:
+  path: local
+
+module:
+  - tinet
+  - containerlab
+
 file:
   - name: params.txt
     shared: true
@@ -35,20 +42,18 @@ param_rule:
 nodeclass:
   - name: switch
     primary: true
-    tinet:
-      image: nicolaka/netshoot
-    clab:
+    values:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - template:
-          - ip link add br0 type bridge
-          - ip link set br0 up
+      - name: startup
+        template:
+          - "ip link add br0 type bridge"
+          - "ip link set br0 up"
+          - "{{ .interfaces_link }}"
   - name: router
     primary: true
-    tinet:
-      image: quay.io/frrouting/frr:8.5.0
-    clab:
+    values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
     interface_policy: [ip]
@@ -64,27 +69,36 @@ nodeclass:
           - "!"
           - "router ospf"
           - " ospf router-id {{ .ip_loopback }}"
+          - "{{ .interfaces_ospf_net }}"
           - "!"
+          - "{{ .interfaces_ospf_addr }}"
+      - name: startup
+        template: []
+      - file: params.txt
+        style: sort
+        sort_group: params.txt
 
 interfaceclass:
   - name: default
     primary: true
     params: [cname]
     config:
-      - node: switch
+      - name: link
+        node: switch
         template:
-          - ip link set dev {{ .name }} promisc on
-          - ip link set dev {{ .name }} master br0
-      - node: router
-        file: frr.conf
+          - "ip link set dev {{ .name }} promisc on"
+          - "ip link set dev {{ .name }} master br0"
+      - name: ospf_addr
+        node: router
         template: 
           - "interface {{ .name }}"
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
           - "!"
-          - "router ospf"
+      - name: ospf_net
+        node: router
+        template:
           - " network {{ .ip_net }} area 0"
-          - "!"
-      - file: params.txt
+      - group: params.txt
         template:
           - "connection name {{ .cname }} next to {{ .node_name }}.{{ .name }}"
 
@@ -92,7 +106,7 @@ connectionclass:
   - name: vlan
     params: [vlan]
     config:
-      - file: params.txt
+      - group: params.txt
         priority: -1
         template:
           - "vlan {{ .vlan }} for {{ .node_name }}.{{ .name }}"

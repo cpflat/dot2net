@@ -1,0 +1,5 @@
+    {{ .name }}:
+      kind: {{ .kind }}
+      image: {{ .image }}{{ if .self_startup }}
+      exec:
+{{ .self_clab_cmds }}{{end}}

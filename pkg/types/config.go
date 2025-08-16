@@ -18,8 +18,18 @@ const ClassTypeNode string = "node"
 const ClassTypeInterface string = "interface"
 const ClassTypeConnection string = "connection"
 const ClassTypeGroup string = "group"
-const ClassTypeNeighbor string = "neighbor"
-const ClassTypeMember string = "member"
+const ClassTypeNeighborHeader string = "neighbor"
+const ClassTypeNeighborLayerAny = "any"
+const ClassTypeMemberHeader string = "member"
+const ClassTypeMemberClassNameAny = "any"
+
+func ClassTypeNeighbor(layer string) string {
+	return ClassTypeNeighborHeader + "_" + layer
+}
+
+func ClassTypeMember(classType string, className string) string {
+	return ClassTypeMemberHeader + "_" + classType + "_" + className
+}
 
 const ClassAll string = "all"         // all objects
 const ClassDefault string = "default" // all empty objects
@@ -31,6 +41,9 @@ const PathSpecificationLocal string = "local"     // search files from the direc
 
 const MountSourcePathAbs string = "abs" // absolute path
 const MountSourcePathLocal string = "local"
+
+const ConfigTemplateStyleHierarchy string = "hierarchy" // ConfigTemplate.Style
+const ConfigTemplateStyleSort string = "sort"
 
 // IP number replacer: [IPSpace]_[IPReplacerXX]
 // const IPLoopbackReplacerFooter string = "loopback"
@@ -82,7 +95,8 @@ type Config struct {
 	neighborClassMap   map[string]map[string][]*NeighborClass // interfaceclass name, ipspace name
 	localDir           string
 
-	LoadedModules []Module
+	LoadedModules              []Module           // reference to loaded modules, internal
+	SorterConfigTemplateGroups mapset.Set[string] // list of sort-style config template groups
 }
 
 func (cfg *Config) FileDefinitionByName(name string) (*FileDefinition, bool) {
@@ -501,6 +515,7 @@ func (cc *ConnectionClass) GetGivenValues() map[string]string {
 
 type GroupClass struct {
 	Name            string            `yaml:"name" mapstructure:"name"`
+	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	Values          map[string]string `yaml:"values" mapstructure:"values"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
@@ -564,12 +579,28 @@ func (mc *MemberClass) GetSpecifiedClasses() (string, []string, error) {
 }
 
 type ConfigTemplate struct {
-	// Name is used by parent objects to specify as childs in templates
-	Name string `yaml:"name" mapstructure:"name"`
-	// Required config template names (on same object) to embed
-	Depends []string `yaml:"depends" mapstructure:"depends"`
+	// Config block aggregation styles
+	// hierarchy (default): specify child config templates in the template description as parameter
+	// sort: merge child config templates of SortTarget groups into the "sort" config templates
+	Style     string `yaml:"style" mapstructure:"style"`
+	SortGroup string `yaml:"sort_group" mapstructure:"sort_group"`
 	// Target file definition name
+	// Config templates with file will generate a file of generated text
 	File string `yaml:"file" mapstructure:"file"`
+	// Name is used by parent objects to specify as childs in templates
+	// Config templates with name will form a parameter that can be embeded in other hierarchy templates
+	Name string `yaml:"name" mapstructure:"name"`
+	// Group is used for sort config templates
+	// A sort config template will aggregate all config blocks generated in child (or grandchild) objects of the same group
+	Group string `yaml:"group" mapstructure:"group"`
+	// Priority is used to reorder config templates in sort style
+	// Config blocks with smaller priority should be on the top of generated config files
+	// Default is 0, so users should specify negative values to make a config block top of a file
+	Priority int `yaml:"priority" mapstructure:"priority"`
+	// Used for hierarchy config templates
+	// Config template names on same object that need to be embeded
+	// Required for ordering config template generation considering the dependency
+	Depends []string `yaml:"depends" mapstructure:"depends"`
 
 	// Condition related fields
 	// add config only for interfaces of nodes belongs to the nodeclass(es)
@@ -599,19 +630,30 @@ type ConfigTemplate struct {
 
 	ParsedTemplate *template.Template
 	platformSet    mapset.Set[string]
+	className      string
+	classType      string
 }
 
 func (ct *ConfigTemplate) String() string {
+	info := []string{}
 	if ct.Name != "" {
-		if ct.File != "" {
-			return fmt.Sprintf("ConfigTemplate(name:%s,file:%s)", ct.Name, ct.File)
-		} else {
-			return fmt.Sprintf("ConfigTemplate(name:%s)", ct.Name)
-		}
-	} else if ct.File != "" {
-		return fmt.Sprintf("ConfigTemplate(file:%s)", ct.File)
+		info = append(info, fmt.Sprintf("name:%s", ct.Name))
 	}
-	return "ConfigTemplate(no names)"
+	if ct.File != "" {
+		info = append(info, fmt.Sprintf("file:%s", ct.File))
+	}
+	if ct.Group != "" {
+		info = append(info, fmt.Sprintf("group:%s", ct.Group))
+	}
+	if len(info) == 0 {
+		return "ConfigTemplate(no info)"
+	} else {
+		return fmt.Sprintf("ConfigTemplate(%s)", strings.Join(info, ","))
+	}
+}
+
+func (ct *ConfigTemplate) GetClassInfo() (string, string) {
+	return ct.classType, ct.className
 }
 
 func (ct *ConfigTemplate) GetFormats() []string {
@@ -625,6 +667,7 @@ func (ct *ConfigTemplate) GetFormats() []string {
 	return ret
 }
 
+// return true if conditions satisfied
 func (ct *ConfigTemplate) NodeClassCheck(node *Node) bool {
 	if len(ct.NodeClasses) == 0 {
 		if ct.NodeClass == "" {
@@ -761,13 +804,15 @@ func LoadConfig(path string) (*Config, error) {
 	for _, group := range cfg.GroupClasses {
 		cfg.groupClassMap[group.Name] = group
 	}
+	cfg.SorterConfigTemplateGroups = mapset.NewSet[string]()
 
 	return &cfg, err
 }
 
 func loadTemplate(tpl []string, path string) (*template.Template, error) {
 	if len(tpl) == 0 && path == "" {
-		return nil, fmt.Errorf("empty config template")
+		return template.New("").Parse("")
+		//return nil, fmt.Errorf("empty config template")
 	} else if len(tpl) == 0 {
 		bytes, err := os.ReadFile(path)
 		if err != nil {
@@ -800,6 +845,15 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 		ct.platformSet.Add(output)
 	}
 
+	// check if the config template is sort-style
+	if ct.Style == ConfigTemplateStyleSort {
+		if ct.SortGroup == "" {
+			return fmt.Errorf("sort-style config template should have sort_group attribute")
+		} else {
+			cfg.SorterConfigTemplateGroups.Add(ct.SortGroup)
+		}
+	}
+
 	// init parsed template object
 	path := ""
 	if ct.SourceFile != "" {
@@ -807,7 +861,7 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 	}
 	tpl, err := loadTemplate(ct.Template, path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load template %+v: %w", ct, err)
 	}
 	ct.ParsedTemplate = tpl
 
@@ -815,11 +869,14 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 }
 
 func LoadTemplates(cfg *Config) (*Config, error) {
+	// className is set only for LabelOwners, for checking config template conditions of classnames
 	for _, networkClass := range cfg.NetworkClasses {
 		for _, ct := range networkClass.ConfigTemplates {
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
+			ct.className = networkClass.Name
+			ct.classType = ClassTypeNetwork
 		}
 	}
 	for _, nc := range cfg.NodeClasses {
@@ -827,12 +884,16 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
+			ct.className = nc.Name
+			ct.classType = ClassTypeNode
 		}
 		for _, mc := range nc.MemberClasses {
 			for _, ct := range mc.ConfigTemplates {
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
+				ct.className = ""
+				ct.classType = ClassTypeMember(ClassTypeNode, "")
 			}
 		}
 	}
@@ -841,12 +902,16 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
+			ct.className = ic.Name
+			ct.classType = ClassTypeInterface
 		}
 		for _, nc := range ic.NeighborClasses {
 			for _, ct := range nc.ConfigTemplates {
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
+				ct.className = ""
+				ct.classType = ClassTypeNeighbor("")
 			}
 		}
 		for _, mc := range ic.MemberClasses {
@@ -854,6 +919,8 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
+				ct.className = ""
+				ct.classType = ClassTypeMember(ClassTypeInterface, "")
 			}
 		}
 	}
@@ -862,12 +929,16 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
+			ct.className = cc.Name
+			ct.classType = ClassTypeConnection
 		}
 		for _, nc := range cc.NeighborClasses {
 			for _, ct := range nc.ConfigTemplates {
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
+				ct.className = ""
+				ct.classType = ClassTypeNeighbor("")
 			}
 		}
 		for _, mc := range cc.MemberClasses {
@@ -875,6 +946,8 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
+				ct.className = ""
+				ct.classType = ClassTypeMember(ClassTypeConnection, "")
 			}
 		}
 	}

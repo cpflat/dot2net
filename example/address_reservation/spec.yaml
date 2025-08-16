@@ -61,32 +61,50 @@ node_configs:
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.1/32" -c "router bgp 65000" -c "bgp router-id 10.255.0.1" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
-      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.0.2/30" -c "router bgp 65000" -c "neighbor 10.0.0.1 remote-as 65004int up2" -c "ip addr 10.0.4.2/30" -c "router bgp 65000" -c "neighbor 10.0.4.1 remote-as 65005int dn1" -c "ip addr 10.0.0.1/30" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65006int dn2" -c "ip addr 10.0.0.5/30" -c "router bgp 65000" -c "neighbor 10.0.0.6 remote-as 65007"
+      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.0.2/30" -c "router bgp 65000" -c "neighbor 10.0.0.1 remote-as 65004"
+      - cmd: vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.4.2/30" -c "router bgp 65000" -c "neighbor 10.0.4.1 remote-as 65005"
+      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.1/30" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65006"
+      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.5/30" -c "router bgp 65000" -c "neighbor 10.0.0.6 remote-as 65007"
   - name: leaf2
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.2/32" -c "router bgp 65001" -c "bgp router-id 10.255.0.2" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
-      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.1.2/30" -c "router bgp 65001" -c "neighbor 10.0.1.1 remote-as 65004int up2" -c "ip addr 10.0.5.2/30" -c "router bgp 65001" -c "neighbor 10.0.5.1 remote-as 65005int dn1" -c "ip addr 10.0.0.9/30" -c "router bgp 65001" -c "neighbor 10.0.0.10 remote-as 65008int dn2" -c "ip addr 10.0.0.13/30" -c "router bgp 65001" -c "neighbor 10.0.0.14 remote-as 65009"
+      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.1.2/30" -c "router bgp 65001" -c "neighbor 10.0.1.1 remote-as 65004"
+      - cmd: vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.5.2/30" -c "router bgp 65001" -c "neighbor 10.0.5.1 remote-as 65005"
+      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.9/30" -c "router bgp 65001" -c "neighbor 10.0.0.10 remote-as 65008"
+      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.13/30" -c "router bgp 65001" -c "neighbor 10.0.0.14 remote-as 65009"
   - name: leaf3
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.3/32" -c "router bgp 65002" -c "bgp router-id 10.255.0.3" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
-      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.2.2/30" -c "router bgp 65002" -c "neighbor 10.0.2.1 remote-as 65004int up2" -c "ip addr 10.0.6.2/30" -c "router bgp 65002" -c "neighbor 10.0.6.1 remote-as 65005int dn1" -c "ip addr 10.0.0.17/30" -c "router bgp 65002" -c "neighbor 10.0.0.18 remote-as 65010int dn2" -c "ip addr 10.0.0.21/30" -c "router bgp 65002" -c "neighbor 10.0.0.22 remote-as 65011"
+      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.2.2/30" -c "router bgp 65002" -c "neighbor 10.0.2.1 remote-as 65004"
+      - cmd: vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.6.2/30" -c "router bgp 65002" -c "neighbor 10.0.6.1 remote-as 65005"
+      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.17/30" -c "router bgp 65002" -c "neighbor 10.0.0.18 remote-as 65010"
+      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.21/30" -c "router bgp 65002" -c "neighbor 10.0.0.22 remote-as 65011"
   - name: leaf4
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.4/32" -c "router bgp 65003" -c "bgp router-id 10.255.0.4" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
-      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.3.2/30" -c "router bgp 65003" -c "neighbor 10.0.3.1 remote-as 65004int up2" -c "ip addr 10.0.7.2/30" -c "router bgp 65003" -c "neighbor 10.0.7.1 remote-as 65005int dn1" -c "ip addr 10.0.0.25/30" -c "router bgp 65003" -c "neighbor 10.0.0.26 remote-as 65012int dn2" -c "ip addr 10.0.0.29/30" -c "router bgp 65003" -c "neighbor 10.0.0.30 remote-as 65013"
+      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.3.2/30" -c "router bgp 65003" -c "neighbor 10.0.3.1 remote-as 65004"
+      - cmd: vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.7.2/30" -c "router bgp 65003" -c "neighbor 10.0.7.1 remote-as 65005"
+      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.25/30" -c "router bgp 65003" -c "neighbor 10.0.0.26 remote-as 65012"
+      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.29/30" -c "router bgp 65003" -c "neighbor 10.0.0.30 remote-as 65013"
   - name: spine1
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.5/32" -c "router bgp 65004" -c "bgp router-id 10.255.0.5" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
-      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.1/30" -c "router bgp 65004" -c "neighbor 10.0.0.2 remote-as 65000int dn2" -c "ip addr 10.0.1.1/30" -c "router bgp 65004" -c "neighbor 10.0.1.2 remote-as 65001int dn3" -c "ip addr 10.0.2.1/30" -c "router bgp 65004" -c "neighbor 10.0.2.2 remote-as 65002int dn4" -c "ip addr 10.0.3.1/30" -c "router bgp 65004" -c "neighbor 10.0.3.2 remote-as 65003"
+      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.1/30" -c "router bgp 65004" -c "neighbor 10.0.0.2 remote-as 65000"
+      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.1.1/30" -c "router bgp 65004" -c "neighbor 10.0.1.2 remote-as 65001"
+      - cmd: vtysh -c "conf t" -c "int dn3" -c "ip addr 10.0.2.1/30" -c "router bgp 65004" -c "neighbor 10.0.2.2 remote-as 65002"
+      - cmd: vtysh -c "conf t" -c "int dn4" -c "ip addr 10.0.3.1/30" -c "router bgp 65004" -c "neighbor 10.0.3.2 remote-as 65003"
   - name: spine2
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.6/32" -c "router bgp 65005" -c "bgp router-id 10.255.0.6" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
-      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.4.1/30" -c "router bgp 65005" -c "neighbor 10.0.4.2 remote-as 65000int dn2" -c "ip addr 10.0.5.1/30" -c "router bgp 65005" -c "neighbor 10.0.5.2 remote-as 65001int dn3" -c "ip addr 10.0.6.1/30" -c "router bgp 65005" -c "neighbor 10.0.6.2 remote-as 65002int dn4" -c "ip addr 10.0.7.1/30" -c "router bgp 65005" -c "neighbor 10.0.7.2 remote-as 65003"
+      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.4.1/30" -c "router bgp 65005" -c "neighbor 10.0.4.2 remote-as 65000"
+      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.5.1/30" -c "router bgp 65005" -c "neighbor 10.0.5.2 remote-as 65001"
+      - cmd: vtysh -c "conf t" -c "int dn3" -c "ip addr 10.0.6.1/30" -c "router bgp 65005" -c "neighbor 10.0.6.2 remote-as 65002"
+      - cmd: vtysh -c "conf t" -c "int dn4" -c "ip addr 10.0.7.1/30" -c "router bgp 65005" -c "neighbor 10.0.7.2 remote-as 65003"
   - name: sv1
     cmds:
       - cmd: /usr/lib/frr/frr start

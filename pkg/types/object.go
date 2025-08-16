@@ -71,7 +71,7 @@ type ObjectInstance interface {
 }
 
 // NameSpacer is an element of top-down network model
-// A namespacer owns parameter namespace and generates configuration files
+// A namespacer owns parameter namespace and generates configuration blocks
 // Candidates: Network, Node, Interface, Neighbor, Member, Group
 type NameSpacer interface {
 	// Methods to trace top-down network model
@@ -94,6 +94,7 @@ type NameSpacer interface {
 	GetParamValue(string) (string, error)
 
 	GetConfigTemplates(cfg *Config) []*ConfigTemplate
+	GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate
 
 	ObjectInstance
 }
@@ -192,6 +193,9 @@ type LabelOwner interface {
 	HasClass(string) bool
 	GetClasses() []ObjectClass
 
+	SetVirtual(bool)
+	IsVirtual() bool
+
 	ClassDefinition(cfg *Config, cls string) (interface{}, error)
 
 	ObjectInstance
@@ -203,6 +207,7 @@ type ParsedLabels struct {
 	valueLabels     map[string]string
 	metaValueLabels map[string]string
 	Classes         []ObjectClass
+	virtual         bool // virtual object flag
 }
 
 func newParsedLabels() *ParsedLabels {
@@ -241,6 +246,14 @@ func (l *ParsedLabels) HasClass(name string) bool {
 
 func (l *ParsedLabels) GetClasses() []ObjectClass {
 	return l.Classes
+}
+
+func (l *ParsedLabels) SetVirtual(flag bool) {
+	l.virtual = flag
+}
+
+func (l *ParsedLabels) IsVirtual() bool {
+	return l.virtual
 }
 
 // classMemberReferer includes Node, Interface
@@ -522,6 +535,10 @@ func (nm *NetworkModel) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 	return configTemplates
 }
 
+func (nm *NetworkModel) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
+	return nm.GetConfigTemplates(cfg)
+}
+
 func (nm *NetworkModel) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
 	// global params (place lanels)
 	setGlobalParams(nm, globalParams)
@@ -619,32 +636,30 @@ func (nm *NetworkModel) MemberReferrers() (result []MemberReferrer) {
 	return result
 }
 
-func (nm *NetworkModel) StringAllObjectClasses(cfg *Config) string {
-	// network class
-	classNames := []string{}
-	//classes := []*NetworkClass{}
-	for _, cls := range nm.Classes {
-		classNames = append(classNames, cls.Name)
-		//classes = append(classes, cls)
-	}
-	ret := []string{
-		"Object Classes:",
-		//fmt.Sprintf(" %s: %v %v", nm.StringForMessage(), classNames, classes),
-		fmt.Sprintf(" %s: %v", nm.StringForMessage(), classNames),
-	}
-	// LabelOwners
-	for _, o := range nm.LabelOwners() {
-		//ret = append(ret, fmt.Sprintf(" %s %v %v", o.StringForMessage(), o.ClassLabels(), o.GetClasses()))
-		ret = append(ret, fmt.Sprintf(" %s %v", o.StringForMessage(), o.ClassLabels()))
-	}
-	return strings.Join(ret, "\n") + "\n"
-}
+//func (nm *NetworkModel) StringAllObjectClasses(cfg *Config) string {
+//	// network class
+//	classNames := []string{}
+//	for _, cls := range nm.Classes {
+//		classNames = append(classNames, cls.Name)
+//	}
+//	ret := []string{
+//		"Object Classes:",
+//		//fmt.Sprintf(" %s: %v %v", nm.StringForMessage(), classNames, classes),
+//		fmt.Sprintf(" %s: %v", nm.StringForMessage(), classNames),
+//	}
+//	// LabelOwners
+//	//for _, o := range nm.LabelOwners() {
+//	//	//ret = append(ret, fmt.Sprintf(" %s %v %v", o.StringForMessage(), o.ClassLabels(), o.GetClasses()))
+//	//	ret = append(ret, fmt.Sprintf(" %s %v", o.StringForMessage(), o.ClassLabels()))
+//	//}
+//	return strings.Join(ret, "\n") + "\n"
+//}
 
 type Node struct {
 	Name       string
 	Interfaces []*Interface
 	Groups     []*Group
-	Virtual    bool
+	//Virtual    bool
 	// Files      *ConfigFiles
 	TinetAttr *map[string]interface{}
 	ClabAttr  *map[string]interface{}
@@ -703,7 +718,7 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 		// check virtual
 		if nc.Virtual {
-			n.Virtual = true
+			n.SetVirtual(true)
 		}
 
 		// check ippolicy flags
@@ -778,7 +793,7 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 	}
 
-	if primaryNC == "" && !n.Virtual {
+	if primaryNC == "" && !n.IsVirtual() {
 		fmt.Fprintf(os.Stderr, "warning: no primary node class on node %s\n", n.Name)
 	}
 	return nil
@@ -859,7 +874,7 @@ func (n *Node) ChildClasses() ([]string, error) {
 			return nil, err
 		}
 		for _, cn := range classNames {
-			classes = append(classes, ClassTypeMember+"_"+classType+"_"+cn)
+			classes = append(classes, ClassTypeMember(classType, cn))
 		}
 	}
 	return classes, nil
@@ -868,12 +883,14 @@ func (n *Node) ChildClasses() ([]string, error) {
 func (n *Node) Childs(c string) ([]NameSpacer, error) {
 	objs := []NameSpacer{}
 	tmp := strings.SplitN(c, "_", 3) // Maximum 3 splits for Member
-	if tmp[0] == ClassTypeInterface {
+
+	switch tmp[0] {
+	case ClassTypeInterface:
 		for _, i := range n.Interfaces {
 			objs = append(objs, i)
 		}
 		return objs, nil
-	} else if tmp[0] == ClassTypeMember {
+	case ClassTypeMemberHeader:
 		classType := tmp[1]
 		className := tmp[2]
 		for _, m := range n.GetMembers() {
@@ -885,7 +902,7 @@ func (n *Node) Childs(c string) ([]NameSpacer, error) {
 			return nil, fmt.Errorf("no child objects that match %s", c)
 		}
 		return objs, nil
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid class type %s for node.Childs()", c)
 	}
 }
@@ -897,6 +914,14 @@ func (n *Node) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 		configTemplates = append(configTemplates, nc.ConfigTemplates...)
 	}
 	return configTemplates
+}
+
+func (n *Node) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
+	cts := []*ConfigTemplate{}
+	for _, nc := range cfg.NodeClasses {
+		cts = append(cts, nc.ConfigTemplates...)
+	}
+	return cts
 }
 
 // func (n *Node) setAwareLayers(aware []string, defaults []string, ignoreDefaults bool) {
@@ -1018,7 +1043,8 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 	primaryIC := ""
 
 	// set virtual flag to interfaces of virtual nodes as default
-	iface.Virtual = iface.Node.Virtual
+	iface.SetVirtual(iface.Node.IsVirtual())
+	//iface.Virtual = iface.Node.Virtual
 
 	// set defaults for interfaces without primary class
 	iface.NamePrefix = DefaultInterfacePrefix
@@ -1032,7 +1058,11 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 		nm.connectionClassMemberMap.addClassMember(cc.Name, iface)
 
 		// check virtual
-		iface.Virtual = iface.Virtual || cc.Virtual
+		//iface.Virtual = iface.Virtual || cc.Virtual
+		if cc.Virtual {
+			iface.SetVirtual(true)
+			iface.Connection.SetVirtual(true)
+		}
 
 		// check ippolicy flags
 		for _, p := range cc.IPPolicy {
@@ -1101,7 +1131,11 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 		nm.interfaceClassMemberMap.addClassMember(ic.Name, iface)
 
 		// check virtual
-		iface.Virtual = iface.Virtual || ic.Virtual
+		if ic.Virtual {
+			iface.SetVirtual(true)
+			iface.Connection.SetVirtual(true)
+		}
+		//iface.Virtual = iface.Virtual || ic.Virtual
 
 		// check ippolicy flags
 		for _, p := range ic.IPPolicy {
@@ -1171,7 +1205,7 @@ func (iface *Interface) StringForMessage() string {
 func (iface *Interface) ChildClasses() ([]string, error) {
 	classes := []string{}
 	for layer := range iface.Neighbors {
-		classes = append(classes, ClassTypeNeighbor+"_"+layer)
+		classes = append(classes, ClassTypeNeighbor(layer))
 	}
 	for _, mc := range iface.GetMemberClasses() {
 		classType, classNames, err := mc.GetSpecifiedClasses()
@@ -1179,7 +1213,7 @@ func (iface *Interface) ChildClasses() ([]string, error) {
 			return nil, err
 		}
 		for _, cn := range classNames {
-			classes = append(classes, ClassTypeMember+"_"+classType+"_"+cn)
+			classes = append(classes, ClassTypeMember(classType, cn))
 		}
 	}
 	return classes, nil
@@ -1188,13 +1222,14 @@ func (iface *Interface) ChildClasses() ([]string, error) {
 func (iface *Interface) Childs(c string) ([]NameSpacer, error) {
 	objs := []NameSpacer{}
 	tmp := strings.SplitN(c, "_", 3) // Maximum 3 splits for Member
-	if tmp[0] == ClassTypeNeighbor {
+	switch tmp[0] {
+	case ClassTypeNeighborHeader:
 		layer := tmp[1]
 		for _, iface := range iface.Neighbors[layer] {
 			objs = append(objs, iface)
 		}
 		return objs, nil
-	} else if tmp[0] == ClassTypeMember {
+	case ClassTypeMemberHeader:
 		classType := tmp[1]
 		className := tmp[2]
 		for _, m := range iface.GetMembers() {
@@ -1206,7 +1241,7 @@ func (iface *Interface) Childs(c string) ([]NameSpacer, error) {
 			return nil, fmt.Errorf("no child objects that match %s", c)
 		}
 		return objs, nil
-	} else {
+	default:
 		return nil, fmt.Errorf("invalid class type %s for interface.Childs()", c)
 	}
 }
@@ -1222,6 +1257,17 @@ func (iface *Interface) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 		configTemplates = append(configTemplates, ic.ConfigTemplates...)
 	}
 	return configTemplates
+}
+
+func (iface *Interface) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
+	cts := []*ConfigTemplate{}
+	for _, cc := range cfg.ConnectionClasses {
+		cts = append(cts, cc.ConfigTemplates...)
+	}
+	for _, ic := range cfg.InterfaceClasses {
+		cts = append(cts, ic.ConfigTemplates...)
+	}
+	return cts
 }
 
 func (iface *Interface) GivenIPAddress(layer Layerer) (string, bool) {
@@ -1441,6 +1487,10 @@ func (n *Neighbor) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 	return configTemplates
 }
 
+func (n *Neighbor) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
+	return n.GetConfigTemplates(cfg)
+}
+
 func (n *Neighbor) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
 
 	// global params (place lanels)
@@ -1505,12 +1555,21 @@ func (m *Member) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 	return configTemplates
 }
 
+func (m *Member) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
+	return m.GetConfigTemplates(cfg)
+}
+
 func (m *Member) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
 
 	// placelabels
 	setGlobalParams(m, globalParams)
 
 	mr := m.Referrer
+	mm := m.Member
+
+	//fmt.Printf("#MEMBER %s\n", m.StringForMessage())
+	//fmt.Printf("#referer %+v\n", mr.GetParams())
+	//fmt.Printf("#member %+v\n", mm.GetParams())
 
 	//switch m.ClassType {
 	//case: ClassTypeNode:
@@ -1531,10 +1590,12 @@ func (m *Member) BuildRelativeNameSpace(globalParams map[string]map[string]strin
 	}
 
 	// member parameters
-	for mkey, val := range m.GetParams() {
+	for mkey, val := range mm.GetParams() {
 		key := NumberPrefixMember + mkey
 		m.SetRelativeParam(key, val)
 	}
+
+	//fmt.Printf("#result %+v\n", m.relativeParams)
 
 	return nil
 }
@@ -1581,6 +1642,11 @@ func (g *Group) SetClasses(cfg *Config, nm *NetworkModel) error {
 		//		}
 		//		g.ParsedLabels.Classes = append(g.ParsedLabels.Classes, gc)
 
+		// set virtual
+		if gc.Virtual {
+			g.SetVirtual(true)
+		}
+
 		// check numbered
 		for _, num := range gc.Parameters {
 			g.setParamFlag(num)
@@ -1608,6 +1674,14 @@ func (g *Group) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 		configTemplates = append(configTemplates, gc.ConfigTemplates...)
 	}
 	return configTemplates
+}
+
+func (g *Group) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
+	cts := []*ConfigTemplate{}
+	for _, gc := range cfg.GroupClasses {
+		cts = append(cts, gc.ConfigTemplates...)
+	}
+	return cts
 }
 
 func (g *Group) ClassDefinition(cfg *Config, cls string) (interface{}, error) {

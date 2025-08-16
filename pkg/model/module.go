@@ -39,31 +39,31 @@ func LoadModules(cfg *types.Config) error {
 
 func getModuleNodeClassLabels(cfg *types.Config) []string {
 	ret := []string{}
-	for _, module := range cfg.LoadedModules {
-		ret = append(ret, module.GetModuleNodeClassLabels()...)
+	for _, mod := range cfg.LoadedModules {
+		ret = append(ret, mod.GetModuleNodeClassLabels()...)
 	}
 	return ret
 }
 
 func getModuleInterfaceClassLabels(cfg *types.Config) []string {
 	ret := []string{}
-	for _, module := range cfg.LoadedModules {
-		ret = append(ret, module.GetModuleInterfaceClassLabels()...)
+	for _, mod := range cfg.LoadedModules {
+		ret = append(ret, mod.GetModuleInterfaceClassLabels()...)
 	}
 	return ret
 }
 
 func getModuleConnectionClassLabels(cfg *types.Config) []string {
 	ret := []string{}
-	for _, module := range cfg.LoadedModules {
-		ret = append(ret, module.GetModuleConnectionClassLabels()...)
+	for _, mod := range cfg.LoadedModules {
+		ret = append(ret, mod.GetModuleConnectionClassLabels()...)
 	}
 	return ret
 }
 
 func generateModuleParameters(cfg *types.Config, nm *types.NetworkModel) error {
-	for _, module := range cfg.LoadedModules {
-		err := module.GenerateParameters(cfg, nm)
+	for _, mod := range cfg.LoadedModules {
+		err := mod.GenerateParameters(cfg, nm)
 		if err != nil {
 			return err
 		}
@@ -72,10 +72,10 @@ func generateModuleParameters(cfg *types.Config, nm *types.NetworkModel) error {
 }
 
 func checkModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
-	for _, module := range cfg.LoadedModules {
-		err := module.CheckModuleRequirements(cfg, nm)
+	for _, mod := range cfg.LoadedModules {
+		err := mod.CheckModuleRequirements(cfg, nm)
 		if err != nil {
-			return fmt.Errorf("module %T: %w", module, err)
+			return fmt.Errorf("module %T: %w", mod, err)
 		}
 	}
 	return nil
