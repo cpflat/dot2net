@@ -8,6 +8,10 @@ Dot2net currently supports [TiNET](https://github.com/tinynetwork/tinet)
 and [Containerlab](https://containerlab.dev/) as an emulation network platform. 
 
 
+dot2net Tutorial: [English](https://github.com/cpflat/dot2net-evaluation/tree/master/tutorial), [Japanese](https://github.com/cpflat/dot2net-evaluation/blob/master/tutorial/readme-ja.md)
+
+
+
 # Overview
 
 ![flow](image/flow.png)
@@ -279,10 +283,20 @@ which means you can set positive values to place configs on the tail and negativ
 
 # Reference
 
-This tool is demonstrated at [CNSM2023](https://doi.org/10.23919/CNSM59352.2023.10327865).
+This tool has been demonstrated at [IEEE Transactions on Network and Service Management](https://doi.org/10.1109/TNSM.2025.3582212) (Early Access) and [CNSM2023](https://doi.org/10.23919/CNSM59352.2023.10327865).
 
 If you use this code, consider citing:
 
+    @article{Kobayashi_dot2net2025,
+        author={Kobayashi, Satoru and Shiiba, Ryusei and Miwa, Shinsuke and Miyachi, Toshiyuki and Fukuda, Kensuke},
+        journal={IEEE Transactions on Network and Service Management}, 
+        title={Topology-Driven Configuration of Emulation Networks With Deterministic Templating}, 
+        volume={},
+        number={},
+        pages={1-14},
+        year={2025}
+    }
+    
     @inproceedings{Kobayashi_dot2net2023,
         author={Kobayashi, Satoru and Shiiba, Ryusei and Miura, Ryosuke and Miwa, Shinsuke and Miyachi, Toshiyuki and Fukuda, Kensuke},
         booktitle={19th International Conference on Network and Service Management (CNSM)}, 
