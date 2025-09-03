@@ -133,7 +133,7 @@ func (m *ClabModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 		}
 		node.AddParam(
 			ClabBindMountsParamName,
-			"    binds:\n      - "+strings.Join(bindItems, "\n      - ")+"\n",
+			"      - "+strings.Join(bindItems, "\n      - ")+"\n",
 		)
 	}
 

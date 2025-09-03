@@ -1,11 +1,14 @@
 module github.com/cpflat/dot2net
 
-go 1.18
+go 1.21
+
+toolchain go1.23.4
 
 require (
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/deckarep/golang-set/v2 v2.2.0
 	github.com/goccy/go-yaml v1.9.5
+	github.com/google/go-cmp v0.7.0
 	github.com/urfave/cli/v2 v2.11.1
 )
 

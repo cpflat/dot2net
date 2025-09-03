@@ -31,7 +31,7 @@ nodeclass:
     primary: true
     values:
       kind: linux
-      image: nicolaka/netshoot
+      image: quay.io/frrouting/frr:8.5.4
     policy: [lo]
     config:
       - file: daemons

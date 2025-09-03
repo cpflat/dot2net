@@ -1,5 +1,7 @@
     {{ .name }}:
       kind: {{ .kind }}
-      image: {{ .image }}{{ if .self_startup }}
+      image: {{ .image }}{{ if ._clab_bindMounts }}
+      binds:
+{{ ._clab_bindMounts }}{{end}}{{ if .self_startup }}
       exec:
 {{ .self_clab_cmds }}{{end}}
