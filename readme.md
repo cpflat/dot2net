@@ -4,12 +4,7 @@ Dot2net generates config files for large-scale emulation networks
 from a network topology (in DOT language) and configuration templates (in YAML).
 It automatically calculate and assign required parameters such as IP addresses to be embedded in the config,
 so you only need to modify the topology graph when you want to chenge the network layout.
-Dot2net currently supports [TiNET](https://github.com/tinynetwork/tinet)
-and [Containerlab](https://containerlab.dev/) as an emulation network platform. 
-
-
-dot2net Tutorial: [English](https://github.com/cpflat/dot2net-evaluation/tree/master/tutorial), [Japanese](https://github.com/cpflat/dot2net-evaluation/blob/master/tutorial/readme-ja.md)
-
+Dot2net currently supports [Containerlab](https://containerlab.dev/) and [TiNET](https://github.com/tinynetwork/tinet) as an emulation network platform. 
 
 
 # Overview
@@ -29,12 +24,14 @@ dot2net Tutorial: [English](https://github.com/cpflat/dot2net-evaluation/tree/ma
 
 ## Build on Docker
 
-    docker run --rm -i -t -v $PWD:/v -w /v golang:1.18 go build
+    docker run --rm -i -v $PWD:/v -w /v golang:1.23.4 go build -buildvcs=false
+
+## Generate configuration files with dot2net
+
+    // Generate spec.yaml if tinet module is loaded, and topo.yaml if clab module is loaded
+    dot2net build -c ./example/ospf_simple/input.yaml ./example/ospf_simple/input.dot
 
 ## Deploy a network with TiNET
-
-    // Generate tinet specification file
-    dot2net tinet -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > spec.yaml
     
     // Deploy
     tinet up -c spec.yaml | sudo sh -x
@@ -44,9 +41,6 @@ dot2net Tutorial: [English](https://github.com/cpflat/dot2net-evaluation/tree/ma
     tinet down -c spec.yaml | sudo sh -x
 
 ## Deploy a network with Containerlab
-
-    // Generate containerlab topology file
-    dot2net clab -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot > topo.yaml
     
     // Deploy
     sudo containerlab deploy --topo topo.yaml
@@ -58,7 +52,7 @@ dot2net Tutorial: [English](https://github.com/cpflat/dot2net-evaluation/tree/ma
 ## Show IPaddress assignment visualization
 
     // Generate DOT file of address assignment, and generate PDF of the DOT
-    dot2tinet visual -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot | dot -Tpdf > addr.pdf
+    dot2net visual -c ./example/ospf_simple/input.yaml ./example/ospf_simple/input.dot | dot -Tpdf > addr.pdf
 
 
 # DOT files

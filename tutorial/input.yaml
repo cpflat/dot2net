@@ -1,0 +1,65 @@
+name: tutorial
+
+global:
+  path: local
+
+module:
+  - tinet
+  - containerlab
+
+file:
+  - name: frr.conf
+    path: /etc/frr/frr.conf
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+      - name: lo
+        type: loopback
+        range: 10.0.255.0/24
+
+nodeclass:
+  - name: router
+    primary: true
+    values:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.4
+    policy: [lo]
+    config:
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      - file: frr.conf
+        template:
+          - "ip forwarding"
+          - "!"
+          - "router ospf"
+          - " ospf router-id {{ .ip_loopback }}"
+          - "{{ .interfaces_ospf_net }}"
+          - "!"
+          - "{{ .interfaces_ospf_addr }}"
+      - name: startup
+        template: []
+
+interfaceclass:
+  - name: default
+    primary: true
+    policy: [ip]
+    config:
+      - name: ospf_addr
+        template:
+          - "interface {{ .name }}"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - "!"
+      - name: ospf_net
+        template:
+          - " network {{ .ip_net }} area 0"
