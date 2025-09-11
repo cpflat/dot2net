@@ -1,0 +1,147 @@
+name: rip-topo1
+topology:
+  nodes:
+    r1:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - r1/zebra.conf:/etc/frr/zebra.conf
+      - r1/ripd.conf:/etc/frr/ripd.conf
+      - r1/staticd.conf:/etc/frr/staticd.conf
+      - r1/daemons:/etc/frr/daemons
+      - r1/vtysh.conf:/etc/frr/vtysh.conf
+      - r1/frr.log:/var/log/frr.log
+
+    r2:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - r2/zebra.conf:/etc/frr/zebra.conf
+      - r2/ripd.conf:/etc/frr/ripd.conf
+      - r2/staticd.conf:/etc/frr/staticd.conf
+      - r2/daemons:/etc/frr/daemons
+      - r2/vtysh.conf:/etc/frr/vtysh.conf
+      - r2/frr.log:/var/log/frr.log
+
+    r3:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - r3/zebra.conf:/etc/frr/zebra.conf
+      - r3/ripd.conf:/etc/frr/ripd.conf
+      - r3/staticd.conf:/etc/frr/staticd.conf
+      - r3/daemons:/etc/frr/daemons
+      - r3/vtysh.conf:/etc/frr/vtysh.conf
+      - r3/frr.log:/var/log/frr.log
+
+    sw1:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - sw1/zebra.conf:/etc/frr/zebra.conf
+      - sw1/ripd.conf:/etc/frr/ripd.conf
+      - sw1/staticd.conf:/etc/frr/staticd.conf
+      - sw1/daemons:/etc/frr/daemons
+      - sw1/vtysh.conf:/etc/frr/vtysh.conf
+      - sw1/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+    sw2:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - sw2/zebra.conf:/etc/frr/zebra.conf
+      - sw2/ripd.conf:/etc/frr/ripd.conf
+      - sw2/staticd.conf:/etc/frr/staticd.conf
+      - sw2/daemons:/etc/frr/daemons
+      - sw2/vtysh.conf:/etc/frr/vtysh.conf
+      - sw2/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+      - ip link set dev net1 promisc on
+      - ip link set dev net1 master br0
+    sw3:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - sw3/zebra.conf:/etc/frr/zebra.conf
+      - sw3/ripd.conf:/etc/frr/ripd.conf
+      - sw3/staticd.conf:/etc/frr/staticd.conf
+      - sw3/daemons:/etc/frr/daemons
+      - sw3/vtysh.conf:/etc/frr/vtysh.conf
+      - sw3/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+      - ip link set dev net1 promisc on
+      - ip link set dev net1 master br0
+    sw4:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - sw4/zebra.conf:/etc/frr/zebra.conf
+      - sw4/ripd.conf:/etc/frr/ripd.conf
+      - sw4/staticd.conf:/etc/frr/staticd.conf
+      - sw4/daemons:/etc/frr/daemons
+      - sw4/vtysh.conf:/etc/frr/vtysh.conf
+      - sw4/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+    sw5:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - sw5/zebra.conf:/etc/frr/zebra.conf
+      - sw5/ripd.conf:/etc/frr/ripd.conf
+      - sw5/staticd.conf:/etc/frr/staticd.conf
+      - sw5/daemons:/etc/frr/daemons
+      - sw5/vtysh.conf:/etc/frr/vtysh.conf
+      - sw5/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+    sw6:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - sw6/zebra.conf:/etc/frr/zebra.conf
+      - sw6/ripd.conf:/etc/frr/ripd.conf
+      - sw6/staticd.conf:/etc/frr/staticd.conf
+      - sw6/daemons:/etc/frr/daemons
+      - sw6/vtysh.conf:/etc/frr/vtysh.conf
+      - sw6/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+
+  links:
+  - endpoints: [r1:net0, sw1:net0]
+  - endpoints: [r1:net1, sw2:net0]
+  - endpoints: [r1:net2, sw5:net0]
+  - endpoints: [r1:net3, sw6:net0]
+  - endpoints: [r2:net0, sw2:net1]
+  - endpoints: [r2:net1, sw3:net0]
+  - endpoints: [r3:net0, sw3:net1]
+  - endpoints: [r3:net1, sw4:net0]
+  - endpoints: [v1:net0, sw4:net1]

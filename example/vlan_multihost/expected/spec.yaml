@@ -1,0 +1,66 @@
+nodes:
+  - name: r1
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r2#net0}, {name: net1, type: direct, args: r3#net0}]
+    mounts: [r1/frr.conf:/etc/frr/frr.conf, r1/daemons:/etc/frr/daemons, r1/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r2
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r1#net0}, {name: net1, type: direct, args: r4#net0}]
+    mounts: [r2/frr.conf:/etc/frr/frr.conf, r2/daemons:/etc/frr/daemons, r2/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r3
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r1#net1}, {name: net1, type: direct, args: r5#net0}, {name: net2, type: direct, args: sw1#net0}]
+    mounts: [r3/frr.conf:/etc/frr/frr.conf, r3/daemons:/etc/frr/daemons, r3/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r4
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r2#net1}, {name: net1, type: direct, args: r6#net0}]
+    mounts: [r4/frr.conf:/etc/frr/frr.conf, r4/daemons:/etc/frr/daemons, r4/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r5
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r3#net1}, {name: net1, type: direct, args: r6#net1}, {name: net2, type: direct, args: sw1#net1}]
+    mounts: [r5/frr.conf:/etc/frr/frr.conf, r5/daemons:/etc/frr/daemons, r5/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r6
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r4#net1}, {name: net1, type: direct, args: r5#net1}]
+    mounts: [r6/frr.conf:/etc/frr/frr.conf, r6/daemons:/etc/frr/daemons, r6/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r7
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: sw1#net2}]
+    mounts: [r7/frr.conf:/etc/frr/frr.conf, r7/daemons:/etc/frr/daemons, r7/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: sw1
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r3#net2}, {name: net1, type: direct, args: r5#net2}, {name: net2, type: direct, args: r7#net0}]
+    mounts: [sw1/frr.conf:/etc/frr/frr.conf, sw1/daemons:/etc/frr/daemons, sw1/vtysh.conf:/etc/frr/vtysh.conf]
+
+node_configs:
+  - name: r1
+    cmds:
+      - cmd: 
+  - name: r2
+    cmds:
+      - cmd: 
+  - name: r3
+    cmds:
+      - cmd: 
+  - name: r4
+    cmds:
+      - cmd: 
+  - name: r5
+    cmds:
+      - cmd: 
+  - name: r6
+    cmds:
+      - cmd: 
+  - name: r7
+    cmds:
+      - cmd: 
+  - name: sw1
+    cmds:
+      - cmd: ip link add br0 type bridge
+      - cmd: ip link set br0 up
+      - cmd: ip link set dev net0 promisc on
+      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev net1 promisc on
+      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev net2 promisc on
+      - cmd: ip link set dev net2 master br0

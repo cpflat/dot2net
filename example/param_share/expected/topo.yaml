@@ -1,0 +1,61 @@
+name: ospf_simple
+topology:
+  nodes:
+    r1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r1/frr.conf:/etc/frr/frr.conf
+      - r1/daemons:/etc/frr/daemons
+      - r1/vtysh.conf:/etc/frr/vtysh.conf
+
+    r2:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r2/frr.conf:/etc/frr/frr.conf
+      - r2/daemons:/etc/frr/daemons
+      - r2/vtysh.conf:/etc/frr/vtysh.conf
+
+    r3:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r3/frr.conf:/etc/frr/frr.conf
+      - r3/daemons:/etc/frr/daemons
+      - r3/vtysh.conf:/etc/frr/vtysh.conf
+
+    sw1:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - sw1/frr.conf:/etc/frr/frr.conf
+      - sw1/daemons:/etc/frr/daemons
+      - sw1/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+      - ip link set dev net1 promisc on
+      - ip link set dev net1 master br0
+    sw2:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - sw2/frr.conf:/etc/frr/frr.conf
+      - sw2/daemons:/etc/frr/daemons
+      - sw2/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+
+  links:
+  - endpoints: [r1:net0, r2:net0]
+  - endpoints: [r2:net1, sw1:net0]
+  - endpoints: [sw1:net1, r3:net0]
+  - endpoints: [r3:net1, sw2:net0]

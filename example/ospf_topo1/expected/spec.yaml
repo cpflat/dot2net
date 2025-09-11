@@ -1,0 +1,97 @@
+nodes:
+  - name: r1
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: s1#net0}, {name: net1, type: direct, args: s3#net0}]
+    mounts: [r1/zebra.conf:/etc/frr/zebra.conf, r1/ospfd.conf:/etc/frr/ospfd.conf, r1/ospf6d.conf:/etc/frr/ospf6d.conf, r1/daemons:/etc/frr/daemons, r1/vtysh.conf:/etc/frr/vtysh.conf, r1/frr.log:/var/log/frr.log]
+  - name: r2
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: s2#net0}, {name: net1, type: direct, args: s3#net1}]
+    mounts: [r2/zebra.conf:/etc/frr/zebra.conf, r2/ospfd.conf:/etc/frr/ospfd.conf, r2/ospf6d.conf:/etc/frr/ospf6d.conf, r2/daemons:/etc/frr/daemons, r2/vtysh.conf:/etc/frr/vtysh.conf, r2/frr.log:/var/log/frr.log]
+  - name: r3
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: s3#net2}, {name: net1, type: direct, args: s4#net0}, {name: net2, type: direct, args: s5#net0}]
+    mounts: [r3/zebra.conf:/etc/frr/zebra.conf, r3/ospfd.conf:/etc/frr/ospfd.conf, r3/ospf6d.conf:/etc/frr/ospf6d.conf, r3/daemons:/etc/frr/daemons, r3/vtysh.conf:/etc/frr/vtysh.conf, r3/frr.log:/var/log/frr.log]
+  - name: r4
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: s5#net1}, {name: net1, type: direct, args: s6#net0}]
+    mounts: [r4/zebra.conf:/etc/frr/zebra.conf, r4/ospfd.conf:/etc/frr/ospfd.conf, r4/ospf6d.conf:/etc/frr/ospf6d.conf, r4/daemons:/etc/frr/daemons, r4/vtysh.conf:/etc/frr/vtysh.conf, r4/frr.log:/var/log/frr.log]
+  - name: s1
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r1#net0}]
+    mounts: [s1/zebra.conf:/etc/frr/zebra.conf, s1/ospfd.conf:/etc/frr/ospfd.conf, s1/ospf6d.conf:/etc/frr/ospf6d.conf, s1/daemons:/etc/frr/daemons, s1/vtysh.conf:/etc/frr/vtysh.conf, s1/frr.log:/var/log/frr.log]
+  - name: s2
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r2#net0}]
+    mounts: [s2/zebra.conf:/etc/frr/zebra.conf, s2/ospfd.conf:/etc/frr/ospfd.conf, s2/ospf6d.conf:/etc/frr/ospf6d.conf, s2/daemons:/etc/frr/daemons, s2/vtysh.conf:/etc/frr/vtysh.conf, s2/frr.log:/var/log/frr.log]
+  - name: s3
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r1#net1}, {name: net1, type: direct, args: r2#net1}, {name: net2, type: direct, args: r3#net0}]
+    mounts: [s3/zebra.conf:/etc/frr/zebra.conf, s3/ospfd.conf:/etc/frr/ospfd.conf, s3/ospf6d.conf:/etc/frr/ospf6d.conf, s3/daemons:/etc/frr/daemons, s3/vtysh.conf:/etc/frr/vtysh.conf, s3/frr.log:/var/log/frr.log]
+  - name: s4
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r3#net1}]
+    mounts: [s4/zebra.conf:/etc/frr/zebra.conf, s4/ospfd.conf:/etc/frr/ospfd.conf, s4/ospf6d.conf:/etc/frr/ospf6d.conf, s4/daemons:/etc/frr/daemons, s4/vtysh.conf:/etc/frr/vtysh.conf, s4/frr.log:/var/log/frr.log]
+  - name: s5
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r3#net2}, {name: net1, type: direct, args: r4#net0}]
+    mounts: [s5/zebra.conf:/etc/frr/zebra.conf, s5/ospfd.conf:/etc/frr/ospfd.conf, s5/ospf6d.conf:/etc/frr/ospf6d.conf, s5/daemons:/etc/frr/daemons, s5/vtysh.conf:/etc/frr/vtysh.conf, s5/frr.log:/var/log/frr.log]
+  - name: s6
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r4#net1}]
+    mounts: [s6/zebra.conf:/etc/frr/zebra.conf, s6/ospfd.conf:/etc/frr/ospfd.conf, s6/ospf6d.conf:/etc/frr/ospf6d.conf, s6/daemons:/etc/frr/daemons, s6/vtysh.conf:/etc/frr/vtysh.conf, s6/frr.log:/var/log/frr.log]
+
+node_configs:
+  - name: r1
+    cmds:
+      - cmd: chown frr:frr /var/log/frr.log
+  - name: r2
+    cmds:
+      - cmd: chown frr:frr /var/log/frr.log
+  - name: r3
+    cmds:
+      - cmd: chown frr:frr /var/log/frr.log
+  - name: r4
+    cmds:
+      - cmd: chown frr:frr /var/log/frr.log
+  - name: s1
+    cmds:
+      - cmd: ip link add br0 type bridge
+      - cmd: ip link set br0 up
+      - cmd: ip link set dev net0 promisc on
+      - cmd: ip link set dev net0 master br0
+  - name: s2
+    cmds:
+      - cmd: ip link add br0 type bridge
+      - cmd: ip link set br0 up
+      - cmd: ip link set dev net0 promisc on
+      - cmd: ip link set dev net0 master br0
+  - name: s3
+    cmds:
+      - cmd: ip link add br0 type bridge
+      - cmd: ip link set br0 up
+      - cmd: ip link set dev net0 promisc on
+      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev net1 promisc on
+      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev net2 promisc on
+      - cmd: ip link set dev net2 master br0
+  - name: s4
+    cmds:
+      - cmd: ip link add br0 type bridge
+      - cmd: ip link set br0 up
+      - cmd: ip link set dev net0 promisc on
+      - cmd: ip link set dev net0 master br0
+  - name: s5
+    cmds:
+      - cmd: ip link add br0 type bridge
+      - cmd: ip link set br0 up
+      - cmd: ip link set dev net0 promisc on
+      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev net1 promisc on
+      - cmd: ip link set dev net1 master br0
+  - name: s6
+    cmds:
+      - cmd: ip link add br0 type bridge
+      - cmd: ip link set br0 up
+      - cmd: ip link set dev net0 promisc on
+      - cmd: ip link set dev net0 master br0

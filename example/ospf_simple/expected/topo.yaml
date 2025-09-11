@@ -1,0 +1,31 @@
+name: ospf_simple
+topology:
+  nodes:
+    r1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.4
+      binds:
+      - r1/frr.conf:/etc/frr/frr.conf
+      - r1/daemons:/etc/frr/daemons
+      - r1/vtysh.conf:/etc/frr/vtysh.conf
+
+    r2:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.4
+      binds:
+      - r2/frr.conf:/etc/frr/frr.conf
+      - r2/daemons:/etc/frr/daemons
+      - r2/vtysh.conf:/etc/frr/vtysh.conf
+
+    r3:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.4
+      binds:
+      - r3/frr.conf:/etc/frr/frr.conf
+      - r3/daemons:/etc/frr/daemons
+      - r3/vtysh.conf:/etc/frr/vtysh.conf
+
+
+  links:
+  - endpoints: [r1:net0, r2:net0]
+  - endpoints: [r2:net1, r3:net0]

@@ -1,0 +1,198 @@
+name: ospf
+topology:
+  nodes:
+    r1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r1/daemons:/etc/frr/daemons
+      - r1/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - sysctl -w net.ipv6.conf.all.forwarding=1
+      - sysctl -w net.ipv6.conf.all.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.all.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.all.rp_filter=0
+      - sysctl -w net.ipv6.conf.default.forwarding=1
+      - sysctl -w net.ipv6.conf.default.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.default.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.default.rp_filter=0
+      - sysctl -w net.ipv6.conf.net0.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net0.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net0.rp_filter=0
+      - sysctl -w net.ipv6.conf.net1.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net1.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net1.rp_filter=0
+      - sysctl -w net.ipv6.conf.net2.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net2.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net2.rp_filter=0
+      - ip -6 addr add fd00:1234::1/64 dev net0
+      - ip -6 addr add fd00:1234:0:1::1/64 dev net1
+      - ip -6 addr add fd00:1234:0:2::2/64 dev net2
+      - vtysh -c "conf t" -c "router ospf6" -c "ospf6 router-id 10.255.0.1"
+      - vtysh -c "conf t" -c "interface net0" -c "ipv6 ospf6 area 0.0.0.0"
+      - vtysh -c "conf t" -c "interface net1" -c "ipv6 ospf6 area 0.0.0.0"
+      - vtysh -c "conf t" -c "interface net2" -c "ipv6 ospf6 area 0.0.0.0"
+    r2:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r2/daemons:/etc/frr/daemons
+      - r2/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - sysctl -w net.ipv6.conf.all.forwarding=1
+      - sysctl -w net.ipv6.conf.all.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.all.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.all.rp_filter=0
+      - sysctl -w net.ipv6.conf.default.forwarding=1
+      - sysctl -w net.ipv6.conf.default.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.default.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.default.rp_filter=0
+      - sysctl -w net.ipv6.conf.net0.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net0.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net0.rp_filter=0
+      - sysctl -w net.ipv6.conf.net1.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net1.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net1.rp_filter=0
+      - ip -6 addr add fd00:1234::2/64 dev net0
+      - ip -6 addr add fd00:1234:0:3::1/64 dev net1
+      - vtysh -c "conf t" -c "router ospf6" -c "ospf6 router-id 10.255.0.2"
+      - vtysh -c "conf t" -c "interface net0" -c "ipv6 ospf6 area 0.0.0.0"
+      - vtysh -c "conf t" -c "interface net1" -c "ipv6 ospf6 area 0.0.0.0"
+    r3:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r3/daemons:/etc/frr/daemons
+      - r3/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - sysctl -w net.ipv6.conf.all.forwarding=1
+      - sysctl -w net.ipv6.conf.all.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.all.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.all.rp_filter=0
+      - sysctl -w net.ipv6.conf.default.forwarding=1
+      - sysctl -w net.ipv6.conf.default.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.default.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.default.rp_filter=0
+      - sysctl -w net.ipv6.conf.net0.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net0.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net0.rp_filter=0
+      - sysctl -w net.ipv6.conf.net1.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net1.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net1.rp_filter=0
+      - sysctl -w net.ipv6.conf.net2.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net2.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net2.rp_filter=0
+      - ip -6 addr add fd00:1234:0:1::2/64 dev net0
+      - ip -6 addr add fd00:1234:0:4::1/64 dev net1
+      - ip -6 addr add fd00:1234:0:5::2/64 dev net2
+      - vtysh -c "conf t" -c "router ospf6" -c "ospf6 router-id 10.255.0.3"
+      - vtysh -c "conf t" -c "interface net0" -c "ipv6 ospf6 area 0.0.0.0"
+      - vtysh -c "conf t" -c "interface net1" -c "ipv6 ospf6 area 0.0.0.0"
+      - vtysh -c "conf t" -c "interface net2" -c "ipv6 ospf6 area 0.0.0.0"
+    r4:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r4/daemons:/etc/frr/daemons
+      - r4/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - sysctl -w net.ipv6.conf.all.forwarding=1
+      - sysctl -w net.ipv6.conf.all.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.all.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.all.rp_filter=0
+      - sysctl -w net.ipv6.conf.default.forwarding=1
+      - sysctl -w net.ipv6.conf.default.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.default.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.default.rp_filter=0
+      - sysctl -w net.ipv6.conf.net0.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net0.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net0.rp_filter=0
+      - sysctl -w net.ipv6.conf.net1.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net1.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net1.rp_filter=0
+      - sysctl -w net.ipv6.conf.net2.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net2.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net2.rp_filter=0
+      - ip -6 addr add fd00:1234:0:3::2/64 dev net0
+      - ip -6 addr add fd00:1234:0:4::2/64 dev net1
+      - ip -6 addr add fd00:1234:0:6::2/64 dev net2
+      - vtysh -c "conf t" -c "router ospf6" -c "ospf6 router-id 10.255.0.4"
+      - vtysh -c "conf t" -c "interface net0" -c "ipv6 ospf6 area 0.0.0.0"
+      - vtysh -c "conf t" -c "interface net1" -c "ipv6 ospf6 area 0.0.0.0"
+      - vtysh -c "conf t" -c "interface net2" -c "ipv6 ospf6 area 0.0.0.0"
+    s1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - s1/daemons:/etc/frr/daemons
+      - s1/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - sysctl -w net.ipv6.conf.all.forwarding=1
+      - sysctl -w net.ipv6.conf.all.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.all.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.all.rp_filter=0
+      - sysctl -w net.ipv6.conf.default.forwarding=1
+      - sysctl -w net.ipv6.conf.default.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.default.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.default.rp_filter=0
+      - sysctl -w net.ipv6.conf.net0.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net0.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net0.rp_filter=0
+      - ip -6 addr add fd00:1234:0:2::1/64 dev net0
+      - ip -6 route replace default via fd00:1234:0:2::2
+    s3:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - s3/daemons:/etc/frr/daemons
+      - s3/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - sysctl -w net.ipv6.conf.all.forwarding=1
+      - sysctl -w net.ipv6.conf.all.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.all.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.all.rp_filter=0
+      - sysctl -w net.ipv6.conf.default.forwarding=1
+      - sysctl -w net.ipv6.conf.default.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.default.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.default.rp_filter=0
+      - sysctl -w net.ipv6.conf.net0.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net0.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net0.rp_filter=0
+      - ip -6 addr add fd00:1234:0:5::1/64 dev net0
+      - ip -6 route replace default via fd00:1234:0:5::2
+    s4:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - s4/daemons:/etc/frr/daemons
+      - s4/vtysh.conf:/etc/frr/vtysh.conf
+
+      exec:
+      - sysctl -w net.ipv6.conf.all.forwarding=1
+      - sysctl -w net.ipv6.conf.all.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.all.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.all.rp_filter=0
+      - sysctl -w net.ipv6.conf.default.forwarding=1
+      - sysctl -w net.ipv6.conf.default.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.default.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.default.rp_filter=0
+      - sysctl -w net.ipv6.conf.net0.disable_ipv6=0
+      - sysctl -w net.ipv6.conf.net0.seg6_enabled=1
+      - sysctl -w net.ipv4.conf.net0.rp_filter=0
+      - ip -6 addr add fd00:1234:0:6::1/64 dev net0
+      - ip -6 route replace default via fd00:1234:0:6::2
+
+  links:
+  - endpoints: [r1:net0, r2:net0]
+  - endpoints: [r1:net1, r3:net0]
+  - endpoints: [s1:net0, r1:net2]
+  - endpoints: [r2:net1, r4:net0]
+  - endpoints: [r3:net1, r4:net1]
+  - endpoints: [s3:net0, r3:net2]
+  - endpoints: [s4:net0, r4:net2]

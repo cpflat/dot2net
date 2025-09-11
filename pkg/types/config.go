@@ -320,7 +320,13 @@ type FileDefinition struct {
 	Format  string   `yaml:"format" mapstructure:"format"`
 	Formats []string `yaml:"formats,flow" mapstructure:"formats,flow"`
 	// Scope specifies the scope of file creation.
-	// For example, if Scope = "node", the file is created for each node.
+	// Available values:
+	//   - "network": File is created at network level (root directory)
+	//   - "node": File is created for each node (node_name/file_name)
+	//   - "" (empty): Defaults to "node" scope for backward compatibility
+	// Examples:
+	//   - Scope = "network": Creates "spec.yaml", "topo.yaml" at root
+	//   - Scope = "node" or "": Creates "r1/frr.conf", "r2/frr.conf", etc.
 	Scope string `yaml:"scope" mapstructure:"scope"`
 	//// Shared flag is used to determine the file is shared among nodes or not.
 	//// If true, the file is placed on the same directory as primary config file. -> To be removed

@@ -1,5 +1,5 @@
 vlan 101 for r5.net0
 connection name conn3 next to r5.net0
-vlan 102 for r5.net2
 connection name conn6 next to r5.net1
+vlan 102 for r5.net2
 connection name conn7 next to r5.net2

@@ -1,0 +1,154 @@
+name: bgp_evpn_vxlan_topo1
+topology:
+  nodes:
+    host1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - host1/zebra.conf:/etc/frr/zebra.conf
+      - host1/bgpd.conf:/etc/frr/bgpd.conf
+      - host1/ospfd.conf:/etc/frr/ospfd.conf
+      - host1/daemons:/etc/frr/daemons
+      - host1/vtysh.conf:/etc/frr/vtysh.conf
+      - host1/frr.log:/var/log/frr.log
+
+      exec:
+      - chown frr:frr /var/log/frr.log
+    host2:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - host2/zebra.conf:/etc/frr/zebra.conf
+      - host2/bgpd.conf:/etc/frr/bgpd.conf
+      - host2/ospfd.conf:/etc/frr/ospfd.conf
+      - host2/daemons:/etc/frr/daemons
+      - host2/vtysh.conf:/etc/frr/vtysh.conf
+      - host2/frr.log:/var/log/frr.log
+
+      exec:
+      - chown frr:frr /var/log/frr.log
+    p1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - p1/zebra.conf:/etc/frr/zebra.conf
+      - p1/bgpd.conf:/etc/frr/bgpd.conf
+      - p1/ospfd.conf:/etc/frr/ospfd.conf
+      - p1/daemons:/etc/frr/daemons
+      - p1/vtysh.conf:/etc/frr/vtysh.conf
+      - p1/frr.log:/var/log/frr.log
+
+      exec:
+      - chown frr:frr /var/log/frr.log
+      - sysctl -w net.ipv4.ip_forward=1
+    pe1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - pe1/zebra.conf:/etc/frr/zebra.conf
+      - pe1/bgpd.conf:/etc/frr/bgpd.conf
+      - pe1/ospfd.conf:/etc/frr/ospfd.conf
+      - pe1/daemons:/etc/frr/daemons
+      - pe1/vtysh.conf:/etc/frr/vtysh.conf
+      - pe1/frr.log:/var/log/frr.log
+
+      exec:
+      - chown frr:frr /var/log/frr.log
+      - sysctl -w net.ipv4.ip_forward=1
+    pe2:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - pe2/zebra.conf:/etc/frr/zebra.conf
+      - pe2/bgpd.conf:/etc/frr/bgpd.conf
+      - pe2/ospfd.conf:/etc/frr/ospfd.conf
+      - pe2/daemons:/etc/frr/daemons
+      - pe2/vtysh.conf:/etc/frr/vtysh.conf
+      - pe2/frr.log:/var/log/frr.log
+
+      exec:
+      - chown frr:frr /var/log/frr.log
+      - sysctl -w net.ipv4.ip_forward=1
+    s1:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - s1/zebra.conf:/etc/frr/zebra.conf
+      - s1/bgpd.conf:/etc/frr/bgpd.conf
+      - s1/ospfd.conf:/etc/frr/ospfd.conf
+      - s1/daemons:/etc/frr/daemons
+      - s1/vtysh.conf:/etc/frr/vtysh.conf
+      - s1/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+      - ip link set dev net1 promisc on
+      - ip link set dev net1 master br0
+    s2:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - s2/zebra.conf:/etc/frr/zebra.conf
+      - s2/bgpd.conf:/etc/frr/bgpd.conf
+      - s2/ospfd.conf:/etc/frr/ospfd.conf
+      - s2/daemons:/etc/frr/daemons
+      - s2/vtysh.conf:/etc/frr/vtysh.conf
+      - s2/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+      - ip link set dev net1 promisc on
+      - ip link set dev net1 master br0
+    s3:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - s3/zebra.conf:/etc/frr/zebra.conf
+      - s3/bgpd.conf:/etc/frr/bgpd.conf
+      - s3/ospfd.conf:/etc/frr/ospfd.conf
+      - s3/daemons:/etc/frr/daemons
+      - s3/vtysh.conf:/etc/frr/vtysh.conf
+      - s3/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+      - ip link set dev net1 promisc on
+      - ip link set dev net1 master br0
+    s4:
+      kind: linux
+      image: nicolaka/netshoot
+      binds:
+      - s4/zebra.conf:/etc/frr/zebra.conf
+      - s4/bgpd.conf:/etc/frr/bgpd.conf
+      - s4/ospfd.conf:/etc/frr/ospfd.conf
+      - s4/daemons:/etc/frr/daemons
+      - s4/vtysh.conf:/etc/frr/vtysh.conf
+      - s4/frr.log:/var/log/frr.log
+
+      exec:
+      - ip link add br0 type bridge
+      - ip link set br0 up
+      - ip link set dev net0 promisc on
+      - ip link set dev net0 master br0
+      - ip link set dev net1 promisc on
+      - ip link set dev net1 master br0
+
+  links:
+  - endpoints: [host1:net0, s1:net0]
+  - endpoints: [host2:net0, s4:net0]
+  - endpoints: [p1:net0, s2:net0]
+  - endpoints: [p1:net1, s3:net0]
+  - endpoints: [pe1:br101, pe2:br101]
+  - endpoints: [pe1:net0, s1:net1]
+  - endpoints: [pe1:net1, s2:net1]
+  - endpoints: [pe2:net0, s3:net1]
+  - endpoints: [pe2:net1, s4:net1]

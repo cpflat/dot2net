@@ -1,0 +1,80 @@
+nodes:
+  - name: r1
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r2#net0}, {name: net1, type: direct, args: r3#net0}, {name: net2, type: direct, args: s1#net0}]
+    mounts: [r1/daemons:/etc/frr/daemons, r1/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r2
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r1#net0}, {name: net1, type: direct, args: r4#net0}]
+    mounts: [r2/daemons:/etc/frr/daemons, r2/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r3
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r1#net1}, {name: net1, type: direct, args: r4#net1}, {name: net2, type: direct, args: s3#net0}]
+    mounts: [r3/daemons:/etc/frr/daemons, r3/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r4
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: r2#net1}, {name: net1, type: direct, args: r3#net1}, {name: net2, type: direct, args: s4#net0}]
+    mounts: [r4/daemons:/etc/frr/daemons, r4/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: s1
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r1#net2}]
+    mounts: [s1/daemons:/etc/frr/daemons, s1/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: s3
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r3#net2}]
+    mounts: [s3/daemons:/etc/frr/daemons, s3/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: s4
+    image: nicolaka/netshoot
+    interfaces: [{name: net0, type: direct, args: r4#net2}]
+    mounts: [s4/daemons:/etc/frr/daemons, s4/vtysh.conf:/etc/frr/vtysh.conf]
+
+node_configs:
+  - name: r1
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: ip addr add 10.0.0.1/30 dev net0
+      - cmd: ip addr add 10.0.0.5/30 dev net1
+      - cmd: ip addr add 10.0.0.10/30 dev net2
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.0/30 area 0"
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.4/30 area 0"
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.8/30 area 0"
+  - name: r2
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: ip addr add 10.0.0.2/30 dev net0
+      - cmd: ip addr add 10.0.0.13/30 dev net1
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.0/30 area 0"
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.12/30 area 0"
+  - name: r3
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: ip addr add 10.0.0.6/30 dev net0
+      - cmd: ip addr add 10.0.0.17/30 dev net1
+      - cmd: ip addr add 10.0.0.22/30 dev net2
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.4/30 area 0"
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.16/30 area 0"
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.20/30 area 0"
+  - name: r4
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: ip addr add 10.0.0.14/30 dev net0
+      - cmd: ip addr add 10.0.0.18/30 dev net1
+      - cmd: ip addr add 10.0.0.26/30 dev net2
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.12/30 area 0"
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.16/30 area 0"
+      - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.24/30 area 0"
+  - name: s1
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: ip addr add 10.0.0.9/30 dev net0
+      - cmd: ip route replace default via 10.0.0.10
+  - name: s3
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: ip addr add 10.0.0.21/30 dev net0
+      - cmd: ip route replace default via 10.0.0.22
+  - name: s4
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: ip addr add 10.0.0.25/30 dev net0
+      - cmd: ip route replace default via 10.0.0.26

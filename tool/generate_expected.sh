@@ -21,26 +21,53 @@ if [ ! -f "$DOT2NET_BIN" ]; then
     exit 1
 fi
 
-# Find all scenarios with input.dot and input.yaml
-scenarios=()
-for dir in "$EXAMPLE_DIR"/*; do
-    if [ -d "$dir" ]; then
-        scenario_name=$(basename "$dir")
-        dot_file="$dir/input.dot"
-        yaml_file="$dir/input.yaml"
-        
-        if [ -f "$dot_file" ] && [ -f "$yaml_file" ]; then
-            scenarios+=("$scenario_name")
-        fi
+# Check if specific scenario is provided as argument
+if [ $# -eq 1 ]; then
+    # Single scenario specified
+    target_scenario="$1"
+    scenario_dir="$EXAMPLE_DIR/$target_scenario"
+    
+    if [ ! -d "$scenario_dir" ]; then
+        echo "Error: Scenario directory '$scenario_dir' not found"
+        exit 1
     fi
-done
+    
+    dot_file="$scenario_dir/input.dot"
+    yaml_file="$scenario_dir/input.yaml"
+    
+    if [ ! -f "$dot_file" ] || [ ! -f "$yaml_file" ]; then
+        echo "Error: Scenario '$target_scenario' missing input.dot or input.yaml"
+        exit 1
+    fi
+    
+    scenarios=("$target_scenario")
+    echo "Processing single scenario: $target_scenario"
+elif [ $# -eq 0 ]; then
+    # Find all scenarios with input.dot and input.yaml
+    scenarios=()
+    for dir in "$EXAMPLE_DIR"/*; do
+        if [ -d "$dir" ]; then
+            scenario_name=$(basename "$dir")
+            dot_file="$dir/input.dot"
+            yaml_file="$dir/input.yaml"
+            
+            if [ -f "$dot_file" ] && [ -f "$yaml_file" ]; then
+                scenarios+=("$scenario_name")
+            fi
+        fi
+    done
 
-if [ ${#scenarios[@]} -eq 0 ]; then
-    echo "Error: No valid scenarios found with input.dot and input.yaml"
+    if [ ${#scenarios[@]} -eq 0 ]; then
+        echo "Error: No valid scenarios found with input.dot and input.yaml"
+        exit 1
+    fi
+
+    echo "Found ${#scenarios[@]} scenarios: ${scenarios[*]}"
+else
+    echo "Usage: $0 [scenario_name]"
+    echo "  If no scenario_name is provided, all scenarios will be processed"
     exit 1
 fi
-
-echo "Found ${#scenarios[@]} scenarios: ${scenarios[*]}"
 echo
 
 # Process each scenario
@@ -72,23 +99,56 @@ for scenario in "${scenarios[@]}"; do
     
     # Change to temp directory and run dot2net
     cd "$temp_dir"
+    
+    echo "  Getting list of files that will be generated..."
+    # Get list of files that would be generated
+    generated_files=$("$DOT2NET_BIN" files -c input.yaml input.dot)
+    
     echo "  Running dot2net build..."
     "$DOT2NET_BIN" build -c input.yaml input.dot
     
-    # Remove the original input and template files from temp directory
-    # Keep only the generated output files
+    # Remove all files except the generated ones
+    # First, remove input files
     rm -f input.dot input.yaml
-    # Remove other template files that were copied
+    
+    # Remove template files that were copied from scenario directory
     for file in "$scenario_dir"/*; do
         if [ -f "$file" ]; then
             filename=$(basename "$file")
-            if [[ "$filename" != "input.dot" && "$filename" != "input.yaml" && 
-                  "$filename" != *.legacy && "$filename" != *.bak && 
-                  "$filename" != *.pdf ]]; then
-                rm -f "$temp_dir/$filename" 2>/dev/null || true
+            # Skip input files (already removed) and generated outputs
+            case "$filename" in
+                "input.dot"|"input.yaml"|*.legacy|*.bak|*.pdf)
+                    rm -f "$temp_dir/$filename" 2>/dev/null || true
+                    ;;
+            esac
+        fi
+    done
+    
+    # Keep only the files that were supposed to be generated
+    # Create a temporary list of files to keep
+    echo "$generated_files" > expected_files.txt
+    
+    # Remove any files/directories not in the generated list
+    for item in *; do
+        if [ -f "$item" ] || [ -d "$item" ]; then
+            # Check if this item (or any file within it) is in the expected list
+            found=false
+            while IFS= read -r expected_file; do
+                if [ "$item" = "$expected_file" ] || [[ "$expected_file" == "$item/"* ]]; then
+                    found=true
+                    break
+                fi
+            done < expected_files.txt
+            
+            # If not found in expected files, remove it (except our helper file)
+            if [ "$found" = false ] && [ "$item" != "expected_files.txt" ]; then
+                rm -rf "$item" 2>/dev/null || true
             fi
         fi
     done
+    
+    # Clean up helper file
+    rm -f expected_files.txt
     
     # Create/update expected directory
     if [ -d "$expected_dir" ]; then

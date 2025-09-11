@@ -440,3 +440,28 @@ func CmdData(c *cli.Context) error {
 	err = outputString(name, []byte(buf))
 	return err
 }
+
+func CmdFiles(c *cli.Context) error {
+	nd, cfg, err := loadContext(c)
+	if err != nil {
+		return err
+	}
+	verbose := c.Bool("verbose")
+
+	nm, err := model.BuildNetworkModel(cfg, nd, verbose)
+	if err != nil {
+		return err
+	}
+
+	files, err := model.ListGeneratedFiles(cfg, nm, verbose)
+	if err != nil {
+		return err
+	}
+
+	// Output the list of files that would be generated
+	for _, file := range files {
+		fmt.Println(file)
+	}
+
+	return nil
+}
