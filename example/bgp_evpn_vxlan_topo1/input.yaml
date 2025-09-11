@@ -42,7 +42,6 @@ nodeclass:
       image: nicolaka/netshoot
     config:
       - name: startup
-        format: FRRVtyshCLI
         template:
           - "ip link add br0 type bridge"
           - "ip link set br0 up"

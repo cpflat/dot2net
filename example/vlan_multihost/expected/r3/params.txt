@@ -1,0 +1,5 @@
+vlan 101 for r3.net1
+connection name conn1 next to r3.net0
+vlan 102 for r3.net2
+connection name conn3 next to r3.net1
+connection name conn4 next to r3.net2

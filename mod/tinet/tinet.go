@@ -3,7 +3,6 @@ package tinet
 import (
 	"embed"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -145,11 +144,7 @@ func (m TinetModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 				continue
 			}
 
-			dirpath, err := os.Getwd()
-			if err != nil {
-				return fmt.Errorf("failed to obtain currrent directory")
-			}
-			srcPath := filepath.Join(dirpath, node.Name, fileDef.Name)
+			srcPath := filepath.Join(node.Name, fileDef.Name)
 			dstPath := fileDef.Path
 			bindItems = append(bindItems, srcPath+":"+dstPath)
 		}

@@ -208,6 +208,14 @@ func buildSkeleton(cfg *types.Config, d *Diagram) (*types.NetworkModel, error) {
 		if err != nil {
 			return nil, err
 		}
+		// relational class label for interfaces
+		for _, rlabel := range conn.RelationalClassLabels() {
+			if rlabel.ClassType == types.ClassTypeInterface {
+				srcIf.AddClassLabels(rlabel.Name)
+				dstIf.AddClassLabels(rlabel.Name)
+			}
+		}
+
 		if len(conn.PlaceLabels()) > 0 {
 			return nil, fmt.Errorf("connection cannot have placeLabels")
 		}
@@ -762,6 +770,7 @@ func assignIPParameters(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 		if len(segs) > 0 {
 			nm.NetworkSegments[layer.Name] = segs
 		}
+		setSegmentLabels(cfg, segs, layer)
 		setNeighbors(segs, layer)
 
 		// assign ip addresses

@@ -104,8 +104,8 @@ func assignInterfaceParameters(cfg *types.Config, nm *types.NetworkModel) error 
 
 			// list up target interfaces and segments
 			mapper := mapset.NewThreadUnsafeSet(ifaces...)
-			targetSegments := []*types.SegmentMembers{}
-			targetObjects := map[*types.SegmentMembers][]*types.Interface{}
+			targetSegments := []*types.NetworkSegment{}
+			targetObjects := map[*types.NetworkSegment][]*types.Interface{}
 			segs, ok := nm.NetworkSegments[rule.Layer]
 			if !ok {
 				return fmt.Errorf("invalid parameter rule %s: layer %s not found", key, rule.Layer)

@@ -272,11 +272,11 @@ func (seg *netSegment) checkReservedInterfaces() error {
 	return nil
 }
 
-func searchSegments(nm *types.NetworkModel, layer *types.Layer, verbose bool) ([]*types.SegmentMembers, error) {
+func searchSegments(nm *types.NetworkModel, layer *types.Layer, verbose bool) ([]*types.NetworkSegment, error) {
 	if verbose {
 		fmt.Printf("search segments on layer %+v\n", layer.Name)
 	}
-	segs := []*types.SegmentMembers{}
+	segs := []*types.NetworkSegment{}
 
 	checked := mapset.NewSet[*types.Connection]()
 	for _, conn := range nm.Connections {
@@ -291,7 +291,8 @@ func searchSegments(nm *types.NetworkModel, layer *types.Layer, verbose bool) ([
 		}
 
 		// init segment
-		seg := &types.SegmentMembers{}
+		//seg := &types.NetworkSegment{}
+		seg := types.NewNetworkSegment()
 
 		if verbose {
 			fmt.Printf("search start with connection %s\n", conn)
@@ -356,7 +357,32 @@ func searchSegments(nm *types.NetworkModel, layer *types.Layer, verbose bool) ([
 	return segs, nil
 }
 
-func setNeighbors(segs []*types.SegmentMembers, layer *types.Layer) {
+func setSegmentLabels(cfg *types.Config, segs []*types.NetworkSegment, layer *types.Layer) error {
+	for _, seg := range segs {
+		scNames := mapset.NewSet[string]()
+		for _, conn := range seg.Connections {
+			for _, rlabel := range conn.RelationalClassLabels() {
+				if rlabel.ClassType == types.ClassTypeSegment {
+					sc, ok := cfg.SegmentClassByName(rlabel.Name)
+					if !ok {
+						return fmt.Errorf("unknown segment class (%v)", rlabel.Name)
+					}
+					if sc.Layer == layer.Name {
+						if !scNames.Contains(rlabel.Name) {
+							scNames.Add(rlabel.Name)
+						}
+					}
+				}
+			}
+		}
+		for _, name := range scNames.ToSlice() {
+			seg.AddClassLabels(name)
+		}
+	}
+	return nil
+}
+
+func setNeighbors(segs []*types.NetworkSegment, layer *types.Layer) {
 	for _, seg := range segs {
 		for _, iface := range seg.Interfaces {
 			iface.Neighbors[layer.Name] = []*types.Neighbor{}

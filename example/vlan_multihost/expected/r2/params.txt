@@ -1,0 +1,3 @@
+vlan 100 for r2.net1
+connection name conn0 next to r2.net0
+connection name conn2 next to r2.net1

@@ -18,6 +18,7 @@ const ClassTypeNode string = "node"
 const ClassTypeInterface string = "interface"
 const ClassTypeConnection string = "connection"
 const ClassTypeGroup string = "group"
+const ClassTypeSegment string = "segment"
 const ClassTypeNeighborHeader string = "neighbor"
 const ClassTypeNeighborLayerAny = "any"
 const ClassTypeMemberHeader string = "member"
@@ -35,6 +36,7 @@ const ClassAll string = "all"         // all objects
 const ClassDefault string = "default" // all empty objects
 const PlaceLabelPrefix string = "@"
 const ValueLabelSeparator string = "="
+const RelationalClassLabelSeparator string = "#"
 
 const PathSpecificationDefault string = "default" // search files from working directory
 const PathSpecificationLocal string = "local"     // search files from the directory with config file
@@ -81,6 +83,7 @@ type Config struct {
 	InterfaceClasses  []*InterfaceClass  `yaml:"interfaceclass,flow" mapstructure:"interfaces,flow"`
 	ConnectionClasses []*ConnectionClass `yaml:"connectionclass,flow" mapstructure:"connections,flow"`
 	GroupClasses      []*GroupClass      `yaml:"groupclass,flow" mapstructure:"group,flow"`
+	SegmentClasses    []*SegmentClass    `yaml:"segmentclass,flow" mapstructure:"segments,flow"`
 
 	fileDefinitionMap map[string]*FileDefinition
 	fileFormatMap     map[string]*FileFormat
@@ -92,6 +95,7 @@ type Config struct {
 	interfaceClassMap  map[string]*InterfaceClass
 	connectionClassMap map[string]*ConnectionClass
 	groupClassMap      map[string]*GroupClass
+	segmentClassMap    map[string]*SegmentClass
 	neighborClassMap   map[string]map[string][]*NeighborClass // interfaceclass name, ipspace name
 	localDir           string
 
@@ -139,6 +143,11 @@ func (cfg *Config) GroupClassByName(name string) (*GroupClass, bool) {
 	return gc, ok
 }
 
+func (cfg *Config) SegmentClassByName(name string) (*SegmentClass, bool) {
+	sc, ok := cfg.segmentClassMap[name]
+	return sc, ok
+}
+
 func (cfg *Config) NeighborClassesByName(iface string, ipspace string) ([]*NeighborClass, bool) {
 	ncs, ok := cfg.neighborClassMap[iface][ipspace]
 	return ncs, ok
@@ -171,7 +180,12 @@ func (cfg *Config) classifyLabels(given []string) *ParsedLabels {
 				pl.placeLabels = append(pl.placeLabels, plabel)
 			}
 		} else {
-			if strings.Contains(label, ValueLabelSeparator) {
+			if strings.Contains(label, RelationalClassLabelSeparator) {
+				// include "#" -> RelationalClassLabel
+				sep := strings.SplitN(label, RelationalClassLabelSeparator, 2)
+				rlabel := RelationalClassLabel{ClassType: sep[0], Name: sep[1]}
+				pl.rClassLabels = append(pl.rClassLabels, rlabel)
+			} else if strings.Contains(label, ValueLabelSeparator) {
 				// include "=" -> ValueLabel
 				sep := strings.SplitN(label, ValueLabelSeparator, 2)
 				vlabel := sep[0]
@@ -236,6 +250,12 @@ func (cfg *Config) GetValidGroupClasses(given []string) *ParsedLabels {
 	_, hasAllGroupClass := cfg.groupClassMap[ClassAll]
 	_, hasDefaultGroupClass := cfg.groupClassMap[ClassDefault]
 	return cfg.getValidClasses(given, hasAllGroupClass, hasDefaultGroupClass)
+}
+
+func (cfg *Config) GetValidSegmentClasses(given []string) *ParsedLabels {
+	_, hasAllSegmentClass := cfg.segmentClassMap[ClassAll]
+	_, hasDefaultSegmentClass := cfg.segmentClassMap[ClassDefault]
+	return cfg.getValidClasses(given, hasAllSegmentClass, hasDefaultSegmentClass)
 }
 
 func (cfg *Config) AddFileFormat(filefmt *FileFormat) {
@@ -527,6 +547,12 @@ func (gc *GroupClass) GetGivenValues() map[string]string {
 	return gc.Values
 }
 
+type SegmentClass struct {
+	Name            string            `yaml:"name" mapstructure:"name"`
+	Layer           string            `yaml:"layer" mapstructure:"layer"`
+	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+}
+
 type NeighborClass struct {
 	Layer           string            `yaml:"layer" mapstructure:"layer"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
@@ -804,6 +830,7 @@ func LoadConfig(path string) (*Config, error) {
 	for _, group := range cfg.GroupClasses {
 		cfg.groupClassMap[group.Name] = group
 	}
+	cfg.segmentClassMap = map[string]*SegmentClass{}
 	cfg.SorterConfigTemplateGroups = mapset.NewSet[string]()
 
 	return &cfg, err

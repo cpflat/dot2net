@@ -72,7 +72,7 @@ type ObjectInstance interface {
 
 // NameSpacer is an element of top-down network model
 // A namespacer owns parameter namespace and generates configuration blocks
-// Candidates: Network, Node, Interface, Neighbor, Member, Group
+// Candidates: Network, Node, Interface, Segment, Neighbor, Member, Group
 type NameSpacer interface {
 	// Methods to trace top-down network model
 	ChildClasses() ([]string, error)
@@ -185,10 +185,12 @@ func (ns *NameSpace) GetParamValue(key string) (string, error) {
 // LabelOwner includes Node, Interface, Connection, Group
 type LabelOwner interface {
 	ClassLabels() []string
+	RelationalClassLabels() []RelationalClassLabel
 	PlaceLabels() []string
 	ValueLabels() map[string]string
 	MetaValueLabels() map[string]string
 	SetLabels(cfg *Config, labels []string, moduleLabels []string) error
+	AddClassLabels(labels ...string)
 
 	HasClass(string) bool
 	GetClasses() []ObjectClass
@@ -201,8 +203,14 @@ type LabelOwner interface {
 	ObjectInstance
 }
 
+type RelationalClassLabel struct {
+	ClassType string
+	Name      string
+}
+
 type ParsedLabels struct {
 	classLabels     []string
+	rClassLabels    []RelationalClassLabel
 	placeLabels     []string
 	valueLabels     map[string]string
 	metaValueLabels map[string]string
@@ -213,6 +221,7 @@ type ParsedLabels struct {
 func newParsedLabels() *ParsedLabels {
 	return &ParsedLabels{
 		classLabels:     []string{},
+		rClassLabels:    []RelationalClassLabel{},
 		placeLabels:     []string{},
 		valueLabels:     map[string]string{},
 		metaValueLabels: map[string]string{},
@@ -221,6 +230,10 @@ func newParsedLabels() *ParsedLabels {
 
 func (l *ParsedLabels) ClassLabels() []string {
 	return l.classLabels
+}
+
+func (l *ParsedLabels) RelationalClassLabels() []RelationalClassLabel {
+	return l.rClassLabels
 }
 
 func (l *ParsedLabels) PlaceLabels() []string {
@@ -233,6 +246,10 @@ func (l *ParsedLabels) ValueLabels() map[string]string {
 
 func (l *ParsedLabels) MetaValueLabels() map[string]string {
 	return l.metaValueLabels
+}
+
+func (l *ParsedLabels) AddClassLabels(labels ...string) {
+	l.classLabels = append(l.classLabels, labels...)
 }
 
 func (l *ParsedLabels) HasClass(name string) bool {
@@ -387,7 +404,7 @@ type NetworkModel struct {
 	*NameSpace
 	// configFileGenerator
 
-	NetworkSegments map[string][]*SegmentMembers
+	NetworkSegments map[string][]*NetworkSegment
 	//Files           *ConfigFiles
 
 	nodeMap                  map[string]*Node
@@ -399,7 +416,7 @@ type NetworkModel struct {
 
 func NewNetworkModel() *NetworkModel {
 	nm := &NetworkModel{
-		NetworkSegments: map[string][]*SegmentMembers{},
+		NetworkSegments: map[string][]*NetworkSegment{},
 		//Files:                    newConfigFiles(),
 		NameSpace:                newNameSpace(),
 		nodeMap:                  map[string]*Node{},
@@ -592,6 +609,11 @@ func (nm *NetworkModel) NameSpacers() (result []NameSpacer) {
 					result = append(result, neighbor)
 				}
 			}
+		}
+	}
+	for _, segs := range nm.NetworkSegments {
+		for _, seg := range segs {
+			result = append(result, seg)
 		}
 	}
 	// member
@@ -1453,9 +1475,59 @@ func (conn *Connection) GivenIPNetwork(layer Layerer) (string, bool) {
 // 	Segments []*SegmentMembers
 // }
 
-type SegmentMembers struct {
+type NetworkSegment struct {
+	Layer       string
 	Interfaces  []*Interface
 	Connections []*Connection
+
+	*NameSpace
+	*ParsedLabels
+}
+
+func NewNetworkSegment() *NetworkSegment {
+	s := &NetworkSegment{
+		Interfaces:  []*Interface{},
+		Connections: []*Connection{},
+		NameSpace:   newNameSpace(),
+	}
+	return s
+}
+
+func (seg *NetworkSegment) StringForMessage() string {
+	return fmt.Sprintf("segment:layer=%s(%d interfaces, %d connections)", seg.Layer, len(seg.Interfaces), len(seg.Connections))
+}
+
+func (seg *NetworkSegment) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
+
+	// global params (place lanels)
+	setGlobalParams(seg, globalParams)
+
+	return nil
+}
+
+func (seg *NetworkSegment) ChildClasses() ([]string, error) {
+	return []string{}, nil
+}
+
+func (seg *NetworkSegment) Childs(c string) ([]NameSpacer, error) {
+	return nil, nil
+}
+
+func (seg *NetworkSegment) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
+	configTemplates := []*ConfigTemplate{}
+	for _, cls := range seg.GetClasses() {
+		sc := cls.(*SegmentClass)
+		configTemplates = append(configTemplates, sc.ConfigTemplates...)
+	}
+	return configTemplates
+}
+
+func (seg *NetworkSegment) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
+	cts := []*ConfigTemplate{}
+	for _, sc := range cfg.SegmentClasses {
+		cts = append(cts, sc.ConfigTemplates...)
+	}
+	return cts
 }
 
 type Neighbor struct {

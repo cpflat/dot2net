@@ -1,0 +1,2 @@
+connection name conn0 for vlan 100 (r2.net0)
+connection name conn1 for vlan 101 (r2.net1)

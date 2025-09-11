@@ -63,15 +63,12 @@ nodeclass:
         template:
           - chown frr:frr /var/log/frr.log 
       - file: zebra.conf
+        style: sort
+        sort_group: zebra.conf
         priority: -1
         template:
           - "log file /var/log/frr.log"
           - "!"
-      - file: zebra.conf
-        style: sort
-        sort_group: zebra.conf
-        priority: 1
-        template:
           - "interface lo"
           - "ipv6 forwarding"
           - "!"
