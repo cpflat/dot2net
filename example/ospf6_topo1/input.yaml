@@ -85,7 +85,7 @@ nodeclass:
           - " exec-timeout 0 0"
           - "!"
       - group: ospf6d.conf
-        priority: -1
+        priority: -2
         template:
           - "log file /var/log/frr.log"
           - "!"

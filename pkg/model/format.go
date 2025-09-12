@@ -9,8 +9,6 @@ import (
 	"strings"
 	"text/template"
 
-	mapset "github.com/deckarep/golang-set/v2"
-
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
@@ -68,16 +66,31 @@ func (scb *SorterConfigBlocks) addConfigBlock(ns types.NameSpacer, group string,
 	}
 }
 
-func (scb *SorterConfigBlocks) getConfigBlocks(ns types.NameSpacer, group string) []string {
+func (scb *SorterConfigBlocks) getConfigBlocks(ns types.NameSpacer, group string, verbose bool) []string {
 	sk := sorterKey{sorter: ns, group: group}
 	blocks := scb.groups[sk]
+	
+	if verbose && len(blocks) > 0 {
+		fmt.Fprintf(os.Stderr, " sorting %d config blocks for group %s:\n", len(blocks), group)
+		for i, cb := range blocks {
+			fmt.Fprintf(os.Stderr, "  [%d] Priority=%d: %q\n", i, cb.Priority, headN(cb.Block, NChars))
+		}
+	}
+	
+	// sort considering Priority
+	sort.SliceStable(blocks, func(i, j int) bool { return blocks[i].Priority < blocks[j].Priority })
+	
+	if verbose && len(blocks) > 0 {
+		fmt.Fprintf(os.Stderr, " after sorting by Priority:\n")
+		for i, cb := range blocks {
+			fmt.Fprintf(os.Stderr, "  [%d] Priority=%d: %q\n", i, cb.Priority, headN(cb.Block, NChars))
+		}
+	}
+	
 	ret := make([]string, 0, len(blocks))
 	for _, cb := range blocks {
 		ret = append(ret, cb.Block)
 	}
-
-	// sort considering Priority
-	sort.SliceStable(ret, func(i, j int) bool { return blocks[i].Priority < blocks[j].Priority })
 	return ret
 }
 
@@ -341,7 +354,7 @@ func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs [
 		// }
 		// reorder named config templates based on dependency
 		//reordered, err := reorderConfigTemplates(checkedConfigTemplates)
-		reordered, err := reorderConfigTemplates(configTemplates)
+		reordered, err := reorderConfigTemplates(configTemplates, verbose)
 		if err != nil {
 			return fmt.Errorf("failure in reordering config blocks for %s: %w", ns.StringForMessage(), err)
 		}
@@ -383,7 +396,7 @@ func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs [
 			if met && ct.Style == types.ConfigTemplateStyleSort {
 				// add self config before merging for priority sort
 				scb.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: conf, Priority: ct.Priority}, true)
-				blocks := scb.getConfigBlocks(ns, ct.SortGroup)
+				blocks := scb.getConfigBlocks(ns, ct.SortGroup, verbose)
 
 				// merge config blocks of grouped templates
 				conf, err = mergeConfigBlocks(cfg, blocks, ct.GetFormats())
@@ -473,144 +486,77 @@ func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs [
 	return nil
 }
 
-func reorderConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplate, error) {
-	// Policies:
-	// - consider dependency of named config template (with ct.Name and ct.Depends)
-	// - consider dependency in sort config template (sorter and grouped tempaltes)
+// ConfigTemplateDependencyNode adapts ConfigTemplate to DependencyNode interface
+type ConfigTemplateDependencyNode struct {
+	template *types.ConfigTemplate
+	index    int
+	ctmap    map[string][]int  // name -> indices
+	grouped  map[string][]int  // group -> indices
+}
 
-	//var reversects func(slice []*types.ConfigTemplate)
-	//reversects = func(slice []*types.ConfigTemplate) {
-	//	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
-	//		slice[i], slice[j] = slice[j], slice[i]
-	//	}
-	//}
+func (ctdn *ConfigTemplateDependencyNode) GetID() string {
+	return fmt.Sprintf("template_%d", ctdn.index)
+}
 
-	//var shufflects func(slice []*types.ConfigTemplate)
-	//shufflects = func(slice []*types.ConfigTemplate) {
-	//	rand.Shuffle(len(slice), func(i, j int) {
-	//		slice[i], slice[j] = slice[j], slice[i]
-	//	})
-	//}
+func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
+	var deps []string
+	ct := ctdn.template
 
-	//// shuffle for testing
-	//shufflects(cts)
-	//// shuffle for testing end
+	// sorter depends on grouped templates
+	if ct.Style == types.ConfigTemplateStyleSort {
+		if indices, exists := ctdn.grouped[ct.SortGroup]; exists {
+			for _, idx := range indices {
+				deps = append(deps, fmt.Sprintf("template_%d", idx))
+			}
+		}
+	}
 
+	// explicit dependencies
+	for _, depName := range ct.Depends {
+		if indices, exists := ctdn.ctmap[depName]; exists {
+			for _, idx := range indices {
+				deps = append(deps, fmt.Sprintf("template_%d", idx))
+			}
+		} else {
+			return nil, fmt.Errorf("dependency %s not found for template %v", depName, ct)
+		}
+	}
+
+	return deps, nil
+}
+
+func (ctdn *ConfigTemplateDependencyNode) GetItem() *types.ConfigTemplate {
+	return ctdn.template
+}
+
+func reorderConfigTemplates(cts []*types.ConfigTemplate, verbose bool) ([]*types.ConfigTemplate, error) {
+	// Build name and group mappings
 	ctmap := make(map[string][]int)
-	grouped := map[string][]int{}
+	grouped := make(map[string][]int)
+	
 	for ind, ct := range cts {
 		if ct.Name != "" {
-			//if _, exists := ctmap[ct.Name]; exists {
-			//	return nil, fmt.Errorf("duplicated config template name: %s", ct.Name)
-			//}
 			ctmap[ct.Name] = append(ctmap[ct.Name], ind)
 		}
-
-		// check grouped but not sorter templates
 		if ct.Group != "" {
-			if _, ok := grouped[ct.Name]; ok {
-				grouped[ct.Group] = append(grouped[ct.Group], ind)
-			} else {
-				grouped[ct.Group] = []int{ind}
-			}
+			grouped[ct.Group] = append(grouped[ct.Group], ind)
 		}
 	}
 
-	sorted := []*types.ConfigTemplate{}
-	parmanent := mapset.NewSet[int]()
-	temporal := mapset.NewSet[int]()
-
-	//var get_depends func(int) ([]int, error)
-	get_depends := func(node int) (depends []int, equivalent []int, err error) {
-		// sorter depends on grouped templates
-		if cts[node].Style == types.ConfigTemplateStyleSort {
-			if _, exists := grouped[cts[node].Group]; exists {
-				depends = append(depends, grouped[cts[node].Group]...)
-			}
+	// Create dependency graph
+	dg := NewDependencyGraph[*types.ConfigTemplate]()
+	
+	for i, ct := range cts {
+		node := &ConfigTemplateDependencyNode{
+			template: ct,
+			index:    i,
+			ctmap:    ctmap,
+			grouped:  grouped,
 		}
-		// depends described required templates to embed
-		if len(cts[node].Depends) > 0 {
-			for _, dst := range cts[node].Depends {
-				if inds, exists := ctmap[dst]; exists {
-					depends = append(depends, inds...)
-				} else {
-					return nil, nil, fmt.Errorf(
-						"config template %+v depends on non-existing config template %s", cts[node], dst)
-				}
-			}
-		}
-		// check equivalent nodes (same name but different template)
-		for _, ind := range ctmap[cts[node].Name] {
-			if ind != node {
-				equivalent = append(equivalent, ind)
-			}
-		}
-		// sanity check
-		if mapset.NewSet(depends...).Intersect(mapset.NewSet(equivalent...)).Cardinality() > 0 {
-			return nil, nil, fmt.Errorf(
-				"panic in reordering config templates: overlaps in depends (%+v) and equivalent (%+v)", depends, equivalent)
-		}
-		return depends, equivalent, nil
+		dg.AddNode(node)
 	}
 
-	// traverse dependency graph
-	var visit func(int) error
-	visit = func(node int) error {
-		if parmanent.Contains(node) {
-			return nil
-		}
-		if temporal.Contains(node) {
-			return fmt.Errorf("cyclic dependency detected in config templates around %+v", cts[node])
-		}
-		temporal.Add(node)
-
-		depends, _, err := get_depends(node)
-		// depends, equivalent, err := get_depends(node)
-		if err != nil {
-			return err
-		}
-		// DEBUG
-		// fmt.Printf("  ### depends: %+v depends on %d nodes: ", cts[node], len(depends))
-		// for _, i := range depends {
-		// 	fmt.Printf("%+v,", cts[i])
-		// }
-		// fmt.Printf("\n")
-		// DEBUG END
-		for _, dst := range depends {
-			err := visit(dst)
-			if err != nil {
-				return err
-			}
-		}
-
-		parmanent.Add(node)
-		sorted = append(sorted, cts[node])
-		//sorted = append([]*types.ConfigTemplate{cts[node]}, sorted...)
-		//for _, ind := range equivalent {
-		//	parmanent.Add(ind)
-		//	sorted = append(sorted, cts[ind])
-		//	//sorted = append([]*types.ConfigTemplate{cts[ind]}, sorted...)
-		//}
-		return nil
-	}
-
-	for node := range cts {
-		if !parmanent.Contains(node) {
-			err := visit(node)
-			if err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	if len(sorted) != len(cts) {
-		fmt.Printf("cts: %+v\n", cts)
-		fmt.Printf("sorted: %+v\n", sorted)
-		return nil, fmt.Errorf("some config templates are not included in the sorted list")
-	}
-
-	//reversects(sorted)
-	return sorted, nil
+	return dg.TopologicalSort()
 }
 
 // func generateConfigBlock(ct *types.ConfigTemplate, ns types.NameSpacer) (string, error) {
