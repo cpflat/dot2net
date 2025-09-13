@@ -137,6 +137,10 @@ func (m TinetModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 	nm.AddParam(TinetNetworkNameParamName, cfg.Name)
 
 	for _, node := range nm.Nodes {
+		// skip virtual nodes
+		if node.IsVirtual() {
+			continue
+		}
 		// generate file mount point descriptions
 		bindItems := []string{}
 		for _, fileDef := range cfg.FileDefinitions {
@@ -171,7 +175,7 @@ func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 	// parameter {{ .image }}
 	for _, node := range nm.Nodes {
 		if node.IsVirtual() {
-			break
+			continue
 		} else {
 			_, err := node.GetParamValue(TinetImageParamName)
 			if err != nil {

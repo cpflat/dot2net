@@ -144,4 +144,3 @@ topology:
   - endpoints: [r2:net1, sw3:net0]
   - endpoints: [r3:net0, sw3:net1]
   - endpoints: [r3:net1, sw4:net0]
-  - endpoints: [v1:net0, sw4:net1]

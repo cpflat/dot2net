@@ -164,8 +164,6 @@ interfaceclass:
           - "interface {{ .name }}"
           - " ip address {{ .customer_addr }}/{{ .customer_plen }}"
           - "!"
-
-connectionclass:
   - name: p
     layers: [provider]
   - name: c

@@ -79,7 +79,7 @@ nodeclass:
         sort_group: params.txt
 
 interfaceclass:
-  - name: default
+  - name: all
     primary: true
     params: [cname]
     config:
@@ -101,8 +101,6 @@ interfaceclass:
       - group: params.txt
         template:
           - "connection name {{ .cname }} next to {{ .node_name }}.{{ .name }}"
-
-connectionclass:
   - name: vlan
     params: [vlan]
     config:

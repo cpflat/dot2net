@@ -56,7 +56,7 @@ nodeclass:
           - "{{ .self_frr_cmds }}"
           - "{{ .interfaces_server_cmds }}"
 
-connectionclass:
+interfaceclass:
   - name: default
     primary: true
     params: [ip]

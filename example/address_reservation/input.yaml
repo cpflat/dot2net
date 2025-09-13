@@ -73,7 +73,7 @@ nodeclass:
 interfaceclass:
   - name: mgmtif
 
-connectionclass:
+interfaceclass:
   - name: default
     primary: true
     params: [ip, vlan, cname]

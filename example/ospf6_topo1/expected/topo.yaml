@@ -166,7 +166,3 @@ topology:
   - endpoints: [r3:net2, sw6:net0]
   - endpoints: [r4:net0, sw4:net0]
   - endpoints: [r4:net1, sw6:net1]
-  - endpoints: [v1:net0, sw1:net1]
-  - endpoints: [v2:net0, sw2:net1]
-  - endpoints: [v3:net0, sw3:net1]
-  - endpoints: [v4:net0, sw4:net1]

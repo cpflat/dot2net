@@ -79,7 +79,7 @@ nodeclass:
           - "{{ .interfaces_addrs }}"
           - "{{ .interfaces_sv_routes }}"
 
-connectionclass:
+interfaceclass:
   - name: default
     primary: true
     params: [ip]

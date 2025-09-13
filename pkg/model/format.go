@@ -774,6 +774,15 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 		if !configTemplate.NodeClassCheck(o.Node) {
 			return "parent node class condition", false
 		}
+		// check if connection involves virtual nodes
+		if o.Connection != nil {
+			if o.Connection.Src != nil && o.Connection.Src.Node != nil && o.Connection.Src.Node.IsVirtual() {
+				return "connection from virtual node", false
+			}
+			if o.Connection.Dst != nil && o.Connection.Dst.Node != nil && o.Connection.Dst.Node.IsVirtual() {
+				return "connection to virtual node", false
+			}
+		}
 	case *types.Neighbor:
 		// check if self node class of neighbor object match
 		if !configTemplate.NeighborNodeClassCheck(o.Neighbor.Node) {

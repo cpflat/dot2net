@@ -497,6 +497,7 @@ type InterfaceClass struct {
 	Primary         bool              `yaml:"primary" mapstructure:"primary"`
 	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
+	Layers          []string          `yaml:"layers,flow" mapstructure:"layers,flow"` // Interface connection is limited to specified layers
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	Values          map[string]string `yaml:"values" mapstructure:"values"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`

@@ -28,13 +28,13 @@ digraph  {
 	r3->sw6[dir="none"];
 	r4->sw6[dir="none"];
 
-	r1->sw1[dir="none", class="to_stub"];
-	r2->sw2[dir="none", class="to_stub"];
-	r3->sw3[dir="none", class="to_stub"];
-	r4->sw4[dir="none", class="to_stub"];
+	r1->sw1[dir="none", class="interface#to_stub"];
+	r2->sw2[dir="none", class="interface#to_stub"];
+	r3->sw3[dir="none", class="interface#to_stub"];
+	r4->sw4[dir="none", class="interface#to_stub"];
 
-	v1->sw1[dir="none", class="vlink"];
-	v2->sw2[dir="none", class="vlink"];
-	v3->sw3[dir="none", class="vlink"];
-	v4->sw4[dir="none", class="vlink"];
+	v1->sw1[dir="none", class="interface#vlink"];
+	v2->sw2[dir="none", class="interface#vlink"];
+	v3->sw3[dir="none", class="interface#vlink"];
+	v4->sw4[dir="none", class="interface#vlink"];
 }

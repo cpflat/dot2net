@@ -111,6 +111,10 @@ func (m *ClabModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 	// generate connection endpoint descriptions
 	endpoints := []string{}
 	for _, conn := range nm.Connections {
+		// skip connections involving virtual nodes
+		if conn.Src.Node.IsVirtual() || conn.Dst.Node.IsVirtual() {
+			continue
+		}
 		endpoint := fmt.Sprintf("[%s:%s, %s:%s]", conn.Src.Node.Name, conn.Src.Name, conn.Dst.Node.Name, conn.Dst.Name)
 		endpoints = append(endpoints, endpoint)
 	}
@@ -120,6 +124,10 @@ func (m *ClabModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 	)
 
 	for _, node := range nm.Nodes {
+		// skip virtual nodes
+		if node.IsVirtual() {
+			continue
+		}
 		// generate file mount point descriptions
 		bindItems := []string{}
 		for _, fileDef := range cfg.FileDefinitions {
@@ -157,7 +165,7 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 	// parameter {{ .image }} and {{ .kind }}
 	for _, node := range nm.Nodes {
 		if node.IsVirtual() {
-			break
+			continue
 		}
 		_, err := node.GetParamValue(ClabImageParamName)
 		if err != nil {

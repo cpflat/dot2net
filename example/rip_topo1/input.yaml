@@ -84,7 +84,7 @@ nodeclass:
     virtual: true
     interface_policy: [ip]
 
-connectionclass:
+interfaceclass:
   - name: all
     config:
       - name: link

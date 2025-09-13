@@ -97,7 +97,7 @@ nodeclass:
           - " redistribute static"
           - "!"
 
-connectionclass:
+interfaceclass:
   - name: default
     primary: true
     config:

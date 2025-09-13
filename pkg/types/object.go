@@ -1141,6 +1141,14 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 	}
 
+	// rebuild ParsedLabels.Classes based on current classLabels to include classes added by AddClassLabels
+	iface.ParsedLabels.Classes = []ObjectClass{}
+	for _, clsName := range iface.ClassLabels() {
+		if ic, ok := cfg.InterfaceClassByName(clsName); ok {
+			iface.ParsedLabels.Classes = append(iface.ParsedLabels.Classes, ic)
+		}
+	}
+	
 	// check interfaceclass flags
 	for _, cls := range iface.GetClasses() {
 		ic := cls.(*InterfaceClass)
@@ -1189,6 +1197,13 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 		// check MemberClasses
 		for i := range ic.MemberClasses {
 			iface.AddMemberClass(ic.MemberClasses[i])
+		}
+
+		// check layers - add to connection if connection exists
+		if iface.Connection != nil {
+			for _, layer := range ic.Layers {
+				iface.Connection.Layers.Add(layer)
+			}
 		}
 
 		// check primary interface class consistency

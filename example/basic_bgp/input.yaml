@@ -50,7 +50,7 @@ nodeclass:
           - router bgp {{ .group_as }}
           - bgp router-id {{ .ip_loopback }}
 
-connectionclass:
+interfaceclass:
   - name: default
     primary: true
     params: [ip]

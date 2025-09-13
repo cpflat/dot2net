@@ -98,7 +98,7 @@ nodeclass:
     params: [lo]
     interface_policy: [ip]
 
-connectionclass:
+interfaceclass:
   - name: all
     primary: true
     config:

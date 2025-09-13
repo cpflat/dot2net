@@ -19,11 +19,11 @@ digraph {
 
 	r1->r2[dir="none"];
 	r1->r3[dir="none"];
-	r2->r4[dir="none", label="vlan"];
-	r3->r5[dir="none", label="vlan"];
+	r2->r4[dir="none", class="interface#vlan"];
+	r3->r5[dir="none", class="interface#vlan"];
 	r4->r6[dir="none"];
 	r5->r6[dir="none"];
-	r3->sw1[dir="none", label="vlan"];
-	r5->sw1[dir="none", label="vlan"];
+	r3->sw1[dir="none", class="interface#vlan"];
+	r5->sw1[dir="none", class="interface#vlan"];
 	r7->sw1[dir="none"];
 }

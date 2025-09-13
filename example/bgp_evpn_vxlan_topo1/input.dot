@@ -9,14 +9,14 @@ digraph  {
 	s3[class="switch"];
 	s4[class="switch"];
 
-	pe1->s1[dir="none", class="c", tailclass="@pe1c"];
-	pe1->s2[dir="none", class="p;c", tailclass="ospf"];
-	pe2->s3[dir="none", class="p;c", tailclass="ospf"];
-	pe2->s4[dir="none", class="c", tailclass="@pe2c"];
-	p1->s2[dir="none", class="p;c", tailclass="ospf"];
-	p1->s3[dir="none", class="p;c", tailclass="ospf"];
-	host1->s1[dir="none", class="c", tailclass="host"];
-	host2->s4[dir="none", class="c", tailclass="host"];
+	pe1->s1[dir="none", tailclass="c;@pe1c"];
+	pe1->s2[dir="none", tailclass="p;c;ospf"];
+	pe2->s3[dir="none", tailclass="p;c;ospf"];
+	pe2->s4[dir="none", tailclass="c;@pe2c"];
+	p1->s2[dir="none", tailclass="p;c;ospf"];
+	p1->s3[dir="none", tailclass="p;c;ospf"];
+	host1->s1[dir="none", tailclass="c;host"];
+	host2->s4[dir="none", tailclass="c;host"];
 
-	pe1:br101->pe2:br101[dir="none", class="c;v", headclass="vxlan;@attach=pe2c", tailclass="vxlan;@attach=pe1c"];
+	pe1:br101->pe2:br101[dir="none", headclass="c;v;vxlan;@attach=pe2c", tailclass="c;v;vxlan;@attach=pe1c"];
 }
