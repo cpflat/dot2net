@@ -28,7 +28,6 @@ layer:
 
 nodeclass:
   - name: router
-    primary: true
     values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.4
@@ -52,7 +51,6 @@ nodeclass:
 
 interfaceclass:
   - name: default
-    primary: true
     policy: [ip]
     config:
       - name: ospf_addr

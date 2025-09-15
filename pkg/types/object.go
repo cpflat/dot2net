@@ -2,7 +2,6 @@ package types
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -727,8 +726,6 @@ type Node struct {
 	Groups     []*Group
 	//Virtual    bool
 	// Files      *ConfigFiles
-	TinetAttr *map[string]interface{}
-	ClabAttr  *map[string]interface{}
 
 	*NameSpace
 	*ParsedLabels
@@ -768,9 +765,12 @@ func (n *Node) SetLabels(cfg *Config, labels []string, moduleLabels []string) er
 }
 
 func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
-	primaryNC := ""
+	// Track conflicting values
+	seenValues := make(map[string]string)
+	seenPrefix := ""
+	seenMgmtInterface := ""
 
-	// set defaults for nodes without primary class
+	// set defaults for nodes without class
 	n.NamePrefix = DefaultNodePrefix
 
 	for _, cls := range n.GetClasses() {
@@ -825,43 +825,42 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 			n.AddMemberClass(nc.MemberClasses[i])
 		}
 
-		// check primary node class consistency
-		if nc.Primary {
-			if primaryNC == "" {
-				primaryNC = nc.Name
+		// Check for value conflicts
+		for key, value := range nc.Values {
+			if existingValue, exists := seenValues[key]; exists && existingValue != value {
+				return fmt.Errorf("configuration conflict detected on node '%s': multiple classes define different values for '%s' ('%s' vs '%s'). Please ensure all classes define the same value for this parameter, or leave one class with an empty value", n.Name, key, existingValue, value)
+			}
+			seenValues[key] = value
+		}
+
+		// Check for prefix conflicts (only if both are non-empty and different)
+		if nc.Prefix != "" {
+			if seenPrefix != "" && seenPrefix != nc.Prefix {
+				return fmt.Errorf("configuration conflict detected on node '%s': multiple classes define different prefix values ('%s' vs '%s'). Please ensure all classes define the same prefix, or leave one class with an empty prefix", n.Name, seenPrefix, nc.Prefix)
+			}
+			if seenPrefix == "" {
+				seenPrefix = nc.Prefix
+			}
+			n.NamePrefix = nc.Prefix
+		}
+
+		// Check for mgmt interface conflicts (only if both are non-empty and different)
+		if nc.MgmtInterface != "" {
+			if seenMgmtInterface != "" && seenMgmtInterface != nc.MgmtInterface {
+				return fmt.Errorf("configuration conflict detected on node '%s': multiple classes define different management interface classes ('%s' vs '%s'). Please ensure all classes define the same management interface class, or leave one class with an empty value", n.Name, seenMgmtInterface, nc.MgmtInterface)
+			}
+			if seenMgmtInterface == "" {
+				seenMgmtInterface = nc.MgmtInterface
+			}
+			if mgmtnc, ok := cfg.InterfaceClassByName(nc.MgmtInterface); ok {
+				n.mgmtInterfaceClass = mgmtnc
 			} else {
-				return fmt.Errorf("multiple primary node classes on one node (%s, %s)", primaryNC, nc.Name)
-			}
-			// add parameters of primary node class
-			if n.NamePrefix != "" {
-				n.NamePrefix = nc.Prefix
-			}
-			if nc.MgmtInterface != "" {
-				if mgmtnc, ok := cfg.InterfaceClassByName(nc.MgmtInterface); ok {
-					n.mgmtInterfaceClass = mgmtnc
-				} else {
-					return fmt.Errorf("invalid mgmt interface class name %s", nc.MgmtInterface)
-				}
-			}
-			n.TinetAttr = &nc.TinetAttr
-			n.ClabAttr = &nc.ClabAttr
-		} else {
-			if nc.Prefix != "" {
-				return fmt.Errorf("prefix can be specified only in primary class")
-			}
-			if nc.MgmtInterface != "" {
-				return fmt.Errorf("mgmt inteface class can be specified only in primary class")
-			}
-			if len(nc.TinetAttr) > 0 || len(nc.ClabAttr) > 0 {
-				return fmt.Errorf("output-specific attributes can be specified only in primary class")
+				return fmt.Errorf("invalid mgmt interface class name %s", nc.MgmtInterface)
 			}
 		}
 
 	}
 
-	if primaryNC == "" && !n.IsVirtual() {
-		fmt.Fprintf(os.Stderr, "warning: no primary node class on node %s\n", n.Name)
-	}
 	return nil
 }
 
@@ -1073,8 +1072,6 @@ type Interface struct {
 	Connection *Connection
 	Opposite   *Interface
 	Neighbors  map[string][]*Neighbor
-	TinetAttr  *map[string]interface{}
-	// ClabAttr        *map[string]interface{}
 	NamePrefix string
 
 	*NameSpace
@@ -1114,13 +1111,15 @@ func (iface *Interface) SetLabels(cfg *Config, labels []string, moduleLabels []s
 }
 
 func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
-	primaryIC := ""
+	// Track conflicting values
+	seenValues := make(map[string]string)
+	seenPrefix := ""
 
 	// set virtual flag to interfaces of virtual nodes as default
 	iface.SetVirtual(iface.Node.IsVirtual())
 	//iface.Virtual = iface.Node.Virtual
 
-	// set defaults for interfaces without primary class
+	// set defaults for interfaces without class
 	iface.NamePrefix = DefaultInterfacePrefix
 
 	// check connectionclass flags
@@ -1233,25 +1232,23 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 			}
 		}
 
-		// check primary interface class consistency
-		if ic.Primary {
-			if primaryIC == "" {
-				primaryIC = ic.Name
-			} else {
-				return fmt.Errorf("multiple primary interface classes on one node (%s, %s)", primaryIC, ic.Name)
+		// Check for value conflicts
+		for key, value := range ic.Values {
+			if existingValue, exists := seenValues[key]; exists && existingValue != value {
+				return fmt.Errorf("conflicting values for '%s' in interface class: '%s' vs '%s'", key, existingValue, value)
 			}
-			if ic.Prefix != "" {
-				iface.NamePrefix = ic.Prefix
+			seenValues[key] = value
+		}
+
+		// Check for prefix conflicts (only if both are non-empty and different)
+		if ic.Prefix != "" {
+			if seenPrefix != "" && seenPrefix != ic.Prefix {
+				return fmt.Errorf("conflicting prefix values in interface classes: '%s' vs '%s'", seenPrefix, ic.Prefix)
 			}
-			iface.TinetAttr = &ic.TinetAttr
-			// iface.ClabAttr = &ic.ClabAttr
-		} else {
-			if ic.Prefix != "" {
-				return fmt.Errorf("prefix can be specified only in primary class")
+			if seenPrefix == "" {
+				seenPrefix = ic.Prefix
 			}
-			if len(ic.TinetAttr) > 0 || len(ic.ClabAttr) > 0 {
-				return fmt.Errorf("output-specific attributes can be specified only in primary class")
-			}
+			iface.NamePrefix = ic.Prefix
 		}
 	}
 

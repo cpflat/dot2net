@@ -306,8 +306,6 @@ type GlobalSettings struct {
 	// ASNumberMin and ASNumberMAX are optional, considered in AssignASNumbers if specified
 	ASNumberMin int `yaml:"asnumber_min" mapstructure:"asnumber_min"`
 	ASNumberMax int `yaml:"asnumber_max" mapstructure:"asnumber_max"`
-
-	ClabAttr map[string]interface{} `yaml:"clab" mapstructure:"clab"` // containerlab attributes
 }
 
 type FileDefinition struct {
@@ -465,12 +463,9 @@ func (nc *NetworkClass) GetGivenValues() map[string]string {
 }
 
 type NodeClass struct {
-	// A node can have only one "primary" node class.
-	// Unprimary node classes only have "name", "numbered" and "config". Other attributes are ignored.
 	// A virtual node have parameters, but no object nor configuration. It is considered only on parameter assignment.
-	Name              string            `yaml:"name" mapstructure:"name"`
-	Primary           bool              `yaml:"primary" mapstructure:"primary"`
-	Virtual           bool              `yaml:"virtual" mapstructure:"virtual"`
+	Name    string `yaml:"name" mapstructure:"name"`
+	Virtual bool   `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy          []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Parameters        []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	Values            map[string]string `yaml:"values" mapstructure:"values"`
@@ -478,11 +473,8 @@ type NodeClass struct {
 	ConfigTemplates   []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 	MemberClasses     []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
 
-	// Following attributes are valid only on primary interface classes.
-	Prefix        string                 `yaml:"prefix" mapstructure:"prefix"`                           // prefix of auto-naming
-	MgmtInterface string                 `yaml:"mgmt_interfaceclass" mapstructure:"mgmt_interfaceclass"` // InterfaceClass name for mgmt
-	TinetAttr     map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`                             // tinet attributes
-	ClabAttr      map[string]interface{} `yaml:"clab" mapstructure:"clab"`                               // containerlab attributes
+	Prefix        string `yaml:"prefix" mapstructure:"prefix"`                           // prefix of auto-naming
+	MgmtInterface string `yaml:"mgmt_interfaceclass" mapstructure:"mgmt_interfaceclass"` // InterfaceClass name for mgmt
 
 	LabelOwnerClass
 }
@@ -492,10 +484,8 @@ func (nc *NodeClass) GetGivenValues() map[string]string {
 }
 
 type InterfaceClass struct {
-	// An interface can have only one of "primary" interface class or "primary" connection class.
-	Name            string            `yaml:"name" mapstructure:"name"`
-	Primary         bool              `yaml:"primary" mapstructure:"primary"`
-	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
+	Name    string `yaml:"name" mapstructure:"name"`
+	Virtual bool   `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Layers          []string          `yaml:"layers,flow" mapstructure:"layers,flow"` // Interface connection is limited to specified layers
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
@@ -504,10 +494,7 @@ type InterfaceClass struct {
 	NeighborClasses []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
 	MemberClasses   []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
 
-	// Following attributes are valid only on primary interface classes.
-	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of auto-naming
-	TinetAttr map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`   // tinet attributes
-	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`     // containerlab attributes
+	Prefix string `yaml:"prefix" mapstructure:"prefix"` // prefix of auto-naming
 
 	LabelOwnerClass
 }

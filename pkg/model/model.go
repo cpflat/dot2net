@@ -238,6 +238,8 @@ func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {
 		- check flags (IPAware, Numbered and IPSpaces)
 	*/
 
+	var err error
+
 	// defaultConnectionLayer := cfg.DefaultConnectionLayer()
 
 	// var primaryNC string
@@ -245,7 +247,10 @@ func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {
 
 	// check nodes
 	for _, node := range nm.Nodes {
-		node.SetClasses(cfg, nm)
+		err = node.SetClasses(cfg, nm)
+		if err != nil {
+			return err
+		}
 		// 		primaryNC = ""
 		//
 		// 		// set defaults for nodes without primary class
@@ -343,8 +348,10 @@ func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {
 
 	// check connections
 	for _, conn := range nm.Connections {
-
-		conn.SetClasses(cfg, nm)
+		err = conn.SetClasses(cfg, nm)
+		if err != nil {
+			return err
+		}
 
 		// 		for _, layer := range defaultConnectionLayer {
 		// 			conn.Layers.Add(layer)
@@ -397,7 +404,10 @@ func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {
 	// check interfaces
 	for _, node := range nm.Nodes {
 		for _, iface := range node.Interfaces {
-			iface.SetClasses(cfg, nm)
+			err = iface.SetClasses(cfg, nm)
+			if err != nil {
+				return err
+			}
 			// 			// set virtual flag to interfaces of virtual nodes as default
 			// 			iface.Virtual = node.Virtual
 			//
@@ -518,7 +528,10 @@ func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {
 	}
 
 	for _, group := range nm.Groups {
-		group.SetClasses(cfg, nm)
+		err = group.SetClasses(cfg, nm)
+		if err != nil {
+			return err
+		}
 		// 		// check groupclass flags to groups
 		// 		for _, cls := range group.classLabels {
 		// 			gc, ok := cfg.groupClassMap[cls]
