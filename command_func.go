@@ -135,105 +135,6 @@ func CmdBuild(c *cli.Context) error {
 	return nil
 }
 
-func CmdTinet(c *cli.Context) error {
-	nd, cfg, err := loadContext(c)
-	if err != nil {
-		return err
-	}
-	// name := c.String("output")
-	verbose := c.Bool("verbose")
-	profile := c.String("profile")
-
-	// init CPU profiler
-	if profile != "" {
-		f, err := os.Create(profile)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			f.Close()
-		}()
-		if err := pprof.StartCPUProfile(f); err != nil {
-			return err
-		}
-		defer pprof.StopCPUProfile()
-	}
-
-	nm, err := model.BuildNetworkModel(cfg, nd, verbose)
-	if err != nil {
-		return err
-	}
-	err = model.BuildConfigFiles(cfg, nm, verbose)
-	if err != nil {
-		return err
-	}
-
-	// buffers := generateBuffers(nm.Files)
-	// outputFiles(buffers, "")
-	// for _, n := range nm.Nodes {
-	// 	if !n.Virtual {
-	// 		buffers := generateBuffers(n.Files)
-	// 		outputFiles(buffers, n.Name)
-	// 	}
-	// }
-
-	// spec, err := tinet.GetTinetSpecification(cfg, nm)
-	// if err != nil {
-	// 	return err
-	// }
-	// return outputString(name, spec)
-	return nil
-}
-
-func CmdClab(c *cli.Context) error {
-	nd, cfg, err := loadContext(c)
-	if err != nil {
-		return err
-	}
-	// name := c.String("output")
-	verbose := c.Bool("verbose")
-	profile := c.String("profile")
-
-	// init CPU profiler
-	if profile != "" {
-		f, err := os.Create(profile)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			f.Close()
-		}()
-		if err := pprof.StartCPUProfile(f); err != nil {
-			return err
-		}
-		defer pprof.StopCPUProfile()
-	}
-
-	nm, err := model.BuildNetworkModel(cfg, nd, verbose)
-	if err != nil {
-		return err
-	}
-	err = model.BuildConfigFiles(cfg, nm, verbose)
-	if err != nil {
-		return err
-	}
-
-	// buffers := generateBuffers(nm.Files)
-	// outputFiles(buffers, "")
-	// for _, n := range nm.Nodes {
-	// 	if !n.Virtual {
-	// 		buffers := generateBuffers(n.Files)
-	// 		outputFiles(buffers, n.Name)
-	// 	}
-	// }
-
-	// topo, err := clab.GetClabTopology(cfg, nm)
-	// if err != nil {
-	// 	return err
-	// }
-	// return outputString(name, topo)
-	return nil
-}
 
 func CmdParams(c *cli.Context) error {
 	nd, cfg, err := loadContext(c)
@@ -461,6 +362,52 @@ func CmdFiles(c *cli.Context) error {
 	// Output the list of files that would be generated
 	for _, file := range files {
 		fmt.Println(file)
+	}
+
+	return nil
+}
+
+func CmdClean(c *cli.Context) error {
+	nd, cfg, err := loadContext(c)
+	if err != nil {
+		return err
+	}
+	verbose := c.Bool("verbose")
+	dryRun := c.Bool("dry-run")
+
+	nm, err := model.BuildNetworkModel(cfg, nd, verbose)
+	if err != nil {
+		return err
+	}
+
+	files, err := model.ListGeneratedFiles(cfg, nm, verbose)
+	if err != nil {
+		return err
+	}
+
+	// Delete files that exist
+	deletedCount := 0
+	for _, file := range files {
+		if _, err := os.Stat(file); err == nil {
+			if dryRun {
+				fmt.Printf("Would delete: %s\n", file)
+			} else {
+				if verbose {
+					fmt.Printf("Deleting: %s\n", file)
+				}
+				if err := os.Remove(file); err != nil {
+					fmt.Fprintf(os.Stderr, "Error deleting %s: %v\n", file, err)
+				} else {
+					deletedCount++
+				}
+			}
+		} else if verbose {
+			fmt.Printf("File not found: %s\n", file)
+		}
+	}
+
+	if !dryRun {
+		fmt.Printf("Deleted %d files\n", deletedCount)
 	}
 
 	return nil

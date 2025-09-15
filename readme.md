@@ -28,7 +28,7 @@ Dot2net currently supports [Containerlab](https://containerlab.dev/) and [TiNET]
 
 ## Generate configuration files with dot2net
 
-    // Generate spec.yaml if tinet module is loaded, and topo.yaml if clab module is loaded
+    // Generate spec.yaml and topo.yaml based on modules specified in the config file
     dot2net build -c ./example/ospf_simple/input.yaml ./example/ospf_simple/input.dot
 
 ## Deploy a network with TiNET
@@ -207,15 +207,15 @@ of the opposite interface.
 
 The assigned parameters can be listed with "params" subcommand:
 
-    dot2net params -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot
+    dot2net params -c ./example/ospf_simple/input.yaml ./example/ospf_simple/input.dot
 
 The relative namespace items can be listed with -a option:
 
-    dot2net params -a -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot
+    dot2net params -a -c ./example/ospf_simple/input.yaml ./example/ospf_simple/input.dot
 
 The assigned parameters can also be output as JSON data with "data" subcommand:
 
-    dot2net data -c ./example/rip_topo1/rip.yaml ./example/rip_topo1/rip.dot
+    dot2net data -c ./example/ospf_simple/input.yaml ./example/ospf_simple/input.dot
 
 
 # Advanced settings
