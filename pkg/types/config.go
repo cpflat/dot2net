@@ -518,7 +518,6 @@ func (ic *InterfaceClass) GetGivenValues() map[string]string {
 
 type ConnectionClass struct {
 	Name            string            `yaml:"name" mapstructure:"name"`
-	Primary         bool              `yaml:"primary" mapstructure:"primary"`
 	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Layers          []string          `yaml:"layers,flow" mapstructure:"layers,flow"` // Connection is limited to specified layers
@@ -526,12 +525,9 @@ type ConnectionClass struct {
 	Values          map[string]string `yaml:"values" mapstructure:"values"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 	MemberClasses   []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
-	NeighborClasses []*NeighborClass  `yaml:"neighbors,flow" mapstructure:"neighbors,flow"`
-
-	// Following attributes are valid only on primary interface classes.
-	Prefix    string                 `yaml:"prefix" mapstructure:"prefix"` // prefix of interface auto-naming
-	TinetAttr map[string]interface{} `yaml:"tinet" mapstructure:"tinet"`   // tinet attributes
-	ClabAttr  map[string]interface{} `yaml:"clab" mapstructure:"clab"`     // containerlab attributes
+	
+	// Connection naming
+	Prefix string `yaml:"prefix" mapstructure:"prefix"` // prefix of connection auto-naming
 
 	LabelOwnerClass
 }
@@ -965,15 +961,6 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 			}
 			ct.className = cc.Name
 			ct.classType = ClassTypeConnection
-		}
-		for _, nc := range cc.NeighborClasses {
-			for _, ct := range nc.ConfigTemplates {
-				if err := initConfigTemplate(cfg, ct); err != nil {
-					return nil, err
-				}
-				ct.className = ""
-				ct.classType = ClassTypeNeighbor("")
-			}
 		}
 		for _, mc := range cc.MemberClasses {
 			for _, ct := range mc.ConfigTemplates {

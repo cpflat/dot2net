@@ -10,6 +10,7 @@ import (
 
 const DefaultNodePrefix string = "node"
 const DefaultInterfacePrefix string = "net"
+const DefaultConnectionPrefix string = "conn"
 
 // abstracted module
 
@@ -77,6 +78,9 @@ type NameSpacer interface {
 	// Methods to trace top-down network model
 	ChildClasses() ([]string, error)
 	Childs(c string) ([]NameSpacer, error)
+	// Methods for dependency graph processing
+	DependClasses() ([]string, error)
+	Depends(c string) ([]NameSpacer, error)
 
 	setParamFlag(k string)
 	hasParamFlag(k string) bool
@@ -412,6 +416,7 @@ type NetworkModel struct {
 	nodeClassMemberMap       classMemberMap
 	interfaceClassMemberMap  classMemberMap
 	connectionClassMemberMap classMemberMap
+	segmentClassMemberMap    classMemberMap
 }
 
 func NewNetworkModel() *NetworkModel {
@@ -424,6 +429,7 @@ func NewNetworkModel() *NetworkModel {
 		nodeClassMemberMap:       classMemberMap{mapper: map[string][]NameSpacer{}},
 		interfaceClassMemberMap:  classMemberMap{mapper: map[string][]NameSpacer{}},
 		connectionClassMemberMap: classMemberMap{mapper: map[string][]NameSpacer{}},
+		segmentClassMemberMap:    classMemberMap{mapper: map[string][]NameSpacer{}},
 	}
 	return nm
 }
@@ -502,8 +508,16 @@ func (nm *NetworkModel) ConnectionClassMembers(cls string) []NameSpacer {
 	return nm.connectionClassMemberMap.getClassMembers(cls)
 }
 
+func (nm *NetworkModel) SegmentClassMembers(cls string) []NameSpacer {
+	return nm.segmentClassMemberMap.getClassMembers(cls)
+}
+
 func (nm *NetworkModel) ChildClasses() ([]string, error) {
-	return []string{ClassTypeNode, ClassTypeGroup}, nil
+	return []string{ClassTypeNode, ClassTypeGroup, ClassTypeConnection, ClassTypeSegment}, nil
+}
+
+func (nm *NetworkModel) DependClasses() ([]string, error) {
+	return nm.ChildClasses()
 }
 
 func (nm *NetworkModel) Childs(c string) ([]NameSpacer, error) {
@@ -520,9 +534,27 @@ func (nm *NetworkModel) Childs(c string) ([]NameSpacer, error) {
 			groups = append(groups, g)
 		}
 		return groups, nil
+	case ClassTypeConnection:
+		var connections []NameSpacer
+		for _, conn := range nm.Connections {
+			connections = append(connections, conn)
+		}
+		return connections, nil
+	case ClassTypeSegment:
+		var segments []NameSpacer
+		for _, segmentList := range nm.NetworkSegments {
+			for _, seg := range segmentList {
+				segments = append(segments, seg)
+			}
+		}
+		return segments, nil
 	default:
 		return nil, fmt.Errorf("invalid class type %s for networkModel.Childs()", c)
 	}
+}
+
+func (nm *NetworkModel) Depends(c string) ([]NameSpacer, error) {
+	return nm.Childs(c)
 }
 
 // func (nm *NetworkModel) traceChilds(target NameSpacer) []NameSpacer {
@@ -593,7 +625,7 @@ func (nm *NetworkModel) BuildRelativeNameSpace(globalParams map[string]map[strin
 // }
 
 func (nm *NetworkModel) NameSpacers() (result []NameSpacer) {
-	// Network, Node, Interface, Neighbor, Member, Group
+	// Network, Node, Interface, Connection, Neighbor, Member, Group
 
 	// network
 	result = append(result, nm)
@@ -610,6 +642,10 @@ func (nm *NetworkModel) NameSpacers() (result []NameSpacer) {
 				}
 			}
 		}
+	}
+	// connection
+	for _, conn := range nm.Connections {
+		result = append(result, conn)
 	}
 	for _, segs := range nm.NetworkSegments {
 		for _, seg := range segs {
@@ -653,6 +689,14 @@ func (nm *NetworkModel) MemberReferrers() (result []MemberReferrer) {
 		result = append(result, n)
 		for _, iface := range n.Interfaces {
 			result = append(result, iface)
+		}
+	}
+	for _, conn := range nm.Connections {
+		result = append(result, conn)
+	}
+	for _, segments := range nm.NetworkSegments {
+		for _, seg := range segments {
+			result = append(result, seg)
 		}
 	}
 	return result
@@ -929,6 +973,14 @@ func (n *Node) Childs(c string) ([]NameSpacer, error) {
 	}
 }
 
+func (n *Node) DependClasses() ([]string, error) {
+	return n.ChildClasses()
+}
+
+func (n *Node) Depends(c string) ([]NameSpacer, error) {
+	return n.Childs(c)
+}
+
 func (n *Node) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 	configTemplates := []*ConfigTemplate{}
 	for _, cls := range n.GetClasses() {
@@ -1107,37 +1159,12 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 			}
 		}
 
-		// add neighbor classes
-		for _, nc := range cc.NeighborClasses {
-			iface.neighborClassMap[nc.Layer] = append(iface.neighborClassMap[nc.Layer], nc)
-			// iface.hasNeighborClass[nc.Layer] = true
-		}
 
 		// check MemberClasses
 		for i := range cc.MemberClasses {
 			iface.AddMemberClass(cc.MemberClasses[i])
 		}
 
-		// check primary interface class consistency
-		if cc.Primary {
-			if primaryIC == "" {
-				primaryIC = cc.Name
-			} else {
-				return fmt.Errorf("multiple primary interface/connection classes on one node (%s, %s)", primaryIC, cc.Name)
-			}
-			iface.TinetAttr = &cc.TinetAttr
-			// iface.ClabAttr = &cc.ClabAttr
-			if cc.Prefix != "" {
-				iface.NamePrefix = cc.Prefix
-			}
-		} else {
-			if cc.Prefix != "" {
-				return fmt.Errorf("prefix can be specified only in primary class")
-			}
-			if len(cc.TinetAttr) > 0 || len(cc.ClabAttr) > 0 {
-				return fmt.Errorf("output-specific attributes can be specified only in primary class")
-			}
-		}
 
 	}
 
@@ -1283,6 +1310,14 @@ func (iface *Interface) Childs(c string) ([]NameSpacer, error) {
 	}
 }
 
+func (iface *Interface) DependClasses() ([]string, error) {
+	return iface.ChildClasses()
+}
+
+func (iface *Interface) Depends(c string) ([]NameSpacer, error) {
+	return iface.Childs(c)
+}
+
 func (iface *Interface) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 	configTemplates := []*ConfigTemplate{}
 	for _, cls := range iface.Connection.GetClasses() {
@@ -1298,9 +1333,6 @@ func (iface *Interface) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 
 func (iface *Interface) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
 	cts := []*ConfigTemplate{}
-	for _, cc := range cfg.ConnectionClasses {
-		cts = append(cts, cc.ConfigTemplates...)
-	}
 	for _, ic := range cfg.InterfaceClasses {
 		cts = append(cts, ic.ConfigTemplates...)
 	}
@@ -1398,18 +1430,25 @@ func (iface *Interface) AddNeighbor(neighbor *Interface, layer string) {
 }
 
 type Connection struct {
+	Name   string
 	Src    *Interface
 	Dst    *Interface
 	Layers mapset.Set[string]
 
 	*ParsedLabels
+	*NameSpace
+	*memberReference
+	addressedObject
 }
 
 func newConnection(src *Interface, dst *Interface) *Connection {
 	conn := &Connection{
-		Src:    src,
-		Dst:    dst,
-		Layers: mapset.NewSet[string](),
+		Src:             src,
+		Dst:             dst,
+		Layers:          mapset.NewSet[string](),
+		NameSpace:       newNameSpace(),
+		memberReference: newMemberReference(),
+		addressedObject: newAddressedObject(),
 	}
 	return conn
 }
@@ -1436,17 +1475,57 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// check connectionclass flags to connections and their interfaces
 	for _, cls := range conn.GetClasses() {
 		cc := cls.(*ConnectionClass)
-		// for _, cls := range conn.classLabels {
-		// 	cc, ok := cfg.connectionClassMap[cls]
-		// 	if !ok {
-		// 		return fmt.Errorf("invalid connectionclass name %s", cls)
-		// 	}
-		// 	conn.ParsedLabels.Classes = append(conn.ParsedLabels.Classes, cc)
-
+		
+		// register connection to connectionClassMemberMap (same pattern as Node/Interface)
+		nm.connectionClassMemberMap.addClassMember(cc.Name, conn)
+		
+		// check virtual (same pattern as Node/Interface)
+		if cc.Virtual {
+			conn.SetVirtual(true)
+		}
+		
+		// check ippolicy flags (same pattern as Node/Interface)
+		for _, p := range cc.IPPolicy {
+			policy, ok := cfg.policyMap[p]
+			if ok {
+				conn.setPolicy(policy.layer, policy)
+			} else {
+				return fmt.Errorf("invalid policy name %s in connectionclass %s", p, cc.Name)
+			}
+		}
+		
+		// check parameter flags (same pattern as Node/Interface)
+		for _, num := range cc.Parameters {
+			policy, ok := cfg.policyMap[num]
+			if ok {
+				// ip policy
+				conn.setPolicy(policy.layer, policy)
+			} else {
+				conn.setParamFlag(num)
+			}
+		}
+		
 		// connected layer
 		for _, layer := range cc.Layers {
 			conn.Layers.Add(layer)
 		}
+		
+		// check MemberClasses
+		for i := range cc.MemberClasses {
+			conn.AddMemberClass(cc.MemberClasses[i])
+		}
+	}
+
+	return nil
+}
+
+func (conn *Connection) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
+	// global params (place labels)
+	setGlobalParams(conn, globalParams)
+
+	// self params
+	for key, val := range conn.GetParams() {
+		conn.SetRelativeParam(key, val)
 	}
 
 	return nil
@@ -1461,11 +1540,58 @@ func (conn *Connection) StringForMessage() string {
 }
 
 func (conn *Connection) ChildClasses() ([]string, error) {
-	return []string{}, nil
+	classes := []string{}
+	for _, mc := range conn.GetMemberClasses() {
+		classType, classNames, err := mc.GetSpecifiedClasses()
+		if err != nil {
+			return nil, err
+		}
+		for _, cn := range classNames {
+			classes = append(classes, ClassTypeMember(classType, cn))
+		}
+	}
+	return classes, nil
 }
 
 func (conn *Connection) Childs(c string) ([]NameSpacer, error) {
-	return nil, nil
+	objs := []NameSpacer{}
+	tmp := strings.SplitN(c, "_", 3) // Maximum 3 splits for Member
+
+	switch tmp[0] {
+	case ClassTypeMemberHeader:
+		classType := tmp[1]
+		className := tmp[2]
+		for _, m := range conn.GetMembers() {
+			if m.ClassType == classType && m.ClassName == className {
+				objs = append(objs, m)
+			}
+		}
+		if len(objs) == 0 {
+			return nil, fmt.Errorf("no child objects that match %s", c)
+		}
+		return objs, nil
+	default:
+		return nil, fmt.Errorf("invalid class type %s for connection.Childs()", c)
+	}
+}
+
+func (conn *Connection) DependClasses() ([]string, error) {
+	classes, err := conn.ChildClasses()
+	if err != nil {
+		return nil, err
+	}
+	// Add dependency on source and destination interfaces
+	classes = append(classes, ClassTypeInterface)
+	return classes, nil
+}
+
+func (conn *Connection) Depends(c string) ([]NameSpacer, error) {
+	switch c {
+	case ClassTypeInterface:
+		return []NameSpacer{conn.Src, conn.Dst}, nil
+	default:
+		return conn.Childs(c)
+	}
 }
 
 func (conn *Connection) ClassDefinition(cfg *Config, cls string) (interface{}, error) {
@@ -1485,6 +1611,23 @@ func (conn *Connection) GivenIPNetwork(layer Layerer) (string, bool) {
 	return "", false
 }
 
+func (conn *Connection) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
+	configTemplates := []*ConfigTemplate{}
+	for _, cls := range conn.GetClasses() {
+		cc := cls.(*ConnectionClass)
+		configTemplates = append(configTemplates, cc.ConfigTemplates...)
+	}
+	return configTemplates
+}
+
+func (conn *Connection) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
+	cts := []*ConfigTemplate{}
+	for _, cc := range cfg.ConnectionClasses {
+		cts = append(cts, cc.ConfigTemplates...)
+	}
+	return cts
+}
+
 // type NetworkSegments struct {
 // 	Layer    *Layer
 // 	Segments []*SegmentMembers
@@ -1497,13 +1640,15 @@ type NetworkSegment struct {
 
 	*NameSpace
 	*ParsedLabels
+	*memberReference
 }
 
 func NewNetworkSegment() *NetworkSegment {
 	s := &NetworkSegment{
-		Interfaces:  []*Interface{},
-		Connections: []*Connection{},
-		NameSpace:   newNameSpace(),
+		Interfaces:      []*Interface{},
+		Connections:     []*Connection{},
+		NameSpace:       newNameSpace(),
+		memberReference: newMemberReference(),
 	}
 	return s
 }
@@ -1521,11 +1666,68 @@ func (seg *NetworkSegment) BuildRelativeNameSpace(globalParams map[string]map[st
 }
 
 func (seg *NetworkSegment) ChildClasses() ([]string, error) {
-	return []string{}, nil
+	classes := []string{}
+	for _, mc := range seg.GetMemberClasses() {
+		classType, classNames, err := mc.GetSpecifiedClasses()
+		if err != nil {
+			return nil, err
+		}
+		for _, cn := range classNames {
+			classes = append(classes, ClassTypeMember(classType, cn))
+		}
+	}
+	return classes, nil
 }
 
 func (seg *NetworkSegment) Childs(c string) ([]NameSpacer, error) {
-	return nil, nil
+	objs := []NameSpacer{}
+	tmp := strings.SplitN(c, "_", 3) // Maximum 3 splits for Member
+
+	switch tmp[0] {
+	case ClassTypeMemberHeader:
+		classType := tmp[1]
+		className := tmp[2]
+		for _, m := range seg.GetMembers() {
+			if m.ClassType == classType && m.ClassName == className {
+				objs = append(objs, m)
+			}
+		}
+		if len(objs) == 0 {
+			return nil, fmt.Errorf("no child objects that match %s", c)
+		}
+		return objs, nil
+	default:
+		return nil, fmt.Errorf("invalid class type %s for segment.Childs()", c)
+	}
+}
+
+func (seg *NetworkSegment) DependClasses() ([]string, error) {
+	classes, err := seg.ChildClasses()
+	if err != nil {
+		return nil, err
+	}
+	// Segment depends on its interfaces and connections
+	classes = append(classes, ClassTypeInterface, ClassTypeConnection)
+	return classes, nil
+}
+
+func (seg *NetworkSegment) Depends(c string) ([]NameSpacer, error) {
+	switch c {
+	case ClassTypeInterface:
+		var objs []NameSpacer
+		for _, iface := range seg.Interfaces {
+			objs = append(objs, iface)
+		}
+		return objs, nil
+	case ClassTypeConnection:
+		var objs []NameSpacer
+		for _, conn := range seg.Connections {
+			objs = append(objs, conn)
+		}
+		return objs, nil
+	default:
+		return seg.Childs(c)
+	}
 }
 
 func (seg *NetworkSegment) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
@@ -1535,6 +1737,64 @@ func (seg *NetworkSegment) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 		configTemplates = append(configTemplates, sc.ConfigTemplates...)
 	}
 	return configTemplates
+}
+
+func (seg *NetworkSegment) SetLabels(cfg *Config, labels []string, moduleLabels []string) error {
+	// Segment labels are set indirectly via SetSegmentLabelsFromRelationalLabels  
+	return fmt.Errorf("segment labels should be set via SetSegmentLabelsFromRelationalLabels, not SetLabels")
+}
+
+// SetSegmentLabelsFromRelationalLabels sets segment class labels by collecting relational class labels
+// from the segment's connections and interfaces. Unlike SetLabels, segments receive labels indirectly.
+func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, layer *Layer) error {
+	scNames := mapset.NewSet[string]()
+	
+	// Check connections for relational class labels
+	for _, conn := range seg.Connections {
+		for _, rlabel := range conn.RelationalClassLabels() {
+			if rlabel.ClassType == ClassTypeSegment {
+				sc, ok := cfg.SegmentClassByName(rlabel.Name)
+				if !ok {
+					return fmt.Errorf("unknown segment class (%v)", rlabel.Name)
+				}
+				if sc.Layer == layer.Name {
+					if !scNames.Contains(rlabel.Name) {
+						scNames.Add(rlabel.Name)
+					}
+				}
+			}
+		}
+	}
+	
+	// Check interfaces for relational class labels
+	for _, iface := range seg.Interfaces {
+		for _, rlabel := range iface.RelationalClassLabels() {
+			if rlabel.ClassType == ClassTypeSegment {
+				sc, ok := cfg.SegmentClassByName(rlabel.Name)
+				if !ok {
+					return fmt.Errorf("unknown segment class (%v)", rlabel.Name)
+				}
+				if sc.Layer == layer.Name {
+					if !scNames.Contains(rlabel.Name) {
+						scNames.Add(rlabel.Name)
+					}
+				}
+			}
+		}
+	}
+	
+	for _, name := range scNames.ToSlice() {
+		seg.AddClassLabels(name)
+	}
+	return nil
+}
+
+func (seg *NetworkSegment) ClassDefinition(cfg *Config, cls string) (interface{}, error) {
+	sc, ok := cfg.segmentClassMap[cls]
+	if !ok {
+		return nil, fmt.Errorf("invalid SegmentClass name %s", cls)
+	}
+	return sc, nil
 }
 
 func (seg *NetworkSegment) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
@@ -1564,6 +1824,14 @@ func (n *Neighbor) ChildClasses() ([]string, error) {
 
 func (n *Neighbor) Childs(c string) ([]NameSpacer, error) {
 	return nil, nil
+}
+
+func (n *Neighbor) DependClasses() ([]string, error) {
+	return n.ChildClasses()
+}
+
+func (n *Neighbor) Depends(c string) ([]NameSpacer, error) {
+	return n.Childs(c)
 }
 
 func (n *Neighbor) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
@@ -1632,6 +1900,14 @@ func (m *Member) ChildClasses() ([]string, error) {
 
 func (m *Member) Childs(c string) ([]NameSpacer, error) {
 	return nil, nil
+}
+
+func (m *Member) DependClasses() ([]string, error) {
+	return m.ChildClasses()
+}
+
+func (m *Member) Depends(c string) ([]NameSpacer, error) {
+	return m.Childs(c)
 }
 
 func (m *Member) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
@@ -1747,11 +2023,34 @@ func (g *Group) StringForMessage() string {
 }
 
 func (g *Group) ChildClasses() ([]string, error) {
-	return []string{ClassTypeNode}, nil
+	return []string{}, nil
 }
 
 func (g *Group) Childs(c string) ([]NameSpacer, error) {
 	return nil, nil
+}
+
+func (g *Group) DependClasses() ([]string, error) {
+	classes, err := g.ChildClasses()
+	if err != nil {
+		return nil, err
+	}
+	// Group depends on its nodes
+	classes = append(classes, ClassTypeNode)
+	return classes, nil
+}
+
+func (g *Group) Depends(c string) ([]NameSpacer, error) {
+	switch c {
+	case ClassTypeNode:
+		var nodes []NameSpacer
+		for _, n := range g.Nodes {
+			nodes = append(nodes, n)
+		}
+		return nodes, nil
+	default:
+		return g.Childs(c)
+	}
 }
 
 func (g *Group) GetConfigTemplates(cfg *Config) []*ConfigTemplate {

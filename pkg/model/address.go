@@ -157,9 +157,30 @@ func (pool *ipPool) reservePrefix(prefix netip.Prefix) error {
 }
 
 func (pool *ipPool) getAvailablePrefix(cnt int) ([]netip.Prefix, error) {
+	// Special case: -1 means get all available prefixes without capacity check
+	if cnt < 0 {
+		var prefixes []netip.Prefix
+		// Use availableBits to determine the maximum range, but with safety limit
+		maxRange := 1 << pool.availableBits
+		if maxRange > 10000 || pool.availableBits > 20 {
+			maxRange = 10000 // Safety limit for very large pools
+		}
+		for i := 0; i < maxRange; i++ {
+			if _, exists := pool.boundIndex[i]; !exists {
+				p, err := pool.getitem(i)
+				if err != nil {
+					// Can't get more items, stop here
+					break
+				}
+				prefixes = append(prefixes, p)
+			}
+		}
+		return prefixes, nil
+	}
+	
 	required := cnt + len(pool.boundIndex)
 	if !pool.isEnough(required) {
-		return nil, fmt.Errorf("no enough network prefix in address pool (%d required)", required)
+		return nil, fmt.Errorf("no enough network prefix in address pool (%d required), cnt=%d, boundIndex=%d, availableBits=%d", required, cnt, len(pool.boundIndex), pool.availableBits)
 	}
 
 	var prefixes = make([]netip.Prefix, 0, cnt)

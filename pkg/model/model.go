@@ -59,6 +59,10 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 	if err != nil {
 		return nil, err
 	}
+	err = assignConnectionNames(nm)
+	if err != nil {
+		return nil, err
+	}
 
 	// assign numbers, interface names and addresses
 	err = setGivenParameters(nm)
@@ -662,6 +666,55 @@ func assignInterfaceNames(nm *types.NetworkModel) error {
 	return nil
 }
 
+func assignConnectionNames(nm *types.NetworkModel) error {
+	existingNames := map[string]struct{}{}
+	prefixMap := map[string][]*types.Connection{} // Connections to be named automatically
+	
+	for _, conn := range nm.Connections {
+		if conn.Name == "" {
+			// Get prefix from ConnectionClass
+			prefix := types.DefaultConnectionPrefix
+			for _, cls := range conn.GetClasses() {
+				cc := cls.(*types.ConnectionClass)
+				if cc.Prefix != "" {
+					prefix = cc.Prefix
+					break
+				}
+			}
+			prefixMap[prefix] = append(prefixMap[prefix], conn)
+		} else {
+			existingNames[conn.Name] = struct{}{}
+		}
+	}
+	
+	for prefix, connections := range prefixMap {
+		i := 0
+		for _, conn := range connections {
+			var name string
+			for { // avoid existing names
+				name = prefix + strconv.Itoa(i)
+				_, exists := existingNames[name]
+				if !exists {
+					break
+				}
+				i++ // starts with 0, increment by loop
+			}
+			conn.Name = name
+			existingNames[conn.Name] = struct{}{}
+			i++
+		}
+	}
+	
+	// confirm all connections are named
+	for _, conn := range nm.Connections {
+		if conn.Name == "" {
+			return fmt.Errorf("there still exists unnamed connections after assignConnectionNames")
+		}
+	}
+	
+	return nil
+}
+
 func setGivenParameters(nm *types.NetworkModel) error {
 	// add parameters only when no same key in namespace
 	addParam := func(lo types.LabelOwner, k string, v string) error {
@@ -770,7 +823,12 @@ func assignIPParameters(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 		if len(segs) > 0 {
 			nm.NetworkSegments[layer.Name] = segs
 		}
-		setSegmentLabels(cfg, segs, layer)
+		for _, seg := range segs {
+			err := seg.SetSegmentLabelsFromRelationalLabels(cfg, layer)
+			if err != nil {
+				return err
+			}
+		}
 		setNeighbors(segs, layer)
 
 		// assign ip addresses

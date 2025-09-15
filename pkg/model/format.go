@@ -16,22 +16,49 @@ const EmptyOutput string = "#EMPTY#"
 const EmptySeparator string = "#NONE#"
 const NChars int = 32
 
-type SorterConfigBlocks struct {
+type ConfigAggregator struct {
 	belong map[belongKey][]sorterKey
 	groups map[sorterKey][]*ConfigBlock
+	
+	// Parent-child config block management
+	childConfigs map[childConfigKey][]*ChildConfig  // child's config blocks
+	parentChild  map[parentChildKey][]string        // parent -> children mapping
 }
 
-func initSorterConfigBlocks() *SorterConfigBlocks {
-	return &SorterConfigBlocks{
-		belong: map[belongKey][]sorterKey{},
-		groups: map[sorterKey][]*ConfigBlock{},
+type childConfigKey struct {
+	child string  // child NameSpacer's StringForMessage()
+	name  string  // config template name
+}
+
+type parentChildKey struct {
+	parent    string  // parent NameSpacer's StringForMessage()
+	childType string  // "interface", "node", etc.
+	name      string  // config template name
+}
+
+type ChildConfig struct {
+	config  string
+	formats []string
+}
+
+type ChildConfigInfo struct {
+	configs []string
+	formats []string
+}
+
+func initConfigAggregator() *ConfigAggregator {
+	return &ConfigAggregator{
+		belong:       map[belongKey][]sorterKey{},
+		groups:       map[sorterKey][]*ConfigBlock{},
+		childConfigs: map[childConfigKey][]*ChildConfig{},
+		parentChild:  map[parentChildKey][]string{},
 	}
 }
 
-func (scb *SorterConfigBlocks) addSorterChildren(sorter types.NameSpacer, ns types.NameSpacer, group string) error {
+func (ca *ConfigAggregator) addSorterChildren(sorter types.NameSpacer, ns types.NameSpacer, group string) error {
 	// list up candidate children objects that generate grouped configs for the sorter
 	k := belongKey{namespacer: ns, group: group}
-	scb.belong[k] = append(scb.belong[k], sorterKey{sorter: sorter, group: group})
+	ca.belong[k] = append(ca.belong[k], sorterKey{sorter: sorter, group: group})
 
 	classes, err := ns.ChildClasses()
 	if err != nil {
@@ -43,32 +70,44 @@ func (scb *SorterConfigBlocks) addSorterChildren(sorter types.NameSpacer, ns typ
 			return err
 		}
 		for _, child := range objs {
-			scb.addSorterChildren(sorter, child, group)
+			ca.addSorterChildren(sorter, child, group)
 		}
 	}
 	return nil
 }
 
-func (scb *SorterConfigBlocks) addSorter(sorter types.NameSpacer, group string) {
-	scb.addSorterChildren(sorter, sorter, group)
+func (ca *ConfigAggregator) addSorter(sorter types.NameSpacer, group string) {
+	ca.addSorterChildren(sorter, sorter, group)
 }
 
-func (scb *SorterConfigBlocks) addConfigBlock(ns types.NameSpacer, group string, block *ConfigBlock, top bool) {
+// addChildConfig adds a child config block for parent retrieval during integration
+func (ca *ConfigAggregator) addChildConfig(child types.NameSpacer, name string, config string, formats []string) {
+	key := childConfigKey{
+		child: child.StringForMessage(),
+		name:  name,
+	}
+	ca.childConfigs[key] = append(ca.childConfigs[key], &ChildConfig{
+		config:  config,
+		formats: formats,
+	})
+}
+
+func (ca *ConfigAggregator) addConfigBlock(ns types.NameSpacer, group string, block *ConfigBlock, top bool) {
 	// add config blocks for sorter objects corresponding to parent objects
 	bk := belongKey{namespacer: ns, group: group}
-	for _, sk := range scb.belong[bk] {
+	for _, sk := range ca.belong[bk] {
 		if top {
-			scb.groups[sk] = append([]*ConfigBlock{block}, scb.groups[sk]...)
+			ca.groups[sk] = append([]*ConfigBlock{block}, ca.groups[sk]...)
 
 		} else {
-			scb.groups[sk] = append(scb.groups[sk], block)
+			ca.groups[sk] = append(ca.groups[sk], block)
 		}
 	}
 }
 
-func (scb *SorterConfigBlocks) getConfigBlocks(ns types.NameSpacer, group string, verbose bool) []string {
+func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, group string, verbose bool) []string {
 	sk := sorterKey{sorter: ns, group: group}
-	blocks := scb.groups[sk]
+	blocks := ca.groups[sk]
 	
 	if verbose && len(blocks) > 0 {
 		fmt.Fprintf(os.Stderr, " sorting %d config blocks for group %s:\n", len(blocks), group)
@@ -92,6 +131,104 @@ func (scb *SorterConfigBlocks) getConfigBlocks(ns types.NameSpacer, group string
 		ret = append(ret, cb.Block)
 	}
 	return ret
+}
+
+// Parent-child config block management methods
+
+// Register parent-child relationships during Phase 0
+func (ca *ConfigAggregator) registerParentChild(parent types.NameSpacer, cfg *types.Config) {
+	// Check all possible config templates of parent
+	parentTemplates := parent.GetPossibleConfigTemplates(cfg)
+	
+	// For each template with a name, register potential children
+	for _, ct := range parentTemplates {
+		if ct.Name != "" {
+			// Register all child types that might contribute config blocks
+			classes, err := parent.ChildClasses()
+			if err != nil {
+				continue
+			}
+			
+			for _, cls := range classes {
+				children, err := parent.Childs(cls)
+				if err != nil {
+					continue
+				}
+				
+				// Determine child type string
+				var childType string
+				if len(children) > 0 {
+					switch children[0].(type) {
+					case *types.Interface:
+						childType = "interface"
+					case *types.Node:
+						childType = "node"
+					case *types.Group:
+						childType = "group"
+					default:
+						continue
+					}
+					
+					// Register parent-child mapping
+					key := parentChildKey{
+						parent:    parent.StringForMessage(),
+						childType: childType,
+						name:      ct.Name,
+					}
+					
+					for _, child := range children {
+						ca.parentChild[key] = append(ca.parentChild[key], child.StringForMessage())
+					}
+				}
+			}
+		}
+	}
+}
+
+
+func (ca *ConfigAggregator) getChildConfigs(parent types.NameSpacer, childType string, name string) (*ChildConfigInfo, bool) {
+	// Get list of children for this parent
+	key := parentChildKey{
+		parent:    parent.StringForMessage(),
+		childType: childType,
+		name:      name,
+	}
+	
+	childNames, exists := ca.parentChild[key]
+	if !exists || len(childNames) == 0 {
+		return nil, false
+	}
+	
+	// Collect config blocks from children
+	var configs []string
+	var formats []string
+	found := false
+	
+	for _, childName := range childNames {
+		childKey := childConfigKey{
+			child: childName,
+			name:  name,
+		}
+		
+		if childConfigs, exists := ca.childConfigs[childKey]; exists {
+			for _, cc := range childConfigs {
+				configs = append(configs, cc.config)
+				if !found {
+					formats = cc.formats
+					found = true
+				}
+			}
+		}
+	}
+	
+	if !found {
+		return nil, false
+	}
+	
+	return &ChildConfigInfo{
+		configs: configs,
+		formats: formats,
+	}, true
 }
 
 type sorterKey struct {
@@ -251,78 +388,233 @@ func generateConfigFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool
 		}
 	}
 
-	scb := initSorterConfigBlocks()
-
-	// post order traversal with depth first search
-	// so that a parent node is processed after all its child nodes
-	var traverse func(types.NameSpacer) error
-	traverse = func(parent types.NameSpacer) error {
-		// do nothing if parent is virtual node
-		// if node, ok := parent.(*types.Node); ok {
-		// 	if node.IsVirtual() {
-		// 		if verbose {
-		// 			fmt.Fprintf(os.Stderr, "skipping virtual node %s\n", node.Name)
-		// 		}
-		// 		return nil
-		// 	}
-		// }
-
-		// list up candidate children objects that generate grouped configs for the sorter
-		checkSorterObjects(cfg, scb, parent)
-
-		// list up child classtype candidates
-		classes, err := parent.ChildClasses()
-		if err != nil {
-			return err
-		}
-		for _, cls := range classes {
-
-			// list up child objects of the classtype
-			objs, err := parent.Childs(cls)
-			if err != nil {
-				return err
-			}
-			// traverse child objects
-			for _, obj := range objs {
-				err := traverse(obj)
-				if err != nil {
-					return fmt.Errorf("error on processing %s: %w", obj.StringForMessage(), err)
-				}
-			}
-
-			// generate config blocks for the child objects
-			err = generateConfigForObjects(cfg, scb, objs, parent, verbose)
-			if err != nil {
-				return err
-			}
-		}
-		return nil
+	// Phase 0: Pre-Analysis - register sorter candidates and parent-child relationships
+	ca := initConfigAggregator()
+	if verbose {
+		fmt.Printf("Phase 0: Pre-Analysis (Sorter and Parent-Child relationships)\n")
+	}
+	for _, ns := range nm.NameSpacers() {
+		checkSorterObjects(cfg, ca, ns)
+		ca.registerParentChild(ns, cfg)
 	}
 
-	err := traverse(nm)
-	if err != nil {
-		return err
+	// Dependency-Ordered Individual Config Generation
+	if verbose {
+		fmt.Printf("Dependency-Ordered Individual Config Generation\n")
 	}
-	err = generateConfigForObjects(cfg, scb, []types.NameSpacer{nm}, nil, verbose)
-	if err != nil {
-		return err
+	reorderedNameSpacers, err2 := reorderNameSpacers(nm.NameSpacers(), verbose)
+	if err2 != nil {
+		return fmt.Errorf("failure in reordering NameSpacers: %w", err2)
+	}
+	
+	if verbose {
+		fmt.Printf("Processing order: ")
+		for i, ns := range reorderedNameSpacers {
+			if i > 0 {
+				fmt.Printf(" -> ")
+			}
+			fmt.Printf("%s", ns.StringForMessage())
+		}
+		fmt.Printf("\n")
+	}
+
+	// Process individual configs in dependency order
+	for _, ns := range reorderedNameSpacers {
+		err3 := generateIndividualConfigs(cfg, ca, ns, verbose)
+		if err3 != nil {
+			return fmt.Errorf("failure in generating individual configs for %s: %w", ns.StringForMessage(), err3)
+		}
 	}
 
 	return nil
 }
 
-func checkSorterObjects(cfg *types.Config, scb *SorterConfigBlocks, ns types.NameSpacer) {
+// integrateConfigsFromDependencies integrates config blocks from dependent objects
+func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, ns types.NameSpacer, verbose bool) error {
+	// Process each dependency class
+	depClasses, err := ns.DependClasses()
+	if err != nil {
+		return err
+	}
+	
+	for _, depClass := range depClasses {
+		deps, err := ns.Depends(depClass)
+		if err != nil || len(deps) == 0 {
+			continue
+		}
+		
+		// Collect all configs from each dependency, grouped by config name
+		configsByName := make(map[string][]string)
+		formatsByName := make(map[string][]string)
+		
+		for _, dep := range deps {
+			// Find all stored configs for this dependency
+			for childKey, childConfigs := range ca.childConfigs {
+				if childKey.child == dep.StringForMessage() {
+					for _, cc := range childConfigs {
+						configsByName[childKey.name] = append(configsByName[childKey.name], cc.config)
+						if len(formatsByName[childKey.name]) == 0 {
+							formatsByName[childKey.name] = cc.formats
+						}
+					}
+				}
+			}
+		}
+		
+		// Now integrate each config name with appropriate prefix
+		for configName, configs := range configsByName {
+			if len(configs) == 0 {
+				continue
+			}
+			
+			var relativeName string
+			// Determine the relative name based on the first dependency's type
+			if len(deps) > 0 {
+				switch obj := deps[0].(type) {
+				case *types.Node:
+					relativeName = ChildNodesConfigHeader + configName
+				case *types.Interface:
+					relativeName = ChildInterfacesConfigHeader + configName
+				case *types.Group:
+					relativeName = ChildGroupsConfigHeader + configName
+				case *types.Neighbor:
+					relativeName = ChildNeighborsConfigHeader + obj.Layer + NumberSeparator + configName
+				case *types.Member:
+					relativeName = ChildMembersConfigHeader + obj.ClassType + NumberSeparator + obj.ClassName + NumberSeparator + configName
+				default:
+					return fmt.Errorf("unsupported dependency type: %T", obj)
+				}
+			}
+			
+			if relativeName == "" {
+				continue
+			}
+			
+			// Merge and add to namespace
+			mergedConfig, err := mergeConfigBlocks(cfg, configs, formatsByName[configName])
+			if err != nil {
+				return fmt.Errorf("error merging configs from %s: %w", depClass, err)
+			}
+			
+			err = setConfigParamForNameSpace(ns, relativeName, mergedConfig, verbose)
+			if err != nil {
+				return fmt.Errorf("error adding configs to namespace: %w", err)
+			}
+			
+			if verbose {
+				fmt.Fprintf(os.Stderr, " integrated %d configs from %s as %s\n", len(configs), depClass, relativeName)
+			}
+		}
+	}
+	
+	return nil
+}
+
+func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types.NameSpacer, verbose bool) error {
+	// First, integrate dependent config blocks into this namespace
+	// This handles both hierarchical (child) and non-hierarchical dependencies
+	err := integrateConfigsFromDependencies(cfg, ca, ns, verbose)
+	if err != nil {
+		return fmt.Errorf("error integrating configs from dependencies: %w", err)
+	}
+	
+	// Then proceed with normal config generation
+	configTemplates := ns.GetPossibleConfigTemplates(cfg)
+	if verbose {
+		fmt.Fprintf(os.Stderr, "processing individual configs for %s (%d possible templates)\n", ns.StringForMessage(), len(configTemplates))
+	}
+	
+	// Reorder ConfigTemplates based on their dependencies (Level 2 dependencies)
+	reordered, err := reorderConfigTemplates(configTemplates, verbose)
+	if err != nil {
+		return fmt.Errorf("failure in reordering config templates for %s: %w", ns.StringForMessage(), err)
+	}
+	
+	if verbose {
+		fmt.Fprintf(os.Stderr, "processing order: %v\n", reordered)
+	}
+	
+	for _, ct := range reordered {
+		// Generate config block if conditions are met
+		var conf string
+		reason, met := checkConfigTemplateConditions(ns, ct)
+		if met {
+			if verbose {
+				fmt.Fprintf(os.Stderr, "templating individual config for %s with %s\n", ns.StringForMessage(), ct.String())
+			}
+			conf, err = generateConfigBlock(ns, ct)
+			if err != nil {
+				return err
+			}
+		} else {
+			if verbose {
+				fmt.Fprintf(os.Stderr, " skip templating for %s with %s because %s\n", ns.StringForMessage(), ct.String(), reason)
+			}
+			conf = EmptyOutput
+		}
+		
+		// Store config block for grouping (Group accumulation)
+		if met && ct.Group != "" {
+			ca.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority}, false)
+			if verbose {
+				fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
+			}
+		}
+		
+		// Group Aggregation: merge grouped config blocks if ct.Style is ConfigTemplateStyleSort
+		if met && ct.Style == types.ConfigTemplateStyleSort {
+			// add self config before merging for priority sort
+			ca.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: conf, Priority: ct.Priority}, true)
+			blocks := ca.getConfigBlocks(ns, ct.SortGroup, verbose)
+
+			// merge config blocks of grouped templates
+			conf, err = mergeConfigBlocks(cfg, blocks, ct.GetFormats())
+			if err != nil {
+				return fmt.Errorf("error on merging config blocks of %v, %w", blocks, err)
+			}
+			if verbose {
+				fmt.Fprintf(os.Stderr, " add %d config blocks in group %s\n", len(blocks)-1, ct.SortGroup)
+			}
+		}
+		
+		// Add to self's namespace if ct.Name is specified
+		if ct.Name != "" {
+			err := addSelfConfigToNameSpace(cfg, ns, conf, ct, verbose)
+			if err != nil {
+				return err
+			}
+			
+			// Store this config in ConfigBlockManager for parent to retrieve later
+			ca.addChildConfig(ns, ct.Name, conf, ct.GetFormats())
+			if verbose {
+				fmt.Fprintf(os.Stderr, " stored config for parent retrieval: %s\n", ct.Name)
+			}
+		}
+		
+		// Output file if ct.File is specified
+		if ct.File != "" {
+			err = outputConfigFile(cfg, ns, conf, ct, verbose)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	
+	return nil
+}
+
+func checkSorterObjects(cfg *types.Config, ca *ConfigAggregator, ns types.NameSpacer) {
 	cts := ns.GetPossibleConfigTemplates(cfg)
 	for _, ct := range cts {
 		// Check if the config template is valid and sorter
 		_, met := checkConfigTemplateConditions(ns, ct)
 		if met && ct.Style == types.ConfigTemplateStyleSort {
-			scb.addSorter(ns, ct.SortGroup)
+			ca.addSorter(ns, ct.SortGroup)
 		}
 	}
 }
 
-func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs []types.NameSpacer,
+func generateConfigForObjects(cfg *types.Config, ca *ConfigAggregator, objs []types.NameSpacer,
 	parent types.NameSpacer, verbose bool) error {
 
 	// named config can be used for output config, so explicitly generate them
@@ -386,7 +678,7 @@ func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs [
 
 			// store config block for grouping
 			if met && ct.Group != "" {
-				scb.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority}, false)
+				ca.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority}, false)
 				if verbose {
 					fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
 				}
@@ -395,8 +687,8 @@ func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs [
 			// merge grouped config blocks if ct.Style is types.ConfigTemplateStyleSort (sort)
 			if met && ct.Style == types.ConfigTemplateStyleSort {
 				// add self config before merging for priority sort
-				scb.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: conf, Priority: ct.Priority}, true)
-				blocks := scb.getConfigBlocks(ns, ct.SortGroup, verbose)
+				ca.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: conf, Priority: ct.Priority}, true)
+				blocks := ca.getConfigBlocks(ns, ct.SortGroup, verbose)
 
 				// merge config blocks of grouped templates
 				conf, err = mergeConfigBlocks(cfg, blocks, ct.GetFormats())
@@ -442,7 +734,7 @@ func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs [
 			}
 
 			// if met && ct.Group != "" && cfg.SorterConfigTemplateGroups.Contains(ct.Group) {
-			// 	scb.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority})
+			// 	ca.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority})
 			// 	if verbose {
 			// 		fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
 			// 	}
@@ -484,79 +776,6 @@ func generateConfigForObjects(cfg *types.Config, scb *SorterConfigBlocks, objs [
 	// }
 
 	return nil
-}
-
-// ConfigTemplateDependencyNode adapts ConfigTemplate to DependencyNode interface
-type ConfigTemplateDependencyNode struct {
-	template *types.ConfigTemplate
-	index    int
-	ctmap    map[string][]int  // name -> indices
-	grouped  map[string][]int  // group -> indices
-}
-
-func (ctdn *ConfigTemplateDependencyNode) GetID() string {
-	return fmt.Sprintf("template_%d", ctdn.index)
-}
-
-func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
-	var deps []string
-	ct := ctdn.template
-
-	// sorter depends on grouped templates
-	if ct.Style == types.ConfigTemplateStyleSort {
-		if indices, exists := ctdn.grouped[ct.SortGroup]; exists {
-			for _, idx := range indices {
-				deps = append(deps, fmt.Sprintf("template_%d", idx))
-			}
-		}
-	}
-
-	// explicit dependencies
-	for _, depName := range ct.Depends {
-		if indices, exists := ctdn.ctmap[depName]; exists {
-			for _, idx := range indices {
-				deps = append(deps, fmt.Sprintf("template_%d", idx))
-			}
-		} else {
-			return nil, fmt.Errorf("dependency %s not found for template %v", depName, ct)
-		}
-	}
-
-	return deps, nil
-}
-
-func (ctdn *ConfigTemplateDependencyNode) GetItem() *types.ConfigTemplate {
-	return ctdn.template
-}
-
-func reorderConfigTemplates(cts []*types.ConfigTemplate, verbose bool) ([]*types.ConfigTemplate, error) {
-	// Build name and group mappings
-	ctmap := make(map[string][]int)
-	grouped := make(map[string][]int)
-	
-	for ind, ct := range cts {
-		if ct.Name != "" {
-			ctmap[ct.Name] = append(ctmap[ct.Name], ind)
-		}
-		if ct.Group != "" {
-			grouped[ct.Group] = append(grouped[ct.Group], ind)
-		}
-	}
-
-	// Create dependency graph
-	dg := NewDependencyGraph[*types.ConfigTemplate]()
-	
-	for i, ct := range cts {
-		node := &ConfigTemplateDependencyNode{
-			template: ct,
-			index:    i,
-			ctmap:    ctmap,
-			grouped:  grouped,
-		}
-		dg.AddNode(node)
-	}
-
-	return dg.TopologicalSort()
 }
 
 // func generateConfigBlock(ct *types.ConfigTemplate, ns types.NameSpacer) (string, error) {
