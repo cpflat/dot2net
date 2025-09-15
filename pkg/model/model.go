@@ -669,7 +669,7 @@ func assignInterfaceNames(nm *types.NetworkModel) error {
 func assignConnectionNames(nm *types.NetworkModel) error {
 	existingNames := map[string]struct{}{}
 	prefixMap := map[string][]*types.Connection{} // Connections to be named automatically
-	
+
 	for _, conn := range nm.Connections {
 		if conn.Name == "" {
 			// Get prefix from ConnectionClass
@@ -850,7 +850,15 @@ func assignParameters(cfg *types.Config, nm *types.NetworkModel) error {
 	if err != nil {
 		return err
 	}
+	err = assignConnectionParameters(cfg, nm)
+	if err != nil {
+		return err
+	}
 	err = assignInterfaceParameters(cfg, nm)
+	if err != nil {
+		return err
+	}
+	err = assignSegmentParameters(cfg, nm)
 	if err != nil {
 		return err
 	}

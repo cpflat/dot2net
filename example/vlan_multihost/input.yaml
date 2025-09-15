@@ -10,6 +10,8 @@ module:
 file:
   - name: params.txt
     shared: true
+  - name: network_config.txt
+    shared: true
   - name: frr.conf
     path: /etc/frr/frr.conf
   - name: daemons
@@ -29,15 +31,20 @@ layer:
         range: 10.0.255.0/24
 
 param_rule:
-  - name: vlan
+  - name: vlan_id
     assign: segment
     layer: ip
     min: 100
     max: 1001
-  - name: cname
+  - name: conn_id
     assign: connection
     header: conn
-    min: 0
+    min: 1
+  - name: segment_id
+    assign: segment
+    layer: ip
+    header: seg
+    min: 1
 
 nodeclass:
   - name: switch
@@ -77,11 +84,14 @@ nodeclass:
       - file: params.txt
         style: sort
         sort_group: params.txt
+      - file: network_config.txt
+        style: sort
+        sort_group: network_config.txt
 
 interfaceclass:
   - name: all
     primary: true
-    params: [cname]
+    params: [conn_id]
     config:
       - name: link
         node: switch
@@ -90,7 +100,7 @@ interfaceclass:
           - "ip link set dev {{ .name }} master br0"
       - name: ospf_addr
         node: router
-        template: 
+        template:
           - "interface {{ .name }}"
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
           - "!"
@@ -98,14 +108,48 @@ interfaceclass:
         node: router
         template:
           - " network {{ .ip_net }} area 0"
-      - group: params.txt
+      - group: network_config.txt
         template:
-          - "connection name {{ .cname }} next to {{ .node_name }}.{{ .name }}"
-  - name: vlan
-    params: [vlan]
+          - "interface {{ .node_name }}.{{ .name }} on connection {{ .conn_name }}"
+
+connectionclass:
+  - name: normal_conn
+    primary: true
+    prefix: "normal"
+    params: [conn_id]
     config:
-      - group: params.txt
-        priority: -1
+      - group: network_config.txt
+        priority: -2
         template:
-          - "vlan {{ .vlan }} for {{ .node_name }}.{{ .name }}"
+          - "# Normal Connection: {{ .name }} (ID: {{ .conn_id }})"
+          - "connection {{ .name }} type normal"
+
+  - name: vlan_conn
+    prefix: "vlan_trunk"
+    params: [conn_id, vlan_id]
+    config:
+      - group: network_config.txt
+        priority: -2
+        template:
+          - "# VLAN Connection: {{ .name }} (ID: {{ .conn_id }}, VLAN: {{ .vlan_id }})"
+          - "connection {{ .name }} type vlan_trunk vlan {{ .vlan_id }}"
+
+segmentclass:
+  - name: vlan_seg_A
+    layer: ip
+    config:
+      - group: network_config.txt
+        priority: -3
+        template:
+          - "# VLAN Segment A: VLAN {{ .vlan_id }} spanning {{ .segment_interface_count }} interfaces"
+          - "vlan segment {{ .segment_name }} id {{ .vlan_id }} interfaces {{ .segment_interface_count }}"
+
+  - name: vlan_seg_B
+    layer: ip
+    config:
+      - group: network_config.txt
+        priority: -3
+        template:
+          - "# VLAN Segment B: VLAN {{ .vlan_id }} spanning {{ .segment_interface_count }} interfaces"
+          - "vlan segment {{ .segment_name }} id {{ .vlan_id }} interfaces {{ .segment_interface_count }}"
 

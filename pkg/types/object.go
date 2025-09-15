@@ -1446,6 +1446,7 @@ func newConnection(src *Interface, dst *Interface) *Connection {
 		Src:             src,
 		Dst:             dst,
 		Layers:          mapset.NewSet[string](),
+		ParsedLabels:    newParsedLabels(),
 		NameSpace:       newNameSpace(),
 		memberReference: newMemberReference(),
 		addressedObject: newAddressedObject(),
@@ -1647,6 +1648,7 @@ func NewNetworkSegment() *NetworkSegment {
 	s := &NetworkSegment{
 		Interfaces:      []*Interface{},
 		Connections:     []*Connection{},
+		ParsedLabels:    newParsedLabels(),
 		NameSpace:       newNameSpace(),
 		memberReference: newMemberReference(),
 	}

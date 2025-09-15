@@ -83,6 +83,16 @@ func assignInterfaceParameters(cfg *types.Config, nm *types.NetworkModel) error 
 	for _, node := range nm.Nodes {
 		for _, iface := range node.Interfaces {
 			iface.AddParam(NumberReplacerName, iface.Name)
+			// Add node reference parameters with node_ prefix
+			for key, value := range node.GetParams() {
+				iface.AddParam(NumberPrefixNode+key, value)
+			}
+			// Add connection reference parameters with conn_ prefix
+			if iface.Connection != nil {
+				for key, value := range iface.Connection.GetParams() {
+					iface.AddParam(NumberPrefixConnection+key, value)
+				}
+			}
 			for key := range iface.IterateFlaggedParams() {
 				interfacesForParams[key] = append(interfacesForParams[key], iface)
 			}
@@ -202,6 +212,66 @@ func assignGroupParameters(cfg *types.Config, nm *types.NetworkModel) error {
 			}
 			for i, group := range groups {
 				group.AddParam(key, params[i])
+			}
+		}
+	}
+
+	return nil
+}
+
+func assignConnectionParameters(cfg *types.Config, nm *types.NetworkModel) error {
+	connectionsForParams := map[string][]*types.Connection{}
+	for _, conn := range nm.Connections {
+		conn.AddParam(NumberReplacerName, conn.Name)
+		for key := range conn.IterateFlaggedParams() {
+			connectionsForParams[key] = append(connectionsForParams[key], conn)
+		}
+	}
+
+	for key, connections := range connectionsForParams {
+		rule, ok := cfg.ParameterRuleByName(key)
+		if !ok {
+			return fmt.Errorf("invalid parameter rule name %s", key)
+		}
+		switch rule.Assign {
+		default:
+			params, err := getParameterCandidates(cfg, rule, len(connections))
+			if err != nil {
+				return err
+			}
+			for i, conn := range connections {
+				conn.AddParam(key, params[i])
+			}
+		}
+	}
+
+	return nil
+}
+
+func assignSegmentParameters(cfg *types.Config, nm *types.NetworkModel) error {
+	segmentsForParams := map[string][]*types.NetworkSegment{}
+	for _, segmentList := range nm.NetworkSegments {
+		for _, seg := range segmentList {
+			// Skip name parameter for segments (not practically needed)
+			for key := range seg.IterateFlaggedParams() {
+				segmentsForParams[key] = append(segmentsForParams[key], seg)
+			}
+		}
+	}
+
+	for key, segments := range segmentsForParams {
+		rule, ok := cfg.ParameterRuleByName(key)
+		if !ok {
+			return fmt.Errorf("invalid parameter rule name %s", key)
+		}
+		switch rule.Assign {
+		default:
+			params, err := getParameterCandidates(cfg, rule, len(segments))
+			if err != nil {
+				return err
+			}
+			for i, seg := range segments {
+				seg.AddParam(key, params[i])
 			}
 		}
 	}

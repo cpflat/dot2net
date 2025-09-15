@@ -834,6 +834,9 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.groupClassMap[group.Name] = group
 	}
 	cfg.segmentClassMap = map[string]*SegmentClass{}
+	for _, segment := range cfg.SegmentClasses {
+		cfg.segmentClassMap[segment.Name] = segment
+	}
 	cfg.SorterConfigTemplateGroups = mapset.NewSet[string]()
 
 	return &cfg, err

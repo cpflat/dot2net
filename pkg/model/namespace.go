@@ -6,6 +6,7 @@ import (
 
 const NumberSeparator string = "_"
 const NumberPrefixNode string = "node" + NumberSeparator
+const NumberPrefixConnection string = "conn" + NumberSeparator
 const NumberPrefixGroup string = "group" + NumberSeparator
 const NumberPrefixOppositeHeader string = "opp" + NumberSeparator
 const NumberPrefixOppositeInterface string = "opp" + NumberSeparator

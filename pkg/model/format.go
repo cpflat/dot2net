@@ -971,9 +971,25 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 		var check bool
 		switch classType {
 		case types.ClassTypeConnection:
-			check = lo.(*types.Interface).Connection.HasClass(className)
+			// 新仕様: Connectionオブジェクト自体がConnectionClassを持つ場合
+			if conn, ok := lo.(*types.Connection); ok {
+				check = conn.HasClass(className)
+			} else if iface, ok := lo.(*types.Interface); ok {
+				// 旧仕様: InterfaceからConnectionのクラスを参照
+				check = iface.Connection.HasClass(className)
+			} else {
+				check = false
+			}
 		case types.ClassTypeMember(types.ClassTypeConnection, ""):
-			check = lo.(*types.Interface).Connection.HasClass(className)
+			// 新仕様: Connectionオブジェクト自体がConnectionClassを持つ場合
+			if conn, ok := lo.(*types.Connection); ok {
+				check = conn.HasClass(className)
+			} else if iface, ok := lo.(*types.Interface); ok {
+				// 旧仕様: InterfaceからConnectionのクラスを参照
+				check = iface.Connection.HasClass(className)
+			} else {
+				check = false
+			}
 		default:
 			check = lo.HasClass(className)
 		}
