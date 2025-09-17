@@ -378,30 +378,6 @@ func searchSegments(nm *types.NetworkModel, layer *types.Layer, verbose bool) ([
 	return segs, nil
 }
 
-func setSegmentLabels(cfg *types.Config, segs []*types.NetworkSegment, layer *types.Layer) error {
-	for _, seg := range segs {
-		scNames := mapset.NewSet[string]()
-		for _, conn := range seg.Connections {
-			for _, rlabel := range conn.RelationalClassLabels() {
-				if rlabel.ClassType == types.ClassTypeSegment {
-					sc, ok := cfg.SegmentClassByName(rlabel.Name)
-					if !ok {
-						return fmt.Errorf("unknown segment class (%v)", rlabel.Name)
-					}
-					if sc.Layer == layer.Name {
-						if !scNames.Contains(rlabel.Name) {
-							scNames.Add(rlabel.Name)
-						}
-					}
-				}
-			}
-		}
-		for _, name := range scNames.ToSlice() {
-			seg.AddClassLabels(name)
-		}
-	}
-	return nil
-}
 
 func setNeighbors(segs []*types.NetworkSegment, layer *types.Layer) {
 	for _, seg := range segs {
@@ -771,38 +747,3 @@ func getIPAddr(pool netip.Prefix, cnt int, reserved []netip.Addr) ([]netip.Addr,
 	return addrs, nil
 }
 
-// func getASNumber(cfg *Config, cnt int) ([]int, error) {
-// 	var asmin int
-// 	var asmax int
-// 	var asnumbers = make([]int, 0, cnt)
-// 	if cfg.GlobalSettings.ASNumberMin > 0 {
-// 		asmin = cfg.GlobalSettings.ASNumberMin
-// 		if cfg.GlobalSettings.ASNumberMax > 0 {
-// 			asmax = cfg.GlobalSettings.ASNumberMax
-// 		} else {
-// 			asmax = 65535
-// 		}
-// 		if asmax <= asmin {
-// 			return nil, fmt.Errorf("invalid AS range (%d - %d) specified in configuration", asmin, asmax)
-// 		}
-// 		if (asmax - asmin + 1) < cnt {
-// 			return nil, fmt.Errorf("requested %d AS numbers, but specified AS range has only %d numbers", cnt, asmax-asmin+1)
-// 		}
-// 	} else {
-// 		// if ASNumberMin/Max not given, automatically use Private AS numbers
-// 		if cnt <= 535 {
-// 			asmin = 65001
-// 			asmax = 65535
-// 		} else if cnt <= 1024 {
-// 			asmin = 64512
-// 			asmax = 65535
-// 		} else {
-// 			// currently returns error
-// 			return nil, fmt.Errorf("requested more than 1024 private AS numbers")
-// 		}
-// 	}
-// 	for i := 0; i < cnt; i++ {
-// 		asnumbers = append(asnumbers, asmin+i)
-// 	}
-// 	return asnumbers, nil
-// }

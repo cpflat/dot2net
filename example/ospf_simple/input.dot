@@ -1,7 +1,7 @@
 digraph {
-	r1[class="router"];
-	r2[class="router"];
-	r3[class="router"];
+	r1[xlabel="router"];
+	r2[xlabel="router"];
+	r3[xlabel="router"];
 
 	r1->r2[dir="none"];
 	r2->r3[dir="none"];

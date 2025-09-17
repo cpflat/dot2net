@@ -40,7 +40,7 @@ digraph {
 }
 `,
 			expectError: true,
-			errorMsg:    "conflicting values for 'image'",
+			errorMsg:    "configuration conflict detected on node",
 		},
 		{
 			name: "NodeClass_Prefix_Conflict",
@@ -58,7 +58,7 @@ digraph {
 }
 `,
 			expectError: true,
-			errorMsg:    "conflicting prefix values",
+			errorMsg:    "configuration conflict detected on node",
 		},
 		{
 			name: "NodeClass_MgmtInterface_Conflict",
@@ -79,7 +79,7 @@ digraph {
 }
 `,
 			expectError: true,
-			errorMsg:    "conflicting mgmt interface values",
+			errorMsg:    "configuration conflict detected on node",
 		},
 		{
 			name: "InterfaceClass_Values_Conflict",
@@ -99,7 +99,7 @@ digraph {
 }
 `,
 			expectError: true,
-			errorMsg:    "conflicting values for 'mtu'",
+			errorMsg:    "conflicting values for 'mtu' in interface class",
 		},
 		{
 			name: "InterfaceClass_Prefix_Conflict",
@@ -117,7 +117,7 @@ digraph {
 }
 `,
 			expectError: true,
-			errorMsg:    "conflicting prefix values",
+			errorMsg:    "conflicting prefix values in interface classes",
 		},
 
 		// Valid Cases - should succeed
@@ -284,28 +284,6 @@ connectionclass:
 			dotContent: `
 digraph {
   n1 -- n2 [label="trunk"];
-}
-`,
-			expectError: false,
-		},
-		{
-			name: "SegmentClass_Relational_Label_Valid",
-			configYAML: `
-name: segment_test
-layer:
-  - name: vlan
-    policy:
-      - name: vlan_range
-        range: 100-200
-segmentclass:
-  - name: access_vlan
-    policy: [vlan_range]
-interfaceclass:
-  - name: access_port
-`,
-			dotContent: `
-digraph {
-  n1 -- n2 [taillabel="access_port", label="segment#access_vlan"];
 }
 `,
 			expectError: false,

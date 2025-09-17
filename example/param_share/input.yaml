@@ -9,7 +9,6 @@ module:
 
 file:
   - name: params.txt
-    shared: true
   - name: frr.conf
     path: /etc/frr/frr.conf
   - name: daemons

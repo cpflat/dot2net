@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"sort"
 	"strings"
 	"text/template"
@@ -19,30 +18,25 @@ const NChars int = 32
 type ConfigAggregator struct {
 	belong map[belongKey][]sorterKey
 	groups map[sorterKey][]*ConfigBlock
-	
+
 	// Parent-child config block management
-	childConfigs map[childConfigKey][]*ChildConfig  // child's config blocks
-	parentChild  map[parentChildKey][]string        // parent -> children mapping
+	childConfigs map[childConfigKey][]*ChildConfig // child's config blocks
+	parentChild  map[parentChildKey][]string       // parent -> children mapping
 }
 
 type childConfigKey struct {
-	child string  // child NameSpacer's StringForMessage()
-	name  string  // config template name
+	child string // child NameSpacer's StringForMessage()
+	name  string // config template name
 }
 
 type parentChildKey struct {
-	parent    string  // parent NameSpacer's StringForMessage()
-	childType string  // "interface", "node", etc.
-	name      string  // config template name
+	parent    string // parent NameSpacer's StringForMessage()
+	childType string // "interface", "node", etc.
+	name      string // config template name
 }
 
 type ChildConfig struct {
 	config  string
-	formats []string
-}
-
-type ChildConfigInfo struct {
-	configs []string
 	formats []string
 }
 
@@ -108,24 +102,24 @@ func (ca *ConfigAggregator) addConfigBlock(ns types.NameSpacer, group string, bl
 func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, group string, verbose bool) []string {
 	sk := sorterKey{sorter: ns, group: group}
 	blocks := ca.groups[sk]
-	
+
 	if verbose && len(blocks) > 0 {
 		fmt.Fprintf(os.Stderr, " sorting %d config blocks for group %s:\n", len(blocks), group)
 		for i, cb := range blocks {
 			fmt.Fprintf(os.Stderr, "  [%d] Priority=%d: %q\n", i, cb.Priority, headN(cb.Block, NChars))
 		}
 	}
-	
+
 	// sort considering Priority
 	sort.SliceStable(blocks, func(i, j int) bool { return blocks[i].Priority < blocks[j].Priority })
-	
+
 	if verbose && len(blocks) > 0 {
 		fmt.Fprintf(os.Stderr, " after sorting by Priority:\n")
 		for i, cb := range blocks {
 			fmt.Fprintf(os.Stderr, "  [%d] Priority=%d: %q\n", i, cb.Priority, headN(cb.Block, NChars))
 		}
 	}
-	
+
 	ret := make([]string, 0, len(blocks))
 	for _, cb := range blocks {
 		ret = append(ret, cb.Block)
@@ -139,7 +133,7 @@ func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, group string, v
 func (ca *ConfigAggregator) registerParentChild(parent types.NameSpacer, cfg *types.Config) {
 	// Check all possible config templates of parent
 	parentTemplates := parent.GetPossibleConfigTemplates(cfg)
-	
+
 	// For each template with a name, register potential children
 	for _, ct := range parentTemplates {
 		if ct.Name != "" {
@@ -148,13 +142,13 @@ func (ca *ConfigAggregator) registerParentChild(parent types.NameSpacer, cfg *ty
 			if err != nil {
 				continue
 			}
-			
+
 			for _, cls := range classes {
 				children, err := parent.Childs(cls)
 				if err != nil {
 					continue
 				}
-				
+
 				// Determine child type string
 				var childType string
 				if len(children) > 0 {
@@ -168,14 +162,14 @@ func (ca *ConfigAggregator) registerParentChild(parent types.NameSpacer, cfg *ty
 					default:
 						continue
 					}
-					
+
 					// Register parent-child mapping
 					key := parentChildKey{
 						parent:    parent.StringForMessage(),
 						childType: childType,
 						name:      ct.Name,
 					}
-					
+
 					for _, child := range children {
 						ca.parentChild[key] = append(ca.parentChild[key], child.StringForMessage())
 					}
@@ -183,52 +177,6 @@ func (ca *ConfigAggregator) registerParentChild(parent types.NameSpacer, cfg *ty
 			}
 		}
 	}
-}
-
-
-func (ca *ConfigAggregator) getChildConfigs(parent types.NameSpacer, childType string, name string) (*ChildConfigInfo, bool) {
-	// Get list of children for this parent
-	key := parentChildKey{
-		parent:    parent.StringForMessage(),
-		childType: childType,
-		name:      name,
-	}
-	
-	childNames, exists := ca.parentChild[key]
-	if !exists || len(childNames) == 0 {
-		return nil, false
-	}
-	
-	// Collect config blocks from children
-	var configs []string
-	var formats []string
-	found := false
-	
-	for _, childName := range childNames {
-		childKey := childConfigKey{
-			child: childName,
-			name:  name,
-		}
-		
-		if childConfigs, exists := ca.childConfigs[childKey]; exists {
-			for _, cc := range childConfigs {
-				configs = append(configs, cc.config)
-				if !found {
-					formats = cc.formats
-					found = true
-				}
-			}
-		}
-	}
-	
-	if !found {
-		return nil, false
-	}
-	
-	return &ChildConfigInfo{
-		configs: configs,
-		formats: formats,
-	}, true
 }
 
 type sorterKey struct {
@@ -402,11 +350,11 @@ func generateConfigFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool
 	if verbose {
 		fmt.Printf("Dependency-Ordered Individual Config Generation\n")
 	}
-	reorderedNameSpacers, err2 := reorderNameSpacers(nm.NameSpacers(), verbose)
+	reorderedNameSpacers, err2 := reorderNameSpacers(nm.NameSpacers())
 	if err2 != nil {
 		return fmt.Errorf("failure in reordering NameSpacers: %w", err2)
 	}
-	
+
 	if verbose {
 		fmt.Printf("Processing order: ")
 		for i, ns := range reorderedNameSpacers {
@@ -436,17 +384,17 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 	if err != nil {
 		return err
 	}
-	
+
 	for _, depClass := range depClasses {
 		deps, err := ns.Depends(depClass)
 		if err != nil || len(deps) == 0 {
 			continue
 		}
-		
+
 		// Collect all configs from each dependency, grouped by config name
 		configsByName := make(map[string][]string)
 		formatsByName := make(map[string][]string)
-		
+
 		for _, dep := range deps {
 			// Find all stored configs for this dependency
 			for childKey, childConfigs := range ca.childConfigs {
@@ -460,13 +408,13 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 				}
 			}
 		}
-		
+
 		// Now integrate each config name with appropriate prefix
 		for configName, configs := range configsByName {
 			if len(configs) == 0 {
 				continue
 			}
-			
+
 			var relativeName string
 			// Determine the relative name based on the first dependency's type
 			if len(deps) > 0 {
@@ -485,28 +433,28 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 					return fmt.Errorf("unsupported dependency type: %T", obj)
 				}
 			}
-			
+
 			if relativeName == "" {
 				continue
 			}
-			
+
 			// Merge and add to namespace
 			mergedConfig, err := mergeConfigBlocks(cfg, configs, formatsByName[configName])
 			if err != nil {
 				return fmt.Errorf("error merging configs from %s: %w", depClass, err)
 			}
-			
+
 			err = setConfigParamForNameSpace(ns, relativeName, mergedConfig, verbose)
 			if err != nil {
 				return fmt.Errorf("error adding configs to namespace: %w", err)
 			}
-			
+
 			if verbose {
 				fmt.Fprintf(os.Stderr, " integrated %d configs from %s as %s\n", len(configs), depClass, relativeName)
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -517,23 +465,23 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 	if err != nil {
 		return fmt.Errorf("error integrating configs from dependencies: %w", err)
 	}
-	
+
 	// Then proceed with normal config generation
 	configTemplates := ns.GetPossibleConfigTemplates(cfg)
 	if verbose {
 		fmt.Fprintf(os.Stderr, "processing individual configs for %s (%d possible templates)\n", ns.StringForMessage(), len(configTemplates))
 	}
-	
+
 	// Reorder ConfigTemplates based on their dependencies (Level 2 dependencies)
-	reordered, err := reorderConfigTemplates(configTemplates, verbose)
+	reordered, err := reorderConfigTemplates(configTemplates)
 	if err != nil {
 		return fmt.Errorf("failure in reordering config templates for %s: %w", ns.StringForMessage(), err)
 	}
-	
+
 	if verbose {
 		fmt.Fprintf(os.Stderr, "processing order: %v\n", reordered)
 	}
-	
+
 	for _, ct := range reordered {
 		// Generate config block if conditions are met
 		var conf string
@@ -552,7 +500,7 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 			}
 			conf = EmptyOutput
 		}
-		
+
 		// Store config block for grouping (Group accumulation)
 		if met && ct.Group != "" {
 			ca.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority}, false)
@@ -560,7 +508,7 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 				fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
 			}
 		}
-		
+
 		// Group Aggregation: merge grouped config blocks if ct.Style is ConfigTemplateStyleSort
 		if met && ct.Style == types.ConfigTemplateStyleSort {
 			// add self config before merging for priority sort
@@ -576,21 +524,21 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 				fmt.Fprintf(os.Stderr, " add %d config blocks in group %s\n", len(blocks)-1, ct.SortGroup)
 			}
 		}
-		
+
 		// Add to self's namespace if ct.Name is specified
 		if ct.Name != "" {
 			err := addSelfConfigToNameSpace(cfg, ns, conf, ct, verbose)
 			if err != nil {
 				return err
 			}
-			
+
 			// Store this config in ConfigBlockManager for parent to retrieve later
 			ca.addChildConfig(ns, ct.Name, conf, ct.GetFormats())
 			if verbose {
 				fmt.Fprintf(os.Stderr, " stored config for parent retrieval: %s\n", ct.Name)
 			}
 		}
-		
+
 		// Output file if ct.File is specified
 		if ct.File != "" {
 			err = outputConfigFile(cfg, ns, conf, ct, verbose)
@@ -599,7 +547,7 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -612,170 +560,6 @@ func checkSorterObjects(cfg *types.Config, ca *ConfigAggregator, ns types.NameSp
 			ca.addSorter(ns, ct.SortGroup)
 		}
 	}
-}
-
-func generateConfigForObjects(cfg *types.Config, ca *ConfigAggregator, objs []types.NameSpacer,
-	parent types.NameSpacer, verbose bool) error {
-
-	// named config can be used for output config, so explicitly generate them
-	formatsmap := make(map[string][]string) // ct.Name -> ct.Format
-	configForNamespace := map[string][]string{}
-	for _, ns := range objs {
-
-		// do nothing if ns is virtual node
-		// if node, ok := ns.(*types.Node); ok {
-		// 	if node.IsVirtual() {
-		// 		if verbose {
-		// 			fmt.Fprintf(os.Stderr, "skipping virtual node %s\n", node.Name)
-		// 		}
-		// 		continue
-		// 	}
-		// }
-
-		configTemplates := ns.GetPossibleConfigTemplates(cfg)
-		if verbose {
-			fmt.Fprintf(os.Stderr, "processing %s (%d possible templates)\n", ns.StringForMessage(), len(configTemplates))
-		}
-		// checkedConfigTemplates, err := checkConfigTemplateConditions(ns, configTemplates)
-		// if err != nil {
-		// 	return err
-		// }
-		// // named, _ := classifyConfigTemplates(checkedConfigTemplates)
-		// if verbose {
-		// 	fmt.Fprintf(os.Stderr, "processing %s (%d templates)\n", ns.StringForMessage(), len(checkedConfigTemplates))
-		// }
-		// reorder named config templates based on dependency
-		//reordered, err := reorderConfigTemplates(checkedConfigTemplates)
-		reordered, err := reorderConfigTemplates(configTemplates, verbose)
-		if err != nil {
-			return fmt.Errorf("failure in reordering config blocks for %s: %w", ns.StringForMessage(), err)
-		}
-		if verbose {
-			fmt.Fprintf(os.Stderr, "processing order: %v\n", reordered)
-		}
-		for _, ct := range reordered {
-			// generate config block if conditions are met
-			var conf string
-			reason, met := checkConfigTemplateConditions(ns, ct)
-			if met {
-				if verbose {
-					fmt.Fprintf(
-						os.Stderr, "templating config blocks for %s with %s\n",
-						ns.StringForMessage(), ct.String(),
-					)
-				}
-				conf, err = generateConfigBlock(ns, ct)
-				if err != nil {
-					return err
-				}
-			} else {
-				if verbose {
-					fmt.Fprintf(os.Stderr,
-						" skip templating for %s with %s because %s\n", ns.StringForMessage(), ct.String(), reason)
-				}
-				conf = EmptyOutput
-			}
-
-			// store config block for grouping
-			if met && ct.Group != "" {
-				ca.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority}, false)
-				if verbose {
-					fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
-				}
-			}
-
-			// merge grouped config blocks if ct.Style is types.ConfigTemplateStyleSort (sort)
-			if met && ct.Style == types.ConfigTemplateStyleSort {
-				// add self config before merging for priority sort
-				ca.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: conf, Priority: ct.Priority}, true)
-				blocks := ca.getConfigBlocks(ns, ct.SortGroup, verbose)
-
-				// merge config blocks of grouped templates
-				conf, err = mergeConfigBlocks(cfg, blocks, ct.GetFormats())
-				if err != nil {
-					return fmt.Errorf("error on merging config blocks of %v, %w", blocks, err)
-				}
-				if verbose {
-					fmt.Fprintf(os.Stderr, " add %d config blocks in group %s\n", len(blocks)-1, ct.SortGroup)
-				}
-			}
-
-			// add (or prepare for adding) to other namespace if ct.Name is specified
-			if ct.Name != "" {
-				// add to self's namespace if ct.Name is specified
-				err := addSelfConfigToNameSpace(cfg, ns, conf, ct, verbose)
-				if err != nil {
-					return err
-				}
-				// add to parent's namespace if ct.Name is specified
-				if parent == nil {
-					fmt.Fprintln(os.Stderr, "warning: config.name for network class is meaningless, just ignored")
-				} else {
-					// check format consistency
-					if formats, ok := formatsmap[ct.Name]; ok {
-						if !reflect.DeepEqual(formats, ct.GetFormats()) {
-							return fmt.Errorf("inconsistent format specification for config template %s", ct.Name)
-						}
-					} else {
-						formatsmap[ct.Name] = ct.GetFormats()
-					}
-
-					// add config
-					configForNamespace[ct.Name] = append(configForNamespace[ct.Name], conf)
-				}
-			}
-
-			// output file if ct.File is specified
-			if ct.File != "" {
-				err = outputConfigFile(cfg, ns, conf, ct, verbose)
-				if err != nil {
-					return err
-				}
-			}
-
-			// if met && ct.Group != "" && cfg.SorterConfigTemplateGroups.Contains(ct.Group) {
-			// 	ca.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority})
-			// 	if verbose {
-			// 		fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
-			// 	}
-			// }
-		}
-	}
-	// add config templates of child objects into parent namespace (after generating all config blocks in child objects)
-	for name, confs := range configForNamespace {
-		err := addChildsConfigToNameSpace(cfg, parent, objs, confs, name, formatsmap[name], verbose)
-		if err != nil {
-			return err
-		}
-	}
-
-	// for _, ns := range objs {
-	// 	configTemplates := ns.GetConfigTemplates(cfg)
-	// 	_, output := classifyConfigTemplates(configTemplates)
-	// 	for _, ct := range output {
-
-	// 		if verbose {
-	// 			fmt.Fprintf(
-	// 				os.Stderr, "generating config blocks for %s with %s\n",
-	// 				ns.StringForMessage(), ct.String(),
-	// 			)
-	// 		}
-
-	// 		conf, err := generateConfigBlock(ct, ns)
-	// 		if err != nil {
-	// 			return err
-	// 		}
-	// 		// output file if ct.File is specified
-	// 		if ct.File != "" {
-	// 			err = outputConfigFile(cfg, ns, conf, ct, verbose)
-	// 			if err != nil {
-	// 				return err
-	// 			}
-	// 		}
-	// 	}
-	// }
-
-	return nil
 }
 
 // func generateConfigBlock(ct *types.ConfigTemplate, ns types.NameSpacer) (string, error) {
@@ -804,59 +588,6 @@ func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf strin
 
 	relativeName := SelfConfigHeader + ct.Name
 	err = setConfigParamForNameSpace(ns, relativeName, conf, verbose)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func addChildsConfigToNameSpace(cfg *types.Config, parent types.NameSpacer, childs []types.NameSpacer,
-	confs []string, name string, formats []string, verbose bool) error {
-
-	if len(childs) == 0 {
-		return nil
-	}
-
-	var relativeName string
-	top := childs[0]
-	switch obj := childs[0].(type) {
-	case *types.Node:
-		relativeName = ChildNodesConfigHeader + name
-	case *types.Interface:
-		relativeName = ChildInterfacesConfigHeader + name
-	case *types.Group:
-		relativeName = ChildGroupsConfigHeader + name
-	case *types.Neighbor:
-		relativeName = ChildNeighborsConfigHeader + obj.Layer + NumberSeparator + name
-	case *types.Member:
-		relativeName = ChildMembersConfigHeader + obj.ClassType + NumberSeparator + obj.ClassName + NumberSeparator + name
-	default:
-		return fmt.Errorf("unexpected type of NameSpacer as child node: %T", top)
-	}
-
-	for _, child := range childs {
-		if reflect.TypeOf(top) != reflect.TypeOf(child) {
-			return fmt.Errorf("different types of child nodes are mixed")
-		}
-	}
-
-	// // format lines
-	// formattedConfs := []string{}
-	// for i, conf := range confs {
-	// 	formattedConfs[i], err = formatConfigLines(cfg, conf, []string{format})
-	// 	if err != nil {
-	// 		return fmt.Errorf("error on formatting config lines of %v, %w", childs, err)
-	// 	}
-	// }
-
-	// merge config blocks of childs
-	result, err := mergeConfigBlocks(cfg, confs, formats)
-	if err != nil {
-		return fmt.Errorf("error on merging config blocks of %v, %w", childs, err)
-	}
-
-	err = setConfigParamForNameSpace(parent, relativeName, result, verbose)
 	if err != nil {
 		return err
 	}
@@ -1238,14 +969,14 @@ func formatConfigLines(cfg *types.Config, conf string, formats []string) (string
 // ListGeneratedFiles returns a list of files that would be generated by generateConfigFiles
 func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool) ([]string, error) {
 	var files []string
-	
+
 	// Generate file list from FileDefinitions
 	for _, fileDef := range cfg.FileDefinitions {
 		// Skip empty file names
 		if fileDef.Name == "" {
 			continue
 		}
-		
+
 		switch fileDef.Scope {
 		case types.ClassTypeNetwork:
 			// Network-scope files (root level)
@@ -1259,9 +990,9 @@ func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 			}
 		}
 	}
-	
+
 	// Sort files for consistent output
 	sort.Strings(files)
-	
+
 	return files, nil
 }

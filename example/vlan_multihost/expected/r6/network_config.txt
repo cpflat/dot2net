@@ -1,0 +1,2 @@
+interface r6.net0 on connection normal2
+interface r6.net1 on connection normal3

@@ -1,9 +1,9 @@
 digraph  {
 
-	sv1[class="server"];
-	sw1[class="switch"];
-	sv2[class="server"];
+	sv1[xlabel="server"];
+	sw1[xlabel="switch"];
+	sv2[xlabel="server"];
 
 	sv1->sw1[dir="none"];
-	sv2->sw1[dir="none"]
+	sv2->sw1[dir="none"];
 }

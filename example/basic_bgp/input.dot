@@ -1,14 +1,14 @@
 digraph  {
 
 	subgraph cluster1 {
-		class="as";
+		label="as";
 		r1;
 	}
 
 	subgraph cluster2 {
-		class="as";
+		label="as";
 		r2;
 	}
-	r1->r2;
+	r1->r2[dir="none"];
 
 }

@@ -121,7 +121,7 @@ func (dg *DependencyGraph[T]) visit(nodeID string, sorted *[]T) error {
 }
 
 // reorderConfigTemplates sorts ConfigTemplates based on their dependency relationships
-func reorderConfigTemplates(cts []*types.ConfigTemplate, verbose bool) ([]*types.ConfigTemplate, error) {
+func reorderConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplate, error) {
 	// Build name and group mappings
 	ctmap := make(map[string][]int)
 	grouped := make(map[string][]int)
@@ -195,7 +195,7 @@ func (ctdn *ConfigTemplateDependencyNode) GetItem() *types.ConfigTemplate {
 }
 
 // reorderNameSpacers sorts NameSpacers based on their dependency relationships using DependClasses and Depends methods
-func reorderNameSpacers(namespacers []types.NameSpacer, verbose bool) ([]types.NameSpacer, error) {
+func reorderNameSpacers(namespacers []types.NameSpacer) ([]types.NameSpacer, error) {
 	// Create dependency graph
 	dg := NewDependencyGraph[types.NameSpacer]()
 	

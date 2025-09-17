@@ -1,0 +1,2 @@
+interface r2.net0 on connection normal0
+interface r2.net1 on connection vlan_trunk0

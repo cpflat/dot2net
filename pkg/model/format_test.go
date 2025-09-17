@@ -39,26 +39,26 @@ func verifyDependencyConstraints(t *testing.T, result []*types.ConfigTemplate, t
 	for i, template := range result {
 		posMap[template] = i
 	}
-	
+
 	for i, template := range result {
 		// Check sorter dependencies: sorter should come after all its group templates
 		if template.Style == types.ConfigTemplateStyleSort {
 			for j, other := range result {
 				if other.Group == template.SortGroup {
 					if j >= i {
-						t.Errorf("%s: Sorter template (pos %d, SortGroup=%s) should come after group template (pos %d, Group=%s)", 
+						t.Errorf("%s: Sorter template (pos %d, SortGroup=%s) should come after group template (pos %d, Group=%s)",
 							testName, i, template.SortGroup, j, other.Group)
 					}
 				}
 			}
 		}
-		
+
 		// Check named dependencies: template should come after all its dependencies
 		for _, depName := range template.Depends {
 			for j, other := range result {
 				if other.Name == depName {
 					if j >= i {
-						t.Errorf("%s: Template %s (pos %d) should come after its dependency %s (pos %d)", 
+						t.Errorf("%s: Template %s (pos %d) should come after its dependency %s (pos %d)",
 							testName, template.Name, i, depName, j)
 					}
 				}
@@ -91,7 +91,7 @@ func TestReorderConfigTemplates(t *testing.T) {
 				},
 				// Index 2: another group template for same group
 				{
-					Group:    "main.conf", 
+					Group:    "main.conf",
 					Priority: 0,
 					Template: []string{"interface config"},
 				},
@@ -122,7 +122,7 @@ func TestReorderConfigTemplates(t *testing.T) {
 				},
 				// Index 3: utility config (no dependencies)
 				{
-					Name:     "util_config", 
+					Name:     "util_config",
 					Template: []string{"utility settings"},
 				},
 			},
@@ -177,7 +177,7 @@ func TestReorderConfigTemplates(t *testing.T) {
 				},
 				// Index 2: another file template
 				{
-					File:     "config2.conf", 
+					File:     "config2.conf",
 					Template: []string{"config2 content"},
 				},
 				// Index 3: group template without sorter
@@ -227,7 +227,7 @@ func TestReorderConfigTemplates(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := reorderConfigTemplates(tt.templates, false) // verbose = false for tests
+			result, err := reorderConfigTemplates(tt.templates)
 
 			if tt.expectError {
 				if err == nil {
@@ -275,13 +275,13 @@ func TestReorderConfigTemplates_OSPF6Scenario(t *testing.T) {
 		},
 	}
 
-	result, err := reorderConfigTemplates(templates, false)
+	result, err := reorderConfigTemplates(templates)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
 	// Find positions of the ospf6d.conf templates using content comparison
-	groupPos := findTemplateIndex(result, templates[1]) // ospf6d.conf group template
+	groupPos := findTemplateIndex(result, templates[1])  // ospf6d.conf group template
 	sorterPos := findTemplateIndex(result, templates[0]) // ospf6d.conf sorter template
 
 	if groupPos == -1 {
@@ -290,11 +290,11 @@ func TestReorderConfigTemplates_OSPF6Scenario(t *testing.T) {
 	if sorterPos == -1 {
 		t.Error("ospf6d.conf sorter template not found in result")
 	}
-	
+
 	// The critical test: group template must come before sorter template
 	if groupPos >= sorterPos {
 		t.Errorf("ospf6d.conf group template (pos %d) should come before sorter template (pos %d)", groupPos, sorterPos)
-		
+
 		// Print the actual order for debugging
 		t.Log("Actual order:")
 		for i, template := range result {
@@ -302,7 +302,7 @@ func TestReorderConfigTemplates_OSPF6Scenario(t *testing.T) {
 				i, template.Style, template.SortGroup, template.Group, template.Name, template.File, template.Priority)
 		}
 	}
-	
+
 	// Additional verification: check all dependency constraints
 	verifyDependencyConstraints(t, result, "OSPF6 Scenario")
 }
@@ -320,7 +320,7 @@ func TestReorderConfigTemplates_InputOrderIndependence(t *testing.T) {
 			templates: []*types.ConfigTemplate{
 				// Index 0: another group template for same group (was index 2)
 				{
-					Group:    "main.conf", 
+					Group:    "main.conf",
 					Priority: 0,
 					Template: []string{"interface config"},
 				},
@@ -346,7 +346,7 @@ func TestReorderConfigTemplates_InputOrderIndependence(t *testing.T) {
 			templates: []*types.ConfigTemplate{
 				// Index 0: utility config (was index 3)
 				{
-					Name:     "util_config", 
+					Name:     "util_config",
 					Template: []string{"utility settings"},
 				},
 				// Index 1: base config (was index 2)
@@ -373,7 +373,7 @@ func TestReorderConfigTemplates_InputOrderIndependence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := reorderConfigTemplates(tt.templates, false)
+			result, err := reorderConfigTemplates(tt.templates)
 
 			if tt.expectError {
 				if err == nil {
@@ -394,7 +394,7 @@ func TestReorderConfigTemplates_InputOrderIndependence(t *testing.T) {
 
 			// The key test: verify dependency constraints are satisfied regardless of input order
 			verifyDependencyConstraints(t, result, tt.name)
-			
+
 			// Log the result order for comparison (but don't fail on it)
 			t.Logf("Result order for %s:", tt.name)
 			for i, template := range result {

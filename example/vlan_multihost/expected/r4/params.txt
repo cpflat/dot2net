@@ -1,3 +1,0 @@
-vlan 100 for r4.net0
-connection name conn2 next to r4.net0
-connection name conn5 next to r4.net1

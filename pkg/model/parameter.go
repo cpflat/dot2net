@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"sort"
 
 	mapset "github.com/deckarep/golang-set/v2"
 
@@ -199,7 +200,20 @@ func assignGroupParameters(cfg *types.Config, nm *types.NetworkModel) error {
 		}
 	}
 
-	for key, groups := range groupsForParams {
+	// Sort keys for stable parameter assignment order
+	keys := make([]string, 0, len(groupsForParams))
+	for key := range groupsForParams {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for _, key := range keys {
+		groups := groupsForParams[key]
+		// Sort groups by name for stable parameter assignment
+		sort.Slice(groups, func(i, j int) bool {
+			return groups[i].Name < groups[j].Name
+		})
+
 		rule, ok := cfg.ParameterRuleByName(key)
 		if !ok {
 			return fmt.Errorf("invalid parameter rule name %s", key)

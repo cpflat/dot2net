@@ -732,16 +732,21 @@ func setGivenParameters(nm *types.NetworkModel) error {
 	// add parameters only when no same key in namespace
 	addParam := func(lo types.LabelOwner, k string, v string) error {
 		switch obj := lo.(type) {
-		case types.NameSpacer: // *Node, *Interface, *Group
-			if !obj.HasParam(k) {
-				obj.AddParam(k, v)
-			}
 		case *types.Connection:
+			// Connection requires special handling: add to both interfaces
 			if !obj.Src.HasParam(k) {
 				obj.Src.AddParam(k, v)
 			}
 			if !obj.Dst.HasParam(k) {
 				obj.Dst.AddParam(k, v)
+			}
+			// Also add to Connection itself (now NameSpacer)
+			if !obj.HasParam(k) {
+				obj.AddParam(k, v)
+			}
+		case types.NameSpacer: // *Node, *Interface, *Group, (*Connection handled above)
+			if !obj.HasParam(k) {
+				obj.AddParam(k, v)
 			}
 		default:
 			return fmt.Errorf("unexpected type %T for setGivenParameters", lo)

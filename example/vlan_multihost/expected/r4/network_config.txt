@@ -1,0 +1,2 @@
+interface r4.net0 on connection vlan_trunk0
+interface r4.net1 on connection normal2

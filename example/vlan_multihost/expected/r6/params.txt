@@ -1,2 +1,0 @@
-connection name conn5 next to r6.net0
-connection name conn6 next to r6.net1

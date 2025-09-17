@@ -1,0 +1,3 @@
+interface r5.net0 on connection vlan_trunk1
+interface r5.net1 on connection normal3
+interface r5.net2 on connection vlan_trunk3

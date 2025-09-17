@@ -303,9 +303,6 @@ type GlobalSettings struct {
 	PathSpecification string `yaml:"path" mapstructure:"path"`
 	MountSourcePath   string `yaml:"mountsourcepath" mapstructure:"mountsourcepath"`
 	NodeAutoRename    bool   `yaml:"nodeautoname" mapstructure:"nodeautoname"`
-	// ASNumberMin and ASNumberMAX are optional, considered in AssignASNumbers if specified
-	ASNumberMin int `yaml:"asnumber_min" mapstructure:"asnumber_min"`
-	ASNumberMax int `yaml:"asnumber_max" mapstructure:"asnumber_max"`
 }
 
 type FileDefinition struct {
