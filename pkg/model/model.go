@@ -80,6 +80,11 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 		return nil, err
 	}
 
+	err = assignSegmentNames(nm)
+	if err != nil {
+		return nil, err
+	}
+
 	err = assignParameters(cfg, nm)
 	if err != nil {
 		return nil, err
@@ -532,18 +537,6 @@ func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {
 		if err != nil {
 			return err
 		}
-		// 		// check groupclass flags to groups
-		// 		for _, cls := range group.classLabels {
-		// 			gc, ok := cfg.groupClassMap[cls]
-		// 			if !ok {
-		// 				return fmt.Errorf("invalid GroupClass name %s", cls)
-		// 			}
-		//
-		// 			// check numbered
-		// 			for _, num := range gc.Parameters {
-		// 				group.setParamFlag(num)
-		// 			}
-		// 		}
 	}
 
 	// add class members to member referrers
@@ -728,6 +721,61 @@ func assignConnectionNames(nm *types.NetworkModel) error {
 	return nil
 }
 
+func assignSegmentNames(nm *types.NetworkModel) error {
+	existingNames := map[string]struct{}{}
+	prefixMap := map[string][]*types.NetworkSegment{} // Segments to be named automatically
+
+	// Collect all segments from all layers
+	var allSegments []*types.NetworkSegment
+	for _, segments := range nm.NetworkSegments {
+		allSegments = append(allSegments, segments...)
+	}
+
+	for _, segment := range allSegments {
+		if segment.Name == "" {
+			// Get prefix from SegmentClass
+			prefix := types.DefaultSegmentPrefix
+			for _, cls := range segment.GetClasses() {
+				sc := cls.(*types.SegmentClass)
+				if sc.Prefix != "" {
+					prefix = sc.Prefix
+					break
+				}
+			}
+			prefixMap[prefix] = append(prefixMap[prefix], segment)
+		} else {
+			existingNames[segment.Name] = struct{}{}
+		}
+	}
+
+	for prefix, segments := range prefixMap {
+		i := 0
+		for _, segment := range segments {
+			var name string
+			for { // avoid existing names
+				name = prefix + strconv.Itoa(i)
+				_, exists := existingNames[name]
+				if !exists {
+					break
+				}
+				i++ // starts with 0, increment by loop
+			}
+			segment.Name = name
+			existingNames[segment.Name] = struct{}{}
+			i++
+		}
+	}
+
+	// confirm all segments are named
+	for _, segment := range allSegments {
+		if segment.Name == "" {
+			return fmt.Errorf("there still exists unnamed segments after assignSegmentNames")
+		}
+	}
+
+	return nil
+}
+
 func setGivenParameters(nm *types.NetworkModel) error {
 	// add parameters only when no same key in namespace
 	addParam := func(lo types.LabelOwner, k string, v string) error {
@@ -843,6 +891,10 @@ func assignIPParameters(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 		}
 		for _, seg := range segs {
 			err := seg.SetSegmentLabelsFromRelationalLabels(cfg, layer)
+			if err != nil {
+				return err
+			}
+			err = seg.SetClasses(cfg, nm)
 			if err != nil {
 				return err
 			}

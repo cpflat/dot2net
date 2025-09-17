@@ -17,6 +17,8 @@ const SelfConfigHeader string = "self" + NumberSeparator
 
 const ChildNodesConfigHeader string = "nodes" + NumberSeparator
 const ChildInterfacesConfigHeader string = "interfaces" + NumberSeparator
+const ChildConnectionsConfigHeader string = "connections" + NumberSeparator
+const ChildSegmentsConfigHeader string = "segments" + NumberSeparator
 const ChildGroupsConfigHeader string = "groups" + NumberSeparator
 const ChildNeighborsConfigHeader string = "neighbors" + NumberSeparator
 const ChildMembersConfigHeader string = "members" + NumberSeparator

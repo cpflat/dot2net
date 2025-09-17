@@ -266,7 +266,7 @@ func assignSegmentParameters(cfg *types.Config, nm *types.NetworkModel) error {
 	segmentsForParams := map[string][]*types.NetworkSegment{}
 	for _, segmentList := range nm.NetworkSegments {
 		for _, seg := range segmentList {
-			// Skip name parameter for segments (not practically needed)
+			seg.AddParam(NumberReplacerName, seg.Name)
 			for key := range seg.IterateFlaggedParams() {
 				segmentsForParams[key] = append(segmentsForParams[key], seg)
 			}

@@ -25,8 +25,8 @@ type ConfigAggregator struct {
 }
 
 type childConfigKey struct {
-	child string // child NameSpacer's StringForMessage()
-	name  string // config template name
+	child types.NameSpacer // child NameSpacer object reference
+	name  string           // config template name
 }
 
 type parentChildKey struct {
@@ -77,7 +77,7 @@ func (ca *ConfigAggregator) addSorter(sorter types.NameSpacer, group string) {
 // addChildConfig adds a child config block for parent retrieval during integration
 func (ca *ConfigAggregator) addChildConfig(child types.NameSpacer, name string, config string, formats []string) {
 	key := childConfigKey{
-		child: child.StringForMessage(),
+		child: child,
 		name:  name,
 	}
 	ca.childConfigs[key] = append(ca.childConfigs[key], &ChildConfig{
@@ -398,7 +398,7 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 		for _, dep := range deps {
 			// Find all stored configs for this dependency
 			for childKey, childConfigs := range ca.childConfigs {
-				if childKey.child == dep.StringForMessage() {
+				if childKey.child == dep {
 					for _, cc := range childConfigs {
 						configsByName[childKey.name] = append(configsByName[childKey.name], cc.config)
 						if len(formatsByName[childKey.name]) == 0 {
@@ -423,6 +423,10 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 					relativeName = ChildNodesConfigHeader + configName
 				case *types.Interface:
 					relativeName = ChildInterfacesConfigHeader + configName
+				case *types.Connection:
+					relativeName = ChildConnectionsConfigHeader + configName
+				case *types.NetworkSegment:
+					relativeName = ChildSegmentsConfigHeader + configName
 				case *types.Group:
 					relativeName = ChildGroupsConfigHeader + configName
 				case *types.Neighbor:
@@ -452,6 +456,7 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 			if verbose {
 				fmt.Fprintf(os.Stderr, " integrated %d configs from %s as %s\n", len(configs), depClass, relativeName)
 			}
+			// DEBUG: Show details for segment integration
 		}
 	}
 
@@ -490,6 +495,7 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 			if verbose {
 				fmt.Fprintf(os.Stderr, "templating individual config for %s with %s\n", ns.StringForMessage(), ct.String())
 			}
+			// DEBUG: Show segment_id for segments
 			conf, err = generateConfigBlock(ns, ct)
 			if err != nil {
 				return err
@@ -725,10 +731,8 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 			check = lo.HasClass(className)
 		}
 		if !check {
-			// if verbose {
-			// 	fmt.Fprintf(os.Stderr, " class %s is not included in %v\n",
-			// 		className, ns.StringForMessage())
-			// }
+			fmt.Fprintf(os.Stderr, " class %s is not included in %v (actual classes: %v)\n",
+				className, ns.StringForMessage(), lo.ClassLabels())
 			return "non-matching class", false
 		}
 	}

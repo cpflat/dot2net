@@ -10,6 +10,7 @@ import (
 const DefaultNodePrefix string = "node"
 const DefaultInterfacePrefix string = "net"
 const DefaultConnectionPrefix string = "conn"
+const DefaultSegmentPrefix string = "seg"
 
 // abstracted module
 
@@ -1632,9 +1633,11 @@ func (conn *Connection) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplat
 // }
 
 type NetworkSegment struct {
+	Name        string    // Auto-assigned name
 	Layer       string
 	Interfaces  []*Interface
 	Connections []*Connection
+	NamePrefix  string    // Prefix for auto-naming
 
 	*NameSpace
 	*ParsedLabels
@@ -1652,14 +1655,23 @@ func NewNetworkSegment() *NetworkSegment {
 	return s
 }
 
+func (seg *NetworkSegment) String() string {
+	return seg.Name
+}
+
 func (seg *NetworkSegment) StringForMessage() string {
-	return fmt.Sprintf("segment:layer=%s(%d interfaces, %d connections)", seg.Layer, len(seg.Interfaces), len(seg.Connections))
+	return fmt.Sprintf("segment:%s:layer=%s(%d interfaces, %d connections)", seg.Name, seg.Layer, len(seg.Interfaces), len(seg.Connections))
 }
 
 func (seg *NetworkSegment) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
 
 	// global params (place lanels)
 	setGlobalParams(seg, globalParams)
+
+	// self params
+	for key, val := range seg.GetParams() {
+		seg.SetRelativeParam(key, val)
+	}
 
 	return nil
 }
@@ -1746,20 +1758,29 @@ func (seg *NetworkSegment) SetLabels(cfg *Config, labels []string, moduleLabels 
 // SetSegmentLabelsFromRelationalLabels sets segment class labels by collecting relational class labels
 // from the segment's connections and interfaces. Unlike SetLabels, segments receive labels indirectly.
 func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, layer *Layer) error {
+	// fmt.Printf("DEBUG: SetSegmentLabelsFromRelationalLabels called for segment with %d connections, %d interfaces\n", len(seg.Connections), len(seg.Interfaces))
 	scNames := mapset.NewSet[string]()
 	
 	// Check connections for relational class labels
 	for _, conn := range seg.Connections {
+		// fmt.Printf("DEBUG: Checking connection %s, relational labels: %v\n", conn.Name, conn.RelationalClassLabels())
 		for _, rlabel := range conn.RelationalClassLabels() {
+			// fmt.Printf("DEBUG: Found relational label: %+v\n", rlabel)
 			if rlabel.ClassType == ClassTypeSegment {
+				// fmt.Printf("DEBUG: Processing segment relational label: %s\n", rlabel.Name)
 				sc, ok := cfg.SegmentClassByName(rlabel.Name)
+				// fmt.Printf("DEBUG: SegmentClassByName(%s) returned ok=%v\n", rlabel.Name, ok)
 				if !ok {
 					return fmt.Errorf("unknown segment class (%v)", rlabel.Name)
 				}
+				// fmt.Printf("DEBUG: SegmentClass layer: %s, current layer: %s\n", sc.Layer, layer.Name)
 				if sc.Layer == layer.Name {
+					// fmt.Printf("DEBUG: Layer match! Adding %s to scNames\n", rlabel.Name)
 					if !scNames.Contains(rlabel.Name) {
 						scNames.Add(rlabel.Name)
 					}
+				} else {
+					// fmt.Printf("DEBUG: Layer mismatch - SegmentClass not added\n")
 				}
 			}
 		}
@@ -1782,8 +1803,36 @@ func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, lay
 		}
 	}
 	
+	// fmt.Printf("DEBUG: Found segment class names: %v\n", scNames.ToSlice())
 	for _, name := range scNames.ToSlice() {
-		seg.AddClassLabels(name)
+		// fmt.Printf("DEBUG: Adding class label '%s' to segment\n", name)
+		seg.ParsedLabels.AddClassLabels(name)
+		// Add the corresponding class object to ParsedLabels.Classes
+		sc, ok := cfg.SegmentClassByName(name)
+		if ok {
+			seg.ParsedLabels.Classes = append(seg.ParsedLabels.Classes, sc)
+		}
+	}
+	// fmt.Printf("DEBUG: Final segment classes after SetSegmentLabelsFromRelationalLabels: %v\n", seg.ClassLabels())
+	return nil
+}
+
+func (seg *NetworkSegment) SetClasses(cfg *Config, nm *NetworkModel) error {
+	// set defaults for segments without class
+	seg.NamePrefix = "seg"  // default prefix
+
+	for _, cls := range seg.GetClasses() {
+		sc := cls.(*SegmentClass)
+
+		// set name prefix from SegmentClass
+		if sc.Prefix != "" {
+			seg.NamePrefix = sc.Prefix
+		}
+
+		// check parameter flags
+		for _, num := range sc.Parameters {
+			seg.setParamFlag(num)
+		}
 	}
 	return nil
 }

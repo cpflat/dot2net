@@ -537,7 +537,9 @@ func (gc *GroupClass) GetGivenValues() map[string]string {
 type SegmentClass struct {
 	Name            string            `yaml:"name" mapstructure:"name"`
 	Layer           string            `yaml:"layer" mapstructure:"layer"`
+	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	Prefix          string            `yaml:"prefix" mapstructure:"prefix"` // prefix of segment auto-naming
 }
 
 type NeighborClass struct {
@@ -957,6 +959,15 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 				ct.className = ""
 				ct.classType = ClassTypeMember(ClassTypeConnection, "")
 			}
+		}
+	}
+	for _, sc := range cfg.SegmentClasses {
+		for _, ct := range sc.ConfigTemplates {
+			if err := initConfigTemplate(cfg, ct); err != nil {
+				return nil, err
+			}
+			ct.className = sc.Name
+			ct.classType = ClassTypeSegment
 		}
 	}
 	return cfg, nil
