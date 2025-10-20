@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"sort"
 	"strings"
@@ -385,6 +386,14 @@ func CmdClean(c *cli.Context) error {
 		return err
 	}
 
+	// Extract directories from file list
+	dirSet := make(map[string]bool)
+	for _, file := range files {
+		if dir := filepath.Dir(file); dir != "." && dir != "" {
+			dirSet[dir] = true
+		}
+	}
+
 	// Delete files that exist
 	deletedCount := 0
 	for _, file := range files {
@@ -406,8 +415,42 @@ func CmdClean(c *cli.Context) error {
 		}
 	}
 
+	// Remove directories if they are empty after file deletion
+	dirCount := 0
+	for dir := range dirSet {
+		if dryRun {
+			fmt.Printf("Would remove directory (if empty): %s\n", dir)
+		} else {
+			// Check if directory exists and is empty
+			entries, err := os.ReadDir(dir)
+			if err != nil {
+				if verbose && !os.IsNotExist(err) {
+					fmt.Printf("Error reading directory %s: %v\n", dir, err)
+				}
+				continue
+			}
+			// Only remove if directory is empty
+			if len(entries) == 0 {
+				if err := os.Remove(dir); err == nil {
+					dirCount++
+					if verbose {
+						fmt.Printf("Removed directory: %s\n", dir)
+					}
+				} else if verbose {
+					fmt.Printf("Error removing directory %s: %v\n", dir, err)
+				}
+			} else if verbose {
+				fmt.Printf("Directory not empty, skipping: %s\n", dir)
+			}
+		}
+	}
+
 	if !dryRun {
-		fmt.Printf("Deleted %d files\n", deletedCount)
+		fmt.Printf("Deleted %d files", deletedCount)
+		if dirCount > 0 {
+			fmt.Printf(" and %d directories", dirCount)
+		}
+		fmt.Println()
 	}
 
 	return nil
