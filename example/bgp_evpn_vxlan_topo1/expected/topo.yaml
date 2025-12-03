@@ -6,8 +6,6 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       binds:
       - host1/zebra.conf:/etc/frr/zebra.conf
-      - host1/bgpd.conf:/etc/frr/bgpd.conf
-      - host1/ospfd.conf:/etc/frr/ospfd.conf
       - host1/daemons:/etc/frr/daemons
       - host1/vtysh.conf:/etc/frr/vtysh.conf
       - host1/frr.log:/var/log/frr.log
@@ -19,8 +17,6 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       binds:
       - host2/zebra.conf:/etc/frr/zebra.conf
-      - host2/bgpd.conf:/etc/frr/bgpd.conf
-      - host2/ospfd.conf:/etc/frr/ospfd.conf
       - host2/daemons:/etc/frr/daemons
       - host2/vtysh.conf:/etc/frr/vtysh.conf
       - host2/frr.log:/var/log/frr.log
@@ -32,7 +28,6 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       binds:
       - p1/zebra.conf:/etc/frr/zebra.conf
-      - p1/bgpd.conf:/etc/frr/bgpd.conf
       - p1/ospfd.conf:/etc/frr/ospfd.conf
       - p1/daemons:/etc/frr/daemons
       - p1/vtysh.conf:/etc/frr/vtysh.conf
@@ -73,12 +68,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s1/zebra.conf:/etc/frr/zebra.conf
-      - s1/bgpd.conf:/etc/frr/bgpd.conf
-      - s1/ospfd.conf:/etc/frr/ospfd.conf
-      - s1/daemons:/etc/frr/daemons
-      - s1/vtysh.conf:/etc/frr/vtysh.conf
-      - s1/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -91,12 +81,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s2/zebra.conf:/etc/frr/zebra.conf
-      - s2/bgpd.conf:/etc/frr/bgpd.conf
-      - s2/ospfd.conf:/etc/frr/ospfd.conf
-      - s2/daemons:/etc/frr/daemons
-      - s2/vtysh.conf:/etc/frr/vtysh.conf
-      - s2/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -109,12 +94,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s3/zebra.conf:/etc/frr/zebra.conf
-      - s3/bgpd.conf:/etc/frr/bgpd.conf
-      - s3/ospfd.conf:/etc/frr/ospfd.conf
-      - s3/daemons:/etc/frr/daemons
-      - s3/vtysh.conf:/etc/frr/vtysh.conf
-      - s3/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -127,12 +107,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s4/zebra.conf:/etc/frr/zebra.conf
-      - s4/bgpd.conf:/etc/frr/bgpd.conf
-      - s4/ospfd.conf:/etc/frr/ospfd.conf
-      - s4/daemons:/etc/frr/daemons
-      - s4/vtysh.conf:/etc/frr/vtysh.conf
-      - s4/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge

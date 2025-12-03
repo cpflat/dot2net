@@ -18,15 +18,15 @@ nodes:
   - name: s1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: r1#net2}]
-    mounts: [s1/daemons:/etc/frr/daemons, s1/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: []
   - name: s3
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: r3#net2}]
-    mounts: [s3/daemons:/etc/frr/daemons, s3/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: []
   - name: s4
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: r4#net2}]
-    mounts: [s4/daemons:/etc/frr/daemons, s4/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: []
 
 node_configs:
   - name: r1

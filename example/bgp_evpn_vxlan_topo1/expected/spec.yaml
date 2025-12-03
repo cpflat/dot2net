@@ -2,15 +2,15 @@ nodes:
   - name: host1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: s1#net0}]
-    mounts: [host1/zebra.conf:/etc/frr/zebra.conf, host1/bgpd.conf:/etc/frr/bgpd.conf, host1/ospfd.conf:/etc/frr/ospfd.conf, host1/daemons:/etc/frr/daemons, host1/vtysh.conf:/etc/frr/vtysh.conf, host1/frr.log:/var/log/frr.log]
+    mounts: [host1/zebra.conf:/etc/frr/zebra.conf, host1/daemons:/etc/frr/daemons, host1/vtysh.conf:/etc/frr/vtysh.conf, host1/frr.log:/var/log/frr.log]
   - name: host2
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: s4#net0}]
-    mounts: [host2/zebra.conf:/etc/frr/zebra.conf, host2/bgpd.conf:/etc/frr/bgpd.conf, host2/ospfd.conf:/etc/frr/ospfd.conf, host2/daemons:/etc/frr/daemons, host2/vtysh.conf:/etc/frr/vtysh.conf, host2/frr.log:/var/log/frr.log]
+    mounts: [host2/zebra.conf:/etc/frr/zebra.conf, host2/daemons:/etc/frr/daemons, host2/vtysh.conf:/etc/frr/vtysh.conf, host2/frr.log:/var/log/frr.log]
   - name: p1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: s2#net0}, {name: net1, type: direct, args: s3#net0}]
-    mounts: [p1/zebra.conf:/etc/frr/zebra.conf, p1/bgpd.conf:/etc/frr/bgpd.conf, p1/ospfd.conf:/etc/frr/ospfd.conf, p1/daemons:/etc/frr/daemons, p1/vtysh.conf:/etc/frr/vtysh.conf, p1/frr.log:/var/log/frr.log]
+    mounts: [p1/zebra.conf:/etc/frr/zebra.conf, p1/ospfd.conf:/etc/frr/ospfd.conf, p1/daemons:/etc/frr/daemons, p1/vtysh.conf:/etc/frr/vtysh.conf, p1/frr.log:/var/log/frr.log]
   - name: pe1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: s1#net1}, {name: net1, type: direct, args: s2#net1}]
@@ -22,19 +22,19 @@ nodes:
   - name: s1
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: host1#net0}, {name: net1, type: direct, args: pe1#net0}]
-    mounts: [s1/zebra.conf:/etc/frr/zebra.conf, s1/bgpd.conf:/etc/frr/bgpd.conf, s1/ospfd.conf:/etc/frr/ospfd.conf, s1/daemons:/etc/frr/daemons, s1/vtysh.conf:/etc/frr/vtysh.conf, s1/frr.log:/var/log/frr.log]
+    mounts: []
   - name: s2
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: p1#net0}, {name: net1, type: direct, args: pe1#net1}]
-    mounts: [s2/zebra.conf:/etc/frr/zebra.conf, s2/bgpd.conf:/etc/frr/bgpd.conf, s2/ospfd.conf:/etc/frr/ospfd.conf, s2/daemons:/etc/frr/daemons, s2/vtysh.conf:/etc/frr/vtysh.conf, s2/frr.log:/var/log/frr.log]
+    mounts: []
   - name: s3
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: p1#net1}, {name: net1, type: direct, args: pe2#net0}]
-    mounts: [s3/zebra.conf:/etc/frr/zebra.conf, s3/bgpd.conf:/etc/frr/bgpd.conf, s3/ospfd.conf:/etc/frr/ospfd.conf, s3/daemons:/etc/frr/daemons, s3/vtysh.conf:/etc/frr/vtysh.conf, s3/frr.log:/var/log/frr.log]
+    mounts: []
   - name: s4
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: host2#net0}, {name: net1, type: direct, args: pe2#net1}]
-    mounts: [s4/zebra.conf:/etc/frr/zebra.conf, s4/bgpd.conf:/etc/frr/bgpd.conf, s4/ospfd.conf:/etc/frr/ospfd.conf, s4/daemons:/etc/frr/daemons, s4/vtysh.conf:/etc/frr/vtysh.conf, s4/frr.log:/var/log/frr.log]
+    mounts: []
 
 node_configs:
   - name: host1

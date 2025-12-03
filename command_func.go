@@ -350,7 +350,7 @@ func CmdFiles(c *cli.Context) error {
 	}
 	verbose := c.Bool("verbose")
 
-	nm, err := model.BuildNetworkModel(cfg, nd, verbose)
+	nm, err := model.BuildNetworkModelForFileList(cfg, nd)
 	if err != nil {
 		return err
 	}
@@ -376,7 +376,7 @@ func CmdClean(c *cli.Context) error {
 	verbose := c.Bool("verbose")
 	dryRun := c.Bool("dry-run")
 
-	nm, err := model.BuildNetworkModel(cfg, nd, verbose)
+	nm, err := model.BuildNetworkModelForFileList(cfg, nd)
 	if err != nil {
 		return err
 	}

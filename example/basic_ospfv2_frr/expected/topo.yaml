@@ -63,8 +63,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s1/daemons:/etc/frr/daemons
-      - s1/vtysh.conf:/etc/frr/vtysh.conf
+      - 
 
       exec:
       - /usr/lib/frr/frr start
@@ -74,8 +73,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s3/daemons:/etc/frr/daemons
-      - s3/vtysh.conf:/etc/frr/vtysh.conf
+      - 
 
       exec:
       - /usr/lib/frr/frr start
@@ -85,8 +83,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s4/daemons:/etc/frr/daemons
-      - s4/vtysh.conf:/etc/frr/vtysh.conf
+      - 
 
       exec:
       - /usr/lib/frr/frr start

@@ -18,27 +18,27 @@ nodes:
   - name: sw1
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r1#net0}]
-    mounts: [sw1/zebra.conf:/etc/frr/zebra.conf, sw1/staticd.conf:/etc/frr/staticd.conf, sw1/ospf6d.conf:/etc/frr/ospf6d.conf, sw1/daemons:/etc/frr/daemons, sw1/vtysh.conf:/etc/frr/vtysh.conf, sw1/frr.log:/var/log/frr.log]
+    mounts: []
   - name: sw2
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r2#net0}]
-    mounts: [sw2/zebra.conf:/etc/frr/zebra.conf, sw2/staticd.conf:/etc/frr/staticd.conf, sw2/ospf6d.conf:/etc/frr/ospf6d.conf, sw2/daemons:/etc/frr/daemons, sw2/vtysh.conf:/etc/frr/vtysh.conf, sw2/frr.log:/var/log/frr.log]
+    mounts: []
   - name: sw3
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r3#net0}]
-    mounts: [sw3/zebra.conf:/etc/frr/zebra.conf, sw3/staticd.conf:/etc/frr/staticd.conf, sw3/ospf6d.conf:/etc/frr/ospf6d.conf, sw3/daemons:/etc/frr/daemons, sw3/vtysh.conf:/etc/frr/vtysh.conf, sw3/frr.log:/var/log/frr.log]
+    mounts: []
   - name: sw4
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r4#net0}]
-    mounts: [sw4/zebra.conf:/etc/frr/zebra.conf, sw4/staticd.conf:/etc/frr/staticd.conf, sw4/ospf6d.conf:/etc/frr/ospf6d.conf, sw4/daemons:/etc/frr/daemons, sw4/vtysh.conf:/etc/frr/vtysh.conf, sw4/frr.log:/var/log/frr.log]
+    mounts: []
   - name: sw5
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r1#net1}, {name: net1, type: direct, args: r2#net1}, {name: net2, type: direct, args: r3#net1}]
-    mounts: [sw5/zebra.conf:/etc/frr/zebra.conf, sw5/staticd.conf:/etc/frr/staticd.conf, sw5/ospf6d.conf:/etc/frr/ospf6d.conf, sw5/daemons:/etc/frr/daemons, sw5/vtysh.conf:/etc/frr/vtysh.conf, sw5/frr.log:/var/log/frr.log]
+    mounts: []
   - name: sw6
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r3#net2}, {name: net1, type: direct, args: r4#net1}]
-    mounts: [sw6/zebra.conf:/etc/frr/zebra.conf, sw6/staticd.conf:/etc/frr/staticd.conf, sw6/ospf6d.conf:/etc/frr/ospf6d.conf, sw6/daemons:/etc/frr/daemons, sw6/vtysh.conf:/etc/frr/vtysh.conf, sw6/frr.log:/var/log/frr.log]
+    mounts: []
 
 node_configs:
   - name: r1

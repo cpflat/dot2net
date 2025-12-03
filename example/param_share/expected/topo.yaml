@@ -29,9 +29,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - sw1/frr.conf:/etc/frr/frr.conf
-      - sw1/daemons:/etc/frr/daemons
-      - sw1/vtysh.conf:/etc/frr/vtysh.conf
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -44,9 +42,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - sw2/frr.conf:/etc/frr/frr.conf
-      - sw2/daemons:/etc/frr/daemons
-      - sw2/vtysh.conf:/etc/frr/vtysh.conf
+      - 
 
       exec:
       - ip link add br0 type bridge

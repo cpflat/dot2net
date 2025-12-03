@@ -1,10 +1,10 @@
 package example_test
 
 import (
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -128,24 +128,72 @@ func tryScenario(t *testing.T, rootDir string, scenarioName string) {
 	if err != nil {
 		t.Fatalf("dot2net failed: %v\n", err)
 	}
+
+	// Get expected file list before building files (simulates "dot2net files" command)
+	expectedFiles, err := model.ListGeneratedFiles(cfg, nm, false)
+	if err != nil {
+		t.Fatalf("ListGeneratedFiles failed: %v", err)
+	}
+
+	// Remove any existing output files that would be regenerated
+	// (to ensure they're counted as "newly generated" in the verification)
+	for _, file := range expectedFiles {
+		filePath := filepath.Join(tmpDir, file)
+		os.Remove(filePath) // ignore errors if file doesn't exist
+	}
+
+	// Take snapshot of files before build
+	filesBeforeBuild := collectGeneratedFiles(tmpDir)
+	fileSetBeforeBuild := make(map[string]bool)
+	for _, f := range filesBeforeBuild {
+		fileSetBeforeBuild[f] = true
+	}
+
 	err = model.BuildConfigFiles(cfg, nm, true)
 	if err != nil {
 		t.Fatalf("dot2net failed: %v\n", err)
 	}
 
-	// debug: list up files in tmpDir recursively
-	err = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
+	// Collect files after build and filter out files that existed before
+	filesAfterBuild := collectGeneratedFiles(tmpDir)
+	var actualFiles []string
+	for _, f := range filesAfterBuild {
+		if !fileSetBeforeBuild[f] {
+			actualFiles = append(actualFiles, f)
 		}
-		// if info.IsDir() {
-		// 	return nil
-		// }
-		fmt.Printf("found file in tmpDir: %s\n", path)
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("failed to list files in tmpDir: %v", err)
+	}
+
+	// Verify that ListGeneratedFiles output matches actual generated files
+	if !slicesEqualSorted(expectedFiles, actualFiles) {
+		// Find missing and extra files for better error messages
+		expectedSet := make(map[string]bool)
+		for _, f := range expectedFiles {
+			expectedSet[f] = true
+		}
+		actualSet := make(map[string]bool)
+		for _, f := range actualFiles {
+			actualSet[f] = true
+		}
+
+		var missing []string
+		for _, f := range expectedFiles {
+			if !actualSet[f] {
+				missing = append(missing, f)
+			}
+		}
+
+		var extra []string
+		for _, f := range actualFiles {
+			if !expectedSet[f] {
+				extra = append(extra, f)
+			}
+		}
+
+		t.Errorf("File list mismatch (ListGeneratedFiles vs actual build):\n"+
+			"Expected %d files, got %d files\n"+
+			"Missing files (in ListGeneratedFiles but not generated): %v\n"+
+			"Extra files (generated but not in ListGeneratedFiles): %v",
+			len(expectedFiles), len(actualFiles), missing, extra)
 	}
 
 	// recursively search golden files
@@ -251,4 +299,53 @@ func copyFile(t *testing.T, src, dst string) {
 	if _, err := io.Copy(output, input); err != nil {
 		t.Fatalf("failed to copy file from %s to %s: %v", src, dst, err)
 	}
+}
+
+// collectGeneratedFiles returns a sorted list of generated files in tmpDir,
+// excluding input files (input.dot and input.yaml)
+func collectGeneratedFiles(tmpDir string) []string {
+	var files []string
+	filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		relPath, err := filepath.Rel(tmpDir, path)
+		if err != nil {
+			return err
+		}
+
+		// Exclude input files
+		if relPath != TopologyFileName && relPath != DefinitionFileName {
+			files = append(files, relPath)
+		}
+		return nil
+	})
+	return files
+}
+
+// slicesEqualSorted compares two string slices after sorting them
+func slicesEqualSorted(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Create sorted copies
+	sortedA := make([]string, len(a))
+	sortedB := make([]string, len(b))
+	copy(sortedA, a)
+	copy(sortedB, b)
+
+	sort.Strings(sortedA)
+	sort.Strings(sortedB)
+
+	for i := range sortedA {
+		if sortedA[i] != sortedB[i] {
+			return false
+		}
+	}
+	return true
 }

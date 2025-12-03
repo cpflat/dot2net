@@ -128,8 +128,7 @@ topology:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
       binds:
-      - s1/daemons:/etc/frr/daemons
-      - s1/vtysh.conf:/etc/frr/vtysh.conf
+      - 
 
       exec:
       - sysctl -w net.ipv6.conf.all.forwarding=1
@@ -149,8 +148,7 @@ topology:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
       binds:
-      - s3/daemons:/etc/frr/daemons
-      - s3/vtysh.conf:/etc/frr/vtysh.conf
+      - 
 
       exec:
       - sysctl -w net.ipv6.conf.all.forwarding=1
@@ -170,8 +168,7 @@ topology:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
       binds:
-      - s4/daemons:/etc/frr/daemons
-      - s4/vtysh.conf:/etc/frr/vtysh.conf
+      - 
 
       exec:
       - sysctl -w net.ipv6.conf.all.forwarding=1

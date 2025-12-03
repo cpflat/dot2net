@@ -159,8 +159,20 @@ func (m TinetModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 		}
 		// generate file mount point descriptions
 		bindItems := []string{}
+		// Get list of files this node will generate
+		nodeFiles := node.FilesToGenerate(cfg)
+		fileSet := make(map[string]bool)
+		for _, file := range nodeFiles {
+			fileSet[file] = true
+		}
+
 		for _, fileDef := range cfg.FileDefinitions {
 			if fileDef.Path == "" {
+				continue
+			}
+
+			// Check if this node actually generates this file
+			if !fileSet[fileDef.Name] {
 				continue
 			}
 

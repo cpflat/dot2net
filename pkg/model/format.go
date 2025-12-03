@@ -1187,6 +1187,16 @@ func formatConfigLines(cfg *types.Config, conf string, formats []string) (string
 func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool) ([]string, error) {
 	var files []string
 
+	// Helper function to check if a file name is in a list
+	contains := func(list []string, name string) bool {
+		for _, item := range list {
+			if item == name {
+				return true
+			}
+		}
+		return false
+	}
+
 	// Generate file list from FileDefinitions
 	for _, fileDef := range cfg.FileDefinitions {
 		// Skip empty file names
@@ -1197,11 +1207,14 @@ func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 		switch fileDef.Scope {
 		case types.ClassTypeNetwork:
 			// Network-scope files (root level)
-			files = append(files, fileDef.Name)
+			// Check if the network actually generates this file
+			if contains(nm.FilesToGenerate(cfg), fileDef.Name) {
+				files = append(files, fileDef.Name)
+			}
 		case types.ClassTypeNode, "":
 			// Node-scope files (node_name/file_name) - Scope="" defaults to node scope
 			for _, node := range nm.Nodes {
-				if !node.IsVirtual() { // Virtual nodes don't generate files
+				if !node.IsVirtual() && contains(node.FilesToGenerate(cfg), fileDef.Name) {
 					files = append(files, node.Name+"/"+fileDef.Name)
 				}
 			}

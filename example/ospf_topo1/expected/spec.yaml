@@ -18,27 +18,27 @@ nodes:
   - name: s1
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r1#net0}]
-    mounts: [s1/zebra.conf:/etc/frr/zebra.conf, s1/ospfd.conf:/etc/frr/ospfd.conf, s1/ospf6d.conf:/etc/frr/ospf6d.conf, s1/daemons:/etc/frr/daemons, s1/vtysh.conf:/etc/frr/vtysh.conf, s1/frr.log:/var/log/frr.log]
+    mounts: []
   - name: s2
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r2#net0}]
-    mounts: [s2/zebra.conf:/etc/frr/zebra.conf, s2/ospfd.conf:/etc/frr/ospfd.conf, s2/ospf6d.conf:/etc/frr/ospf6d.conf, s2/daemons:/etc/frr/daemons, s2/vtysh.conf:/etc/frr/vtysh.conf, s2/frr.log:/var/log/frr.log]
+    mounts: []
   - name: s3
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r1#net1}, {name: net1, type: direct, args: r2#net1}, {name: net2, type: direct, args: r3#net0}]
-    mounts: [s3/zebra.conf:/etc/frr/zebra.conf, s3/ospfd.conf:/etc/frr/ospfd.conf, s3/ospf6d.conf:/etc/frr/ospf6d.conf, s3/daemons:/etc/frr/daemons, s3/vtysh.conf:/etc/frr/vtysh.conf, s3/frr.log:/var/log/frr.log]
+    mounts: []
   - name: s4
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r3#net1}]
-    mounts: [s4/zebra.conf:/etc/frr/zebra.conf, s4/ospfd.conf:/etc/frr/ospfd.conf, s4/ospf6d.conf:/etc/frr/ospf6d.conf, s4/daemons:/etc/frr/daemons, s4/vtysh.conf:/etc/frr/vtysh.conf, s4/frr.log:/var/log/frr.log]
+    mounts: []
   - name: s5
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r3#net2}, {name: net1, type: direct, args: r4#net0}]
-    mounts: [s5/zebra.conf:/etc/frr/zebra.conf, s5/ospfd.conf:/etc/frr/ospfd.conf, s5/ospf6d.conf:/etc/frr/ospf6d.conf, s5/daemons:/etc/frr/daemons, s5/vtysh.conf:/etc/frr/vtysh.conf, s5/frr.log:/var/log/frr.log]
+    mounts: []
   - name: s6
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r4#net1}]
-    mounts: [s6/zebra.conf:/etc/frr/zebra.conf, s6/ospfd.conf:/etc/frr/ospfd.conf, s6/ospf6d.conf:/etc/frr/ospf6d.conf, s6/daemons:/etc/frr/daemons, s6/vtysh.conf:/etc/frr/vtysh.conf, s6/frr.log:/var/log/frr.log]
+    mounts: []
 
 node_configs:
   - name: r1

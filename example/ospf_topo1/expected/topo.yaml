@@ -57,12 +57,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s1/zebra.conf:/etc/frr/zebra.conf
-      - s1/ospfd.conf:/etc/frr/ospfd.conf
-      - s1/ospf6d.conf:/etc/frr/ospf6d.conf
-      - s1/daemons:/etc/frr/daemons
-      - s1/vtysh.conf:/etc/frr/vtysh.conf
-      - s1/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -73,12 +68,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s2/zebra.conf:/etc/frr/zebra.conf
-      - s2/ospfd.conf:/etc/frr/ospfd.conf
-      - s2/ospf6d.conf:/etc/frr/ospf6d.conf
-      - s2/daemons:/etc/frr/daemons
-      - s2/vtysh.conf:/etc/frr/vtysh.conf
-      - s2/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -89,12 +79,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s3/zebra.conf:/etc/frr/zebra.conf
-      - s3/ospfd.conf:/etc/frr/ospfd.conf
-      - s3/ospf6d.conf:/etc/frr/ospf6d.conf
-      - s3/daemons:/etc/frr/daemons
-      - s3/vtysh.conf:/etc/frr/vtysh.conf
-      - s3/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -109,12 +94,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s4/zebra.conf:/etc/frr/zebra.conf
-      - s4/ospfd.conf:/etc/frr/ospfd.conf
-      - s4/ospf6d.conf:/etc/frr/ospf6d.conf
-      - s4/daemons:/etc/frr/daemons
-      - s4/vtysh.conf:/etc/frr/vtysh.conf
-      - s4/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -125,12 +105,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s5/zebra.conf:/etc/frr/zebra.conf
-      - s5/ospfd.conf:/etc/frr/ospfd.conf
-      - s5/ospf6d.conf:/etc/frr/ospf6d.conf
-      - s5/daemons:/etc/frr/daemons
-      - s5/vtysh.conf:/etc/frr/vtysh.conf
-      - s5/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge
@@ -143,12 +118,7 @@ topology:
       kind: linux
       image: nicolaka/netshoot
       binds:
-      - s6/zebra.conf:/etc/frr/zebra.conf
-      - s6/ospfd.conf:/etc/frr/ospfd.conf
-      - s6/ospf6d.conf:/etc/frr/ospf6d.conf
-      - s6/daemons:/etc/frr/daemons
-      - s6/vtysh.conf:/etc/frr/vtysh.conf
-      - s6/frr.log:/var/log/frr.log
+      - 
 
       exec:
       - ip link add br0 type bridge

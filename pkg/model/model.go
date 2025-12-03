@@ -25,6 +25,32 @@ const NumberNumber string = "number"
 
 // const DummyIPSpace string = "none"
 
+// BuildNetworkModelForFileList builds a lightweight NetworkModel sufficient for file listing.
+// This function only processes the minimum required for FilesToGenerate() to work:
+// - Module loading (for FileDefinitions)
+// - Topology skeleton (nodes, interfaces, class labels)
+// - Class validation
+// It skips expensive operations like IP address assignment and parameter generation.
+func BuildNetworkModelForFileList(cfg *types.Config, d *Diagram) (nm *types.NetworkModel, err error) {
+	err = LoadModules(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	// build topology skeleton with class labels
+	nm, err = buildSkeleton(cfg, d)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkClasses(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	return nm, nil
+}
+
 func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.NetworkModel, err error) {
 
 	err = LoadModules(cfg)

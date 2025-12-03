@@ -71,6 +71,13 @@ type ObjectInstance interface {
 	StringForMessage() string // just for debug messages
 }
 
+// FileGenerator is an interface for objects that can generate files.
+// Both NetworkModel and Node implement this interface.
+type FileGenerator interface {
+	// FilesToGenerate returns a list of file names that this object will generate based on its classes.
+	FilesToGenerate(cfg *Config) []string
+}
+
 // NameSpacer is an element of top-down network model
 // A namespacer owns parameter namespace and generates configuration blocks
 // Candidates: Network, Node, Interface, Segment, Neighbor, Member, Group
@@ -702,6 +709,25 @@ func (nm *NetworkModel) MemberReferrers() (result []MemberReferrer) {
 	return result
 }
 
+// FilesToGenerate returns a list of file names that the network will generate based on its NetworkClasses.
+func (nm *NetworkModel) FilesToGenerate(cfg *Config) []string {
+	fileSet := make(map[string]bool)
+	// Collect all file names from NetworkClass ConfigTemplates
+	for _, nc := range cfg.NetworkClasses {
+		for _, ct := range nc.ConfigTemplates {
+			if ct.File != "" {
+				fileSet[ct.File] = true
+			}
+		}
+	}
+	// Convert to slice
+	files := make([]string, 0, len(fileSet))
+	for file := range fileSet {
+		files = append(files, file)
+	}
+	return files
+}
+
 //func (nm *NetworkModel) StringAllObjectClasses(cfg *Config) string {
 //	// network class
 //	classNames := []string{}
@@ -1064,6 +1090,32 @@ func (n *Node) BuildRelativeNameSpace(globalParams map[string]map[string]string)
 	n.setNodeBaseRelativeNameSpace(n, globalParams, "")
 
 	return nil
+}
+
+// FilesToGenerate returns a list of file names that the node will generate based on its classes.
+// It examines NodeClass ConfigTemplates.
+func (n *Node) FilesToGenerate(cfg *Config) []string {
+	fileSet := make(map[string]bool)
+
+	// Collect file names from NodeClass ConfigTemplates
+	for _, classLabel := range n.ClassLabels() {
+		for _, nc := range cfg.NodeClasses {
+			if nc.Name == classLabel {
+				for _, ct := range nc.ConfigTemplates {
+					if ct.File != "" {
+						fileSet[ct.File] = true
+					}
+				}
+			}
+		}
+	}
+
+	// Convert to slice
+	files := make([]string, 0, len(fileSet))
+	for file := range fileSet {
+		files = append(files, file)
+	}
+	return files
 }
 
 type Interface struct {

@@ -14,11 +14,11 @@ nodes:
   - name: sw1
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r2#net1}, {name: net1, type: direct, args: r3#net0}]
-    mounts: [sw1/frr.conf:/etc/frr/frr.conf, sw1/daemons:/etc/frr/daemons, sw1/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: []
   - name: sw2
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r3#net1}]
-    mounts: [sw2/frr.conf:/etc/frr/frr.conf, sw2/daemons:/etc/frr/daemons, sw2/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: []
 
 node_configs:
   - name: r1

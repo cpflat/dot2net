@@ -30,7 +30,7 @@ nodes:
   - name: sw1
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r3#net2}, {name: net1, type: direct, args: r5#net2}, {name: net2, type: direct, args: r7#net0}]
-    mounts: [sw1/frr.conf:/etc/frr/frr.conf, sw1/daemons:/etc/frr/daemons, sw1/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: []
 
 node_configs:
   - name: r1
