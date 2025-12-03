@@ -44,17 +44,27 @@ func NewModule() types.Module {
 
 func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	// add file format
-	fileFormat := &types.FileFormat{
-		Name:           TinetYamlFormatName,
+	formatStyle := &types.FormatStyle{
+		Name: TinetYamlFormatName,
+
+		// New fields (Format Phase)
+		// (BlockSeparator only, no Line processing needed)
+
+		// Legacy (v0.6.x compatibility)
 		BlockSeparator: ", ",
 	}
-	cfg.AddFileFormat(fileFormat)
-	fileFormat = &types.FileFormat{
-		Name:           SpecCmdFormatName,
+	cfg.AddFormatStyle(formatStyle)
+	formatStyle = &types.FormatStyle{
+		Name: SpecCmdFormatName,
+
+		// New fields (Format Phase)
+		FormatLinePrefix: "      - cmd: ",
+
+		// Legacy (v0.6.x compatibility)
 		LinePrefix:     "      - cmd: ",
 		BlockSeparator: "\n",
 	}
-	cfg.AddFileFormat(fileFormat)
+	cfg.AddFormatStyle(formatStyle)
 	// 	fileFormat = &types.FileFormat{
 	// 		Name:          TinetVtyshCLIFormatName,
 	// 		LineSeparator: "\" -c \"",
@@ -100,7 +110,13 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct2.Template = []string{string(bytes)}
 
-	ct3 := &types.ConfigTemplate{Name: "tn_config", Depends: []string{"tn_cmds"}}
+	ct3 := &types.ConfigTemplate{
+		Name:    "tn_config",
+		Depends: []string{"tn_cmds"},
+		Blocks: types.BlocksConfig{
+			After: []string{"self_tn_cmds"},
+		},
+	}
 	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_config")
 	if err != nil {
 		return err

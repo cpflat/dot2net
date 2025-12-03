@@ -44,17 +44,27 @@ func NewModule() types.Module {
 
 func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	// add file format
-	fileFormat := &types.FileFormat{
-		Name:           ClabYamlFormatName,
+	formatStyle := &types.FormatStyle{
+		Name: ClabYamlFormatName,
+
+		// New fields (Format Phase)
+		// (BlockSeparator only, no Line processing needed)
+
+		// Legacy (v0.6.x compatibility)
 		BlockSeparator: ", ",
 	}
-	cfg.AddFileFormat(fileFormat)
-	fileFormat = &types.FileFormat{
-		Name:           ClabCmdFormatName,
+	cfg.AddFormatStyle(formatStyle)
+	formatStyle = &types.FormatStyle{
+		Name: ClabCmdFormatName,
+
+		// New fields (Format Phase)
+		FormatLinePrefix: "      - ",
+
+		// Legacy (v0.6.x compatibility)
 		LinePrefix:     "      - ",
 		BlockSeparator: "\n",
 	}
-	cfg.AddFileFormat(fileFormat)
+	cfg.AddFormatStyle(formatStyle)
 
 	// add file definition
 	fileDef := &types.FileDefinition{

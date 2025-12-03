@@ -24,6 +24,21 @@ const ClassTypeNeighborLayerAny = "any"
 const ClassTypeMemberHeader string = "member"
 const ClassTypeMemberClassNameAny = "any"
 
+// Default format names
+const DefaultFormatPhaseFormatName = "DefaultFormatPhaseFormat"
+const DefaultMergePhaseFormatName = "DefaultMergePhaseFormat"
+
+// Default format definitions
+var DefaultFormatPhaseFormat = &FormatStyle{
+	Name:           DefaultFormatPhaseFormatName,
+	BlockSeparator: "\n",
+}
+
+var DefaultMergePhaseFormat = &FormatStyle{
+	Name:           DefaultMergePhaseFormatName,
+	BlockSeparator: "\n",
+}
+
 func ClassTypeNeighbor(layer string) string {
 	return ClassTypeNeighborHeader + "_" + layer
 }
@@ -73,7 +88,7 @@ type Config struct {
 	Modules         []string          `yaml:"module" mapstructure:"module"`
 	GlobalSettings  GlobalSettings    `yaml:"global" mapstructure:"global"`
 	FileDefinitions []*FileDefinition `yaml:"file" mapstructure:"file"`
-	FileFormats     []*FileFormat     `yaml:"format,flow" mapstructure:"format,flow"`
+	FormatStyles    []*FormatStyle    `yaml:"format,flow" mapstructure:"format,flow"`
 	Layers          []*Layer          `yaml:"layer" mapstructure:"layer"`
 	ManagementLayer ManagementLayer   `yaml:"mgmt_layer" mapstructure:"mgmt_layer"`
 	ParameterRules  []*ParameterRule  `yaml:"param_rule,flow" mapstructure:"param_rule,flow"`
@@ -86,7 +101,7 @@ type Config struct {
 	SegmentClasses    []*SegmentClass    `yaml:"segmentclass,flow" mapstructure:"segments,flow"`
 
 	fileDefinitionMap map[string]*FileDefinition
-	fileFormatMap     map[string]*FileFormat
+	formatStyleMap    map[string]*FormatStyle
 	layerMap          map[string]*Layer
 	policyMap         map[string]*IPPolicy
 	parameterRuleMap  map[string]*ParameterRule
@@ -108,8 +123,8 @@ func (cfg *Config) FileDefinitionByName(name string) (*FileDefinition, bool) {
 	return filedef, ok
 }
 
-func (cfg *Config) FileFormatByName(name string) (*FileFormat, bool) {
-	filefmt, ok := cfg.fileFormatMap[name]
+func (cfg *Config) FormatStyleByName(name string) (*FormatStyle, bool) {
+	filefmt, ok := cfg.formatStyleMap[name]
 	return filefmt, ok
 }
 
@@ -258,9 +273,9 @@ func (cfg *Config) GetValidSegmentClasses(given []string) *ParsedLabels {
 	return cfg.getValidClasses(given, hasAllSegmentClass, hasDefaultSegmentClass)
 }
 
-func (cfg *Config) AddFileFormat(filefmt *FileFormat) {
-	cfg.FileFormats = append(cfg.FileFormats, filefmt)
-	cfg.fileFormatMap[filefmt.Name] = filefmt
+func (cfg *Config) AddFormatStyle(fmtstyle *FormatStyle) {
+	cfg.FormatStyles = append(cfg.FormatStyles, fmtstyle)
+	cfg.formatStyleMap[fmtstyle.Name] = fmtstyle
 }
 
 func (cfg *Config) AddFileDefinition(filedef *FileDefinition) {
@@ -339,14 +354,85 @@ func (fd *FileDefinition) GetFormats() []string {
 	return ret
 }
 
-type FileFormat struct {
-	Name           string `yaml:"name" mapstructure:"name"`
+// FormatStyle defines how to format configuration blocks
+// Renamed from FileFormat to align with YAML `format:` section
+type FormatStyle struct {
+	Name string `yaml:"name" mapstructure:"name"`
+
+	// Legacy fields (DEPRECATED: will be removed in v0.7.0)
 	LinePrefix     string `yaml:"lineprefix" mapstructure:"lineprefix"`
 	LineSuffix     string `yaml:"linesuffix" mapstructure:"linesuffix"`
 	LineSeparator  string `yaml:"lineseparator" mapstructure:"lineseparator"`
 	BlockPrefix    string `yaml:"blockprefix" mapstructure:"blockprefix"`
 	BlockSuffix    string `yaml:"blocksuffix" mapstructure:"blocksuffix"`
 	BlockSeparator string `yaml:"blockseparator" mapstructure:"blockseparator"`
+
+	// Format Phase (block生成時の装飾)
+	FormatLinePrefix    string `yaml:"format_lineprefix" mapstructure:"format_lineprefix"`
+	FormatLineSuffix    string `yaml:"format_linesuffix" mapstructure:"format_linesuffix"`
+	FormatLineSeparator string `yaml:"format_lineseparator" mapstructure:"format_lineseparator"`
+	FormatBlockPrefix   string `yaml:"format_blockprefix" mapstructure:"format_blockprefix"`
+	FormatBlockSuffix   string `yaml:"format_blocksuffix" mapstructure:"format_blocksuffix"`
+
+	// Merge Phase (block結合時の処理)
+	MergeBlockSeparator string `yaml:"merge_blockseparator" mapstructure:"merge_blockseparator"`
+	MergeResultPrefix   string `yaml:"merge_resultprefix" mapstructure:"merge_resultprefix"`
+	MergeResultSuffix   string `yaml:"merge_resultsuffix" mapstructure:"merge_resultsuffix"`
+}
+
+// Format Phase Getters (with fallback to legacy fields for v0.6.x compatibility)
+func (fs *FormatStyle) GetFormatLinePrefix() string {
+	result := ""
+	if fs.FormatLinePrefix != "" {
+		result = fs.FormatLinePrefix
+	} else {
+		result = fs.LinePrefix
+	}
+	return result
+}
+
+func (fs *FormatStyle) GetFormatLineSuffix() string {
+	if fs.FormatLineSuffix != "" {
+		return fs.FormatLineSuffix
+	}
+	return fs.LineSuffix
+}
+
+func (fs *FormatStyle) GetFormatLineSeparator() string {
+	if fs.FormatLineSeparator != "" {
+		return fs.FormatLineSeparator
+	}
+	return fs.LineSeparator
+}
+
+func (fs *FormatStyle) GetFormatBlockPrefix() string {
+	if fs.FormatBlockPrefix != "" {
+		return fs.FormatBlockPrefix
+	}
+	return fs.BlockPrefix
+}
+
+func (fs *FormatStyle) GetFormatBlockSuffix() string {
+	if fs.FormatBlockSuffix != "" {
+		return fs.FormatBlockSuffix
+	}
+	return fs.BlockSuffix
+}
+
+// Merge Phase Getters (BlockSeparator falls back to legacy field, ResultPrefix/Suffix are new features)
+func (fs *FormatStyle) GetMergeBlockSeparator() string {
+	if fs.MergeBlockSeparator != "" {
+		return fs.MergeBlockSeparator
+	}
+	return fs.BlockSeparator
+}
+
+func (fs *FormatStyle) GetMergeResultPrefix() string {
+	return fs.MergeResultPrefix // No fallback (new feature)
+}
+
+func (fs *FormatStyle) GetMergeResultSuffix() string {
+	return fs.MergeResultSuffix // No fallback (new feature)
 }
 
 type Layerer interface {
@@ -593,6 +679,12 @@ func (mc *MemberClass) GetSpecifiedClasses() (string, []string, error) {
 	}
 }
 
+// BlocksConfig defines config blocks to be merged before/after the template
+type BlocksConfig struct {
+	Before []string `yaml:"before" mapstructure:"before"`
+	After  []string `yaml:"after" mapstructure:"after"`
+}
+
 type ConfigTemplate struct {
 	// Config block aggregation styles
 	// hierarchy (default): specify child config templates in the template description as parameter
@@ -616,6 +708,16 @@ type ConfigTemplate struct {
 	// Config template names on same object that need to be embeded
 	// Required for ordering config template generation considering the dependency
 	Depends []string `yaml:"depends" mapstructure:"depends"`
+	// Blocks configuration for flexible config block merging
+	Blocks BlocksConfig `yaml:"blocks" mapstructure:"blocks"`
+
+	// Format specifications
+	// NamespaceFormat: format applied when registering config blocks to namespace
+	NamespaceFormat  string   `yaml:"namespace_format" mapstructure:"namespace_format"`
+	NamespaceFormats []string `yaml:"namespace_formats" mapstructure:"namespace_formats"`
+	// AssemblyFormat: format applied when assembling config blocks (Sort, blocks)
+	AssemblyFormat  string   `yaml:"assembly_format" mapstructure:"assembly_format"`
+	AssemblyFormats []string `yaml:"assembly_formats" mapstructure:"assembly_formats"`
 
 	// Condition related fields
 	// add config only for interfaces of nodes belongs to the nodeclass(es)
@@ -678,6 +780,48 @@ func (ct *ConfigTemplate) GetFormats() []string {
 	}
 	if len(ct.Formats) > 0 {
 		ret = append(ret, ct.Formats...)
+	}
+	return ret
+}
+
+// GetNamespaceFormats returns formats to apply when registering config blocks to namespace
+// Falls back to GetFormats() for backward compatibility, then to default format
+func (ct *ConfigTemplate) GetNamespaceFormats() []string {
+	ret := []string{}
+	if ct.NamespaceFormat != "" {
+		ret = append(ret, ct.NamespaceFormat)
+	}
+	if len(ct.NamespaceFormats) > 0 {
+		ret = append(ret, ct.NamespaceFormats...)
+	}
+	// Fallback to old format fields for backward compatibility
+	if len(ret) == 0 {
+		ret = ct.GetFormats()
+	}
+	// Ultimate fallback to default format
+	if len(ret) == 0 {
+		return []string{DefaultFormatPhaseFormatName}
+	}
+	return ret
+}
+
+// GetAssemblyFormats returns formats to apply when assembling config blocks (Sort, blocks)
+// Falls back to GetFormats() for backward compatibility, then to default format
+func (ct *ConfigTemplate) GetAssemblyFormats() []string {
+	ret := []string{}
+	if ct.AssemblyFormat != "" {
+		ret = append(ret, ct.AssemblyFormat)
+	}
+	if len(ct.AssemblyFormats) > 0 {
+		ret = append(ret, ct.AssemblyFormats...)
+	}
+	// Fallback to old format fields for backward compatibility
+	if len(ret) == 0 {
+		ret = ct.GetFormats()
+	}
+	// Ultimate fallback to default format
+	if len(ret) == 0 {
+		return []string{DefaultMergePhaseFormatName}
 	}
 	return ret
 }
@@ -768,9 +912,12 @@ func LoadConfig(path string) (*Config, error) {
 	for _, filedef := range cfg.FileDefinitions {
 		cfg.fileDefinitionMap[filedef.Name] = filedef
 	}
-	cfg.fileFormatMap = map[string]*FileFormat{}
-	for _, filefmt := range cfg.FileFormats {
-		cfg.fileFormatMap[filefmt.Name] = filefmt
+	cfg.formatStyleMap = map[string]*FormatStyle{}
+	// Add default formats
+	cfg.formatStyleMap[DefaultFormatPhaseFormatName] = DefaultFormatPhaseFormat
+	cfg.formatStyleMap[DefaultMergePhaseFormatName] = DefaultMergePhaseFormat
+	for _, fmtstyle := range cfg.FormatStyles {
+		cfg.formatStyleMap[fmtstyle.Name] = fmtstyle
 	}
 	cfg.layerMap = map[string]*Layer{}
 	cfg.policyMap = map[string]*IPPolicy{}

@@ -53,12 +53,14 @@ nodeclass:
         sourcefile: ./vtysh.conf
       - name: startup
         depends: [common, cmds]
-        template:
-          - "{{ .self_common }}"
-          - "{{ .interfaces_common }}"
-          - "{{ .interfaces_addrs }}"
-          - "{{ .self_cmds }}"
-          - "{{ .interfaces_rt_routes }}"
+        blocks:
+          before: [
+            "self_common",
+            "interfaces_common",
+            "interfaces_addrs",
+            "self_cmds",
+            "interfaces_rt_routes"
+          ]
       - name: cmds
         format: FRRVtyshCLI
         template: 
@@ -73,11 +75,13 @@ nodeclass:
     config:
       - name: startup
         depends: [common]
-        template:
-          - "{{ .self_common }}"
-          - "{{ .interfaces_common }}"
-          - "{{ .interfaces_addrs }}"
-          - "{{ .interfaces_sv_routes }}"
+        blocks:
+          before: [
+            "self_common",
+            "interfaces_common",
+            "interfaces_addrs",
+            "interfaces_sv_routes"
+          ]
 
 interfaceclass:
   - name: default

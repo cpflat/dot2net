@@ -377,6 +377,118 @@ func generateConfigFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool
 	return nil
 }
 
+// parseBlockReference parses a block reference string and returns its components
+// Supported formats:
+//   - self_configname
+//   - interfaces_configname
+//   - nodes_configname
+//   - segments_layer_configname
+//   - neighbors_layer_configname
+//   - members_classtype_classname_configname
+func parseBlockReference(blockRef string) (objectType, layer, classType, className, configName string, err error) {
+	switch {
+	case strings.HasPrefix(blockRef, types.SelfConfigHeader):
+		return "self", "", "", "", strings.TrimPrefix(blockRef, types.SelfConfigHeader), nil
+
+	case strings.HasPrefix(blockRef, types.ChildInterfacesConfigHeader):
+		return "interface", "", "", "", strings.TrimPrefix(blockRef, types.ChildInterfacesConfigHeader), nil
+
+	case strings.HasPrefix(blockRef, types.ChildNodesConfigHeader):
+		return "node", "", "", "", strings.TrimPrefix(blockRef, types.ChildNodesConfigHeader), nil
+
+	case strings.HasPrefix(blockRef, types.ChildConnectionsConfigHeader):
+		return "connection", "", "", "", strings.TrimPrefix(blockRef, types.ChildConnectionsConfigHeader), nil
+
+	case strings.HasPrefix(blockRef, types.ChildGroupsConfigHeader):
+		return "group", "", "", "", strings.TrimPrefix(blockRef, types.ChildGroupsConfigHeader), nil
+
+	case strings.HasPrefix(blockRef, types.ChildSegmentsConfigHeader):
+		// segments_layer_configname format
+		rest := strings.TrimPrefix(blockRef, types.ChildSegmentsConfigHeader)
+		parts := strings.SplitN(rest, types.NumberSeparator, 2)
+		if len(parts) != 2 {
+			return "", "", "", "", "", fmt.Errorf("invalid segment reference: %s (expected format: segments_layer_configname)", blockRef)
+		}
+		return "segment", parts[0], "", "", parts[1], nil
+
+	case strings.HasPrefix(blockRef, types.ChildNeighborsConfigHeader):
+		// neighbors_layer_configname format
+		rest := strings.TrimPrefix(blockRef, types.ChildNeighborsConfigHeader)
+		parts := strings.SplitN(rest, types.NumberSeparator, 2)
+		if len(parts) != 2 {
+			return "", "", "", "", "", fmt.Errorf("invalid neighbor reference: %s (expected format: neighbors_layer_configname)", blockRef)
+		}
+		return "neighbor", parts[0], "", "", parts[1], nil
+
+	case strings.HasPrefix(blockRef, types.ChildMembersConfigHeader):
+		// members_classtype_classname_configname format
+		rest := strings.TrimPrefix(blockRef, types.ChildMembersConfigHeader)
+		parts := strings.SplitN(rest, types.NumberSeparator, 3)
+		if len(parts) != 3 {
+			return "", "", "", "", "", fmt.Errorf("invalid member reference: %s (expected format: members_classtype_classname_configname)", blockRef)
+		}
+		return "member", "", parts[0], parts[1], parts[2], nil
+
+	default:
+		return "", "", "", "", "", fmt.Errorf("unsupported block reference: %s", blockRef)
+	}
+}
+
+// buildRelativeParamName constructs the parameter name from parsed components
+func buildRelativeParamName(objectType, layer, classType, className, configName string) string {
+	switch objectType {
+	case "self":
+		return types.SelfConfigHeader + configName
+	case "interface":
+		return types.ChildInterfacesConfigHeader + configName
+	case "node":
+		return types.ChildNodesConfigHeader + configName
+	case "connection":
+		return types.ChildConnectionsConfigHeader + configName
+	case "segment":
+		return types.ChildSegmentsConfigHeader + layer + types.NumberSeparator + configName
+	case "group":
+		return types.ChildGroupsConfigHeader + configName
+	case "neighbor":
+		return types.ChildNeighborsConfigHeader + layer + types.NumberSeparator + configName
+	case "member":
+		return types.ChildMembersConfigHeader + classType + types.NumberSeparator + className + types.NumberSeparator + configName
+	default:
+		return ""
+	}
+}
+
+// collectConfigBlocks collects config blocks from namespace based on block references
+func collectConfigBlocks(ns types.NameSpacer, blockRefs []string) ([]string, error) {
+	var blocks []string
+	relativeParams := ns.GetRelativeParams()
+
+	for _, ref := range blockRefs {
+		// Parse the block reference
+		objectType, layer, classType, className, configName, err := parseBlockReference(ref)
+		if err != nil {
+			return nil, err
+		}
+
+		// Build parameter name
+		paramName := buildRelativeParamName(objectType, layer, classType, className, configName)
+		if paramName == "" {
+			return nil, fmt.Errorf("failed to build parameter name for: %s", ref)
+		}
+
+		// Get the config block from namespace
+		block, exists := relativeParams[paramName]
+		if !exists {
+			return nil, fmt.Errorf("config block not found: %s (parameter name: %s)", ref, paramName)
+		}
+
+
+		blocks = append(blocks, block)
+	}
+
+	return blocks, nil
+}
+
 // integrateConfigsFromDependencies integrates config blocks from dependent objects
 func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, ns types.NameSpacer, verbose bool) error {
 	// Process each dependency class
@@ -490,15 +602,29 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 	for _, ct := range reordered {
 		// Generate config block if conditions are met
 		var conf string
-		reason, met := checkConfigTemplateConditions(ns, ct)
+		reason, met := checkConfigTemplateConditions(ns, ct, verbose)
 		if met {
 			if verbose {
 				fmt.Fprintf(os.Stderr, "templating individual config for %s with %s\n", ns.StringForMessage(), ct.String())
 			}
-			// DEBUG: Show segment_id for segments
-			conf, err = generateConfigBlock(ns, ct)
-			if err != nil {
-				return err
+
+			// Check if blocks functionality is used
+			hasBlocks := len(ct.Blocks.Before) > 0 || len(ct.Blocks.After) > 0
+
+			if hasBlocks || ct.Style == types.ConfigTemplateStyleSort {
+				// Use new blocks processing engine for:
+				// 1. Templates with blocks.before/after
+				// 2. Sort style templates (to integrate with blocks)
+				conf, err = processConfigTemplateWithBlocks(cfg, ca, ns, ct, verbose)
+				if err != nil {
+					return err
+				}
+			} else {
+				// Use traditional processing for templates without blocks
+				conf, err = generateConfigBlock(ns, ct)
+				if err != nil {
+					return err
+				}
 			}
 		} else {
 			if verbose {
@@ -508,38 +634,28 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 		}
 
 		// Store config block for grouping (Group accumulation)
-		if met && ct.Group != "" {
+		// Note: For sort style, this is already handled in processConfigTemplateWithBlocks
+		if met && ct.Group != "" && ct.Style != types.ConfigTemplateStyleSort {
 			ca.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority}, false)
 			if verbose {
 				fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
 			}
 		}
 
-		// Group Aggregation: merge grouped config blocks if ct.Style is ConfigTemplateStyleSort
-		if met && ct.Style == types.ConfigTemplateStyleSort {
-			// add self config before merging for priority sort
-			ca.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: conf, Priority: ct.Priority}, true)
-			blocks := ca.getConfigBlocks(ns, ct.SortGroup, verbose)
-
-			// merge config blocks of grouped templates
-			conf, err = mergeConfigBlocks(cfg, blocks, ct.GetFormats())
-			if err != nil {
-				return fmt.Errorf("error on merging config blocks of %v, %w", blocks, err)
-			}
-			if verbose {
-				fmt.Fprintf(os.Stderr, " add %d config blocks in group %s\n", len(blocks)-1, ct.SortGroup)
-			}
-		}
+		// Note: Sort processing is now handled in processConfigTemplateWithBlocks
 
 		// Add to self's namespace if ct.Name is specified
 		if ct.Name != "" {
-			err := addSelfConfigToNameSpace(cfg, ns, conf, ct, verbose)
+			// addSelfConfigToNameSpace formats the config and stores it to namespace
+			// It returns the formatted config for use in childConfigs
+			formattedConf, err := addSelfConfigToNameSpace(cfg, ns, conf, ct, verbose)
 			if err != nil {
 				return err
 			}
 
-			// Store this config in ConfigBlockManager for parent to retrieve later
-			ca.addChildConfig(ns, ct.Name, conf, ct.GetFormats())
+			// Store the FORMATTED config in ConfigBlockManager for parent to retrieve later
+			// This ensures parents get the properly formatted config blocks
+			ca.addChildConfig(ns, ct.Name, formattedConf, ct.GetNamespaceFormats())
 			if verbose {
 				fmt.Fprintf(os.Stderr, " stored config for parent retrieval: %s\n", ct.Name)
 			}
@@ -561,7 +677,7 @@ func checkSorterObjects(cfg *types.Config, ca *ConfigAggregator, ns types.NameSp
 	cts := ns.GetPossibleConfigTemplates(cfg)
 	for _, ct := range cts {
 		// Check if the config template is valid and sorter
-		_, met := checkConfigTemplateConditions(ns, ct)
+		_, met := checkConfigTemplateConditions(ns, ct, false)
 		if met && ct.Style == types.ConfigTemplateStyleSort {
 			ca.addSorter(ns, ct.SortGroup)
 		}
@@ -577,13 +693,86 @@ func generateConfigBlock(ns types.NameSpacer, configTemplate *types.ConfigTempla
 	return conf, nil
 }
 
-func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf string, ct *types.ConfigTemplate, verbose bool) error {
-	formats := ct.GetFormats()
+// processConfigTemplateWithBlocks processes a config template with blocks.before and blocks.after
+func processConfigTemplateWithBlocks(cfg *types.Config, ca *ConfigAggregator, ns types.NameSpacer, ct *types.ConfigTemplate, verbose bool) (string, error) {
+	var allBlocks []string
+
+	// 1. Collect blocks.before if specified
+	if len(ct.Blocks.Before) > 0 {
+		beforeBlocks, err := collectConfigBlocks(ns, ct.Blocks.Before)
+		if err != nil {
+			return "", fmt.Errorf("error collecting blocks.before for %s: %w", ns.StringForMessage(), err)
+		}
+		allBlocks = append(allBlocks, beforeBlocks...)
+		if verbose {
+			fmt.Fprintf(os.Stderr, "  collected %d blocks.before\n", len(beforeBlocks))
+		}
+	}
+
+	// 2. Process main template or sort results
+	if ct.Style == types.ConfigTemplateStyleSort {
+		// For sort style, collect grouped blocks directly without merging
+		// (merged later in step 4 with before/after blocks for optimization)
+		selfConf, err := generateConfigBlock(ns, ct)
+		if err != nil {
+			return "", err
+		}
+		ca.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: selfConf, Priority: ct.Priority}, true)
+		sortedBlocks := ca.getConfigBlocks(ns, ct.SortGroup, verbose)
+
+		// Append sorted blocks directly to allBlocks (not merging here)
+		// This avoids double merge: previously merged here and again at step 4
+		allBlocks = append(allBlocks, sortedBlocks...)
+		if verbose {
+			fmt.Fprintf(os.Stderr, " collected %d config blocks in group %s\n", len(sortedBlocks)-1, ct.SortGroup)
+		}
+	} else if len(ct.Template) > 0 || ct.SourceFile != "" {
+		// Normal template processing
+		mainBlock, err := generateConfigBlock(ns, ct)
+		if err != nil {
+			return "", err
+		}
+		if mainBlock != "" && mainBlock != EmptyOutput {
+			allBlocks = append(allBlocks, mainBlock)
+		}
+	}
+
+	// 3. Collect blocks.after if specified
+	if len(ct.Blocks.After) > 0 {
+		afterBlocks, err := collectConfigBlocks(ns, ct.Blocks.After)
+		if err != nil {
+			return "", fmt.Errorf("error collecting blocks.after for %s: %w", ns.StringForMessage(), err)
+		}
+		allBlocks = append(allBlocks, afterBlocks...)
+		if verbose {
+			fmt.Fprintf(os.Stderr, "  collected %d blocks.after\n", len(afterBlocks))
+		}
+	}
+
+	// 4. Merge all blocks if we have multiple, otherwise return the single block
+	if len(allBlocks) == 0 {
+		return EmptyOutput, nil
+	} else if len(allBlocks) == 1 {
+		return allBlocks[0], nil
+	} else {
+		// Merge all blocks using the config template's assembly formats
+		mergedConf, err := mergeConfigBlocks(cfg, allBlocks, ct.GetAssemblyFormats())
+		if err != nil {
+			return "", fmt.Errorf("error merging blocks for %s: %w", ns.StringForMessage(), err)
+		}
+		return mergedConf, nil
+	}
+}
+
+// addSelfConfigToNameSpace formats and stores config block to namespace
+// Returns the formatted config for use by other components (e.g., childConfigs)
+func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf string, ct *types.ConfigTemplate, verbose bool) (string, error) {
+	formats := ct.GetNamespaceFormats()
 
 	// format config block in the same way with merging config blocks
-	conf, err := formatSingleConfigBlock(cfg, conf, formats)
+	formattedConf, err := formatSingleConfigBlock(cfg, conf, formats)
 	if err != nil {
-		return fmt.Errorf("error on formatting config block of %s, %w", ns.StringForMessage(), err)
+		return "", fmt.Errorf("error on formatting config block of %s, %w", ns.StringForMessage(), err)
 	}
 
 	// format lines
@@ -593,12 +782,12 @@ func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf strin
 	// }
 
 	relativeName := SelfConfigHeader + ct.Name
-	err = setConfigParamForNameSpace(ns, relativeName, conf, verbose)
+	err = setConfigParamForNameSpace(ns, relativeName, formattedConf, verbose)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return formattedConf, nil
 }
 
 func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, verbose bool) error {
@@ -695,7 +884,7 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 	return nil
 }
 
-func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.ConfigTemplate) (string, bool) {
+func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.ConfigTemplate, verbose bool) (string, bool) {
 	if lo, ok := ns.(types.LabelOwner); ok {
 		// check virtual object or not if ns is LabelOwner
 		if lo.IsVirtual() {
@@ -731,8 +920,10 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 			check = lo.HasClass(className)
 		}
 		if !check {
-			fmt.Fprintf(os.Stderr, " class %s is not included in %v (actual classes: %v)\n",
-				className, ns.StringForMessage(), lo.ClassLabels())
+			if verbose {
+				fmt.Fprintf(os.Stderr, " class %s is not included in %v (actual classes: %v)\n",
+					className, ns.StringForMessage(), lo.ClassLabels())
+			}
 			return "non-matching class", false
 		}
 	}
@@ -820,37 +1011,40 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 // 	return named, output
 // }
 
+// mergeConfigBlocks merges config blocks that are already formatted in Format Phase
+// IMPORTANT: This function is for Merge Phase only and does NOT apply formatSingleConfigBlock
+// to avoid double formatting. Blocks should be formatted before being passed to this function.
 func mergeConfigBlocks(cfg *types.Config, blocks []string, formats []string) (string, error) {
-	formattedBlocks := make([]string, 0, len(blocks))
+	validBlocks := make([]string, 0, len(blocks))
 	for _, block := range blocks {
 		// ignore empty config blocks
 		if block == "" || block == EmptyOutput {
 			continue
 		}
-		// format each config block
-		formattedBlock, err := formatSingleConfigBlock(cfg, block, formats)
-		if err != nil {
-			return EmptyOutput, err
-		}
-		formattedBlocks = append(formattedBlocks, formattedBlock)
+		validBlocks = append(validBlocks, block)
 	}
 
-	if len(formattedBlocks) == 0 {
+	if len(validBlocks) == 0 {
 		return EmptyOutput, nil
 	}
 
-	// generate separators to merge config blocks
+	// Generate separator and result prefix/suffix for merge
 	separator := ""
+	var resultPrefix, resultSuffix string
 	for _, format := range formats {
 		if format != "" {
-			filefmt, ok := cfg.FileFormatByName(format)
+			fmtstyle, ok := cfg.FormatStyleByName(format)
 			if !ok {
 				return "", fmt.Errorf("undefined file format %s", format)
 			}
-			if separator != "" && filefmt.BlockSeparator != "" {
+			if separator != "" && fmtstyle.GetMergeBlockSeparator() != "" {
 				return "", fmt.Errorf("BlockSeparator conflicted in file formats %v", formats)
 			}
-			separator = filefmt.BlockSeparator
+			separator = fmtstyle.GetMergeBlockSeparator()
+
+			// Apply result prefix/suffix (new feature in v0.6.0)
+			resultPrefix = resultPrefix + fmtstyle.GetMergeResultPrefix()
+			resultSuffix = fmtstyle.GetMergeResultSuffix() + resultSuffix
 		}
 	}
 	switch separator {
@@ -860,14 +1054,22 @@ func mergeConfigBlocks(cfg *types.Config, blocks []string, formats []string) (st
 		separator = ""
 	}
 
-	// merge config blocks
-	return strings.Join(formattedBlocks, separator), nil
+	// Merge config blocks
+	merged := strings.Join(validBlocks, separator)
+
+	// Wrap merged result with prefix/suffix if specified
+	if resultPrefix != "" || resultSuffix != "" {
+		merged = resultPrefix + merged + resultSuffix
+	}
+
+	return merged, nil
 }
 
 func formatSingleConfigBlock(cfg *types.Config, block string, formats []string) (string, error) {
 	if block == EmptyOutput {
 		return EmptyOutput, nil
 	}
+
 	block, err := formatConfigLines(cfg, block, formats)
 	if err != nil {
 		return "", err
@@ -879,15 +1081,20 @@ func formatSingleConfigBlock(cfg *types.Config, block string, formats []string) 
 		if format == "" {
 			continue
 		} else {
-			filefmt, ok := cfg.FileFormatByName(format)
+			fmtstyle, ok := cfg.FormatStyleByName(format)
 			if !ok {
 				return "", fmt.Errorf("undefined file format %s", format)
 			}
-			prefix = prefix + filefmt.BlockPrefix
-			suffix = filefmt.BlockSuffix + suffix
+			blockPrefix := fmtstyle.GetFormatBlockPrefix()
+			blockSuffix := fmtstyle.GetFormatBlockSuffix()
+
+			prefix = prefix + blockPrefix
+			suffix = blockSuffix + suffix
 		}
 	}
-	return prefix + block + suffix, nil
+
+	result := prefix + block + suffix
+	return result, nil
 }
 
 func formatConfigLines(cfg *types.Config, conf string, formats []string) (string, error) {
@@ -901,25 +1108,31 @@ func formatConfigLines(cfg *types.Config, conf string, formats []string) (string
 			continue
 		}
 		segmentedConf := strings.Split(conf, "\n")
-		filefmt, ok := cfg.FileFormatByName(format)
+		fmtstyle, ok := cfg.FormatStyleByName(format)
 		if !ok {
 			return "", fmt.Errorf("undefined file format %s", format)
 		}
+
+		linePrefix := fmtstyle.GetFormatLinePrefix()
+		lineSuffix := fmtstyle.GetFormatLineSuffix()
+		lineSeparator := fmtstyle.GetFormatLineSeparator()
+
 		newConf := []string{}
 		for _, line := range segmentedConf {
-			newConf = append(newConf, filefmt.LinePrefix+line+filefmt.LineSuffix)
+			newConf = append(newConf, linePrefix+line+lineSuffix)
 		}
 
-		switch filefmt.LineSeparator {
+		switch lineSeparator {
 		case "":
 			separator = "\n"
 		case EmptySeparator:
 			separator = ""
 		default:
-			separator = filefmt.LineSeparator
+			separator = lineSeparator
 		}
 		conf = strings.Join(newConf, separator)
 	}
+
 	return conf, nil
 }
 

@@ -11,7 +11,9 @@ nodes:
 node_configs:
   - name: r1
     cmds:
-      - cmd: vtysh -c "conf t" -c "router bgp 65000" -c "bgp router-id 10.255.0.1" -c "int net0" -c "ip addr 10.0.0.1/24" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65001"
+      - cmd: vtysh -c "conf t" -c "router bgp 65000" -c "bgp router-id 10.255.0.1"
+      - cmd: vtysh -c "conf t" -c "int net0" -c "ip addr 10.0.0.1/24" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65001"
   - name: r2
     cmds:
-      - cmd: vtysh -c "conf t" -c "router bgp 65001" -c "bgp router-id 10.255.0.2" -c "int net0" -c "ip addr 10.0.0.2/24" -c "router bgp 65001" -c "neighbor 10.0.0.1 remote-as 65000"
+      - cmd: vtysh -c "conf t" -c "router bgp 65001" -c "bgp router-id 10.255.0.2"
+      - cmd: vtysh -c "conf t" -c "int net0" -c "ip addr 10.0.0.2/24" -c "router bgp 65001" -c "neighbor 10.0.0.1 remote-as 65000"

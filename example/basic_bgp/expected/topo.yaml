@@ -9,7 +9,8 @@ topology:
       - r1/vtysh.conf:/etc/frr/vtysh.conf
 
       exec:
-      - vtysh -c "conf t" -c "router bgp 65000" -c "bgp router-id 10.255.0.1" -c "int net0" -c "ip addr 10.0.0.1/24" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65001"
+      - vtysh -c "conf t" -c "router bgp 65000" -c "bgp router-id 10.255.0.1"
+      - vtysh -c "conf t" -c "int net0" -c "ip addr 10.0.0.1/24" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65001"
     r2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
@@ -18,7 +19,8 @@ topology:
       - r2/vtysh.conf:/etc/frr/vtysh.conf
 
       exec:
-      - vtysh -c "conf t" -c "router bgp 65001" -c "bgp router-id 10.255.0.2" -c "int net0" -c "ip addr 10.0.0.2/24" -c "router bgp 65001" -c "neighbor 10.0.0.1 remote-as 65000"
+      - vtysh -c "conf t" -c "router bgp 65001" -c "bgp router-id 10.255.0.2"
+      - vtysh -c "conf t" -c "int net0" -c "ip addr 10.0.0.2/24" -c "router bgp 65001" -c "neighbor 10.0.0.1 remote-as 65000"
 
   links:
   - endpoints: [r1:net0, r2:net0]

@@ -63,6 +63,8 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
       - file: frr.conf
+        blocks:
+          after: ["interfaces_ospf_addr"]
         template:
           - "ip forwarding"
           - "!"
@@ -70,7 +72,6 @@ nodeclass:
           - " ospf router-id {{ .ip_loopback }}"
           - "{{ .interfaces_ospf_net }}"
           - "!"
-          - "{{ .interfaces_ospf_addr }}"
       - name: startup
         template: []
       - file: params.txt

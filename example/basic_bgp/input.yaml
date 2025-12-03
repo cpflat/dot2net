@@ -41,11 +41,10 @@ nodeclass:
         sourcefile: ./vtysh.conf
       - name: startup
         depends: [frr_cmds]
-        format: FRRVtyshCLI
-        template:
-          - "{{ .self_frr_cmds }}"
-          - "{{ .interfaces_frr_cmds }}"
+        blocks:
+          before: ["self_frr_cmds", "interfaces_frr_cmds"]
       - name: frr_cmds
+        format: FRRVtyshCLI
         template:
           - router bgp {{ .group_as }}
           - bgp router-id {{ .ip_loopback }}
@@ -56,7 +55,8 @@ interfaceclass:
     params: [ip]
     config:
       - name: frr_cmds
-        template: 
+        format: FRRVtyshCLI
+        template:
           - int {{ .name }}
           - ip addr {{ .ip_addr }}/{{ .ip_plen }}
           - router bgp {{ .group_as }}

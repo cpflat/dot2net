@@ -20,10 +20,11 @@ nodeclass:
       image: nicolaka/netshoot
     config:
       - name: startup
+        blocks:
+          after: ["interfaces_link"]
         template:
           - "ip link add br0 type bridge"
           - "ip link set br0 up"
-          - "{{ .interfaces_link }}"
 
   - name: server
     primary: true
@@ -33,8 +34,9 @@ nodeclass:
       image: nicolaka/netshoot
     config:
       - name: startup
-        template:
-          - "{{ .interfaces_addr }}"
+        blocks:
+          after: ["interfaces_addr"]
+        template: []
 
 interfaceclass:
   - name: default

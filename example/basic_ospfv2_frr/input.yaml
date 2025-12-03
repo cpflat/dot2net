@@ -38,10 +38,10 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
       - name: startup
-        template: 
+        template:
           - /usr/lib/frr/frr start
-          - "{{ .interfaces_common_cmds }}"
-          - "{{ .interfaces_router_cmds }}"
+        blocks:
+          after: ["interfaces_common_cmds", "interfaces_router_cmds"]
   - name: server
     primary: true
     values:
@@ -49,10 +49,10 @@ nodeclass:
       image: nicolaka/netshoot
     config:
       - name: startup
-        template: 
+        template:
           - /usr/lib/frr/frr start
-          - "{{ .interfaces_common_cmds }}"
-          - "{{ .interfaces_server_cmds }}"
+        blocks:
+          after: ["interfaces_common_cmds", "interfaces_server_cmds"]
 
 interfaceclass:
   - name: default

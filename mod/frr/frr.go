@@ -17,13 +17,20 @@ func NewModule() types.Module {
 }
 
 func (m *FRRModule) UpdateConfig(cfg *types.Config) error {
-	fileFormat := &types.FileFormat{
-		Name:          FRRVtyshCLIFormatName,
+	formatStyle := &types.FormatStyle{
+		Name: FRRVtyshCLIFormatName,
+
+		// New fields (Format Phase)
+		FormatLineSeparator: "\" -c \"",
+		FormatBlockPrefix:   "vtysh -c \"conf t\" -c \"",
+		FormatBlockSuffix:   "\"",
+
+		// Legacy (v0.6.x compatibility)
 		LineSeparator: "\" -c \"",
 		BlockPrefix:   "vtysh -c \"conf t\" -c \"",
 		BlockSuffix:   "\"",
 	}
-	cfg.AddFileFormat(fileFormat)
+	cfg.AddFormatStyle(formatStyle)
 	return nil
 }
 
