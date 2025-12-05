@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.1] - 2025-12-05
+
+### Fixed
+- **Empty bindmounts**: Fixed containerlab module generating empty bind mounts for nodes without mounted files
+
 ## [0.6.0] - 2025-12-03
 
 ### Added
@@ -47,24 +52,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added future improvement TODO: `doc/active/TEMPLATE_CONDITIONAL_BLOCKS_TODO.md`
 - Updated CLAUDE.md with v0.6.0 changes
 
-## [0.5.1] - YYYY-MM-DD
+## [0.5.1] - 2025-09-17
 
 ### Fixed
 - Bug fixes in connection/segment parameter assignment
 
-## [0.5.0] - YYYY-MM-DD
+## [0.5.0] - 2025-09-17
 
 ### Changed
-- Eliminated primary flag usage
+- **Eliminated primary flag**: Removed primary flag usage from address assignment
+- **Config block workflow**: Changed config block generation workflow
+- **Dependency graph**: Use generalized dependency graph implementation for reorderConfigTemplates
 
 ### Added
-- Clean subcommand to remove empty directories
+- **Clean subcommand**: Added `clean` subcommand to remove generated files and empty directories
+- **Golden tests**: Added golden test for example scenarios
+- **Tutorial**: Added tutorial documentation
+
+### Fixed
+- Bug fixes in virtual objects and layers in interface classes
 
 ## Earlier Versions
 
 For earlier version history, see git commit log.
 
-[Unreleased]: https://github.com/cpflat/dot2net/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/cpflat/dot2net/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/cpflat/dot2net/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/cpflat/dot2net/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/cpflat/dot2net/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/cpflat/dot2net/releases/tag/v0.5.0

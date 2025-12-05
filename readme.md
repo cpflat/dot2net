@@ -105,7 +105,7 @@ dot2net has been published and demonstrated in peer-reviewed academic venues:
 ### IEEE Transactions on Network and Service Management (2025)
 **"Topology-Driven Configuration of Emulation Networks With Deterministic Templating"**
 *Satoru Kobayashi, Ryusei Shiiba, Shinsuke Miwa, Toshiyuki Miyachi, Kensuke Fukuda*
-[DOI: 10.1109/TNSM.2025.3582212](https://doi.org/10.1109/TNSM.2025.3582212) (Early Access)
+[DOI: 10.1109/TNSM.2025.3582212](https://doi.org/10.1109/TNSM.2025.3582212)
 
 ### CNSM 2023
 **"dot2net: A Labeled Graph Approach for Template-Based Configuration of Emulation Networks"**
@@ -121,9 +121,9 @@ If you use dot2net in your research, please consider citing our work:
     author={Kobayashi, Satoru and Shiiba, Ryusei and Miwa, Shinsuke and Miyachi, Toshiyuki and Fukuda, Kensuke},
     journal={IEEE Transactions on Network and Service Management},
     title={Topology-Driven Configuration of Emulation Networks With Deterministic Templating},
-    volume={},
-    number={},
-    pages={1-14},
+    volume={22},
+    number={5},
+    pages={3933-3946},
     year={2025},
     doi={10.1109/TNSM.2025.3582212}
 }
