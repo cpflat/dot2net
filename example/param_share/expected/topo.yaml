@@ -28,9 +28,6 @@ topology:
     sw1:
       kind: linux
       image: nicolaka/netshoot
-      binds:
-      - 
-
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -41,9 +38,6 @@ topology:
     sw2:
       kind: linux
       image: nicolaka/netshoot
-      binds:
-      - 
-
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up

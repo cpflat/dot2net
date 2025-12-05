@@ -62,9 +62,6 @@ topology:
     s1:
       kind: linux
       image: nicolaka/netshoot
-      binds:
-      - 
-
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.9/30 dev net0
@@ -72,9 +69,6 @@ topology:
     s3:
       kind: linux
       image: nicolaka/netshoot
-      binds:
-      - 
-
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.21/30 dev net0
@@ -82,9 +76,6 @@ topology:
     s4:
       kind: linux
       image: nicolaka/netshoot
-      binds:
-      - 
-
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.25/30 dev net0

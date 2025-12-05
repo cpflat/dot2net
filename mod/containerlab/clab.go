@@ -161,10 +161,12 @@ func (m *ClabModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 			dstPath := fileDef.Path
 			bindItems = append(bindItems, srcPath+":"+dstPath)
 		}
-		node.AddParam(
-			ClabBindMountsParamName,
-			"      - "+strings.Join(bindItems, "\n      - ")+"\n",
-		)
+		// Only set bind mounts if there are items (template checks for non-empty)
+		bindMounts := ""
+		if len(bindItems) > 0 {
+			bindMounts = "      - " + strings.Join(bindItems, "\n      - ") + "\n"
+		}
+		node.AddParam(ClabBindMountsParamName, bindMounts)
 	}
 
 	return nil

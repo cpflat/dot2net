@@ -4,25 +4,16 @@ topology:
     sv1:
       kind: linux
       image: nicolaka/netshoot
-      binds:
-      - 
-
       exec:
       - ip addr add 10.0.0.1/24 dev net0
     sv2:
       kind: linux
       image: nicolaka/netshoot
-      binds:
-      - 
-
       exec:
       - ip addr add 10.0.0.2/24 dev net0
     sw1:
       kind: linux
       image: nicolaka/netshoot
-      binds:
-      - 
-
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up

@@ -127,9 +127,6 @@ topology:
     s1:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
-      binds:
-      - 
-
       exec:
       - sysctl -w net.ipv6.conf.all.forwarding=1
       - sysctl -w net.ipv6.conf.all.disable_ipv6=0
@@ -147,9 +144,6 @@ topology:
     s3:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
-      binds:
-      - 
-
       exec:
       - sysctl -w net.ipv6.conf.all.forwarding=1
       - sysctl -w net.ipv6.conf.all.disable_ipv6=0
@@ -167,9 +161,6 @@ topology:
     s4:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
-      binds:
-      - 
-
       exec:
       - sysctl -w net.ipv6.conf.all.forwarding=1
       - sysctl -w net.ipv6.conf.all.disable_ipv6=0
