@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2025-12-31
+
+### Added
+- **GitHub Actions**: Automated release workflow for multi-platform binary distribution
+  - Test environments: Linux, macOS (ARM/Intel)
+  - Build targets: linux-amd64, linux-arm64, darwin-amd64, darwin-arm64
+  - Trigger: Tag push with `v*.*.*` format
+
 ## [0.6.1] - 2025-12-05
 
 ### Fixed
@@ -76,7 +84,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For earlier version history, see git commit log.
 
-[Unreleased]: https://github.com/cpflat/dot2net/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/cpflat/dot2net/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/cpflat/dot2net/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/cpflat/dot2net/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/cpflat/dot2net/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/cpflat/dot2net/compare/v0.5.0...v0.5.1
