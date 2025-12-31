@@ -1,0 +1,23 @@
+# Symlinks to other repositories
+CLAUDE.md
+.kiro
+doc
+wiki
+
+# IDE settings
+.claude/
+.vscode/
+
+# Build artifacts
+/dot2net
+
+# Generated PDFs
+*.pdf
+
+# Example scenarios: exclude generated files, keep expected/
+# Subdirectories (generated router configs)
+example/**/*/
+!example/**/expected/
+# Generated spec/topo files
+example/**/spec.yaml
+example/**/topo.yaml
