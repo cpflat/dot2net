@@ -3,7 +3,7 @@ package tinet
 import (
 	"embed"
 	"fmt"
-	"path/filepath"
+	"path"
 
 	"github.com/cpflat/dot2net/pkg/types"
 )
@@ -201,7 +201,7 @@ func (m *TinetModule) generateFilemountParams(
 			continue
 		}
 
-		srcPath := filepath.Join(node.Name, fileDef.Name)
+		srcPath := path.Join(node.Name, fileDef.Name)
 		dstPath := fileDef.Path
 
 		params := map[string]string{
