@@ -1,7 +1,4 @@
     {{ .name }}:
       kind: {{ .kind }}
-      image: {{ .image }}{{ if ._clab_bindMounts }}
-      binds:
-{{ ._clab_bindMounts }}{{end}}{{ if .self_startup }}
-      exec:
-{{ .self_clab_cmds }}{{end}}
+      image: {{ .image }}
+{{ .self_clab_topo_binds }}{{ .self_clab_topo_exec }}

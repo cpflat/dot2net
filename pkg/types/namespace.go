@@ -7,8 +7,8 @@ import (
 // namespace related constants
 const NumberSeparator string = "_"
 const NumberPrefixNode string = "node" + NumberSeparator
+const NumberPrefixConnection string = "conn" + NumberSeparator
 const NumberPrefixGroup string = "group" + NumberSeparator
-const NumberPrefixOppositeHeader string = "opp" + NumberSeparator
 const NumberPrefixOppositeInterface string = "opp" + NumberSeparator
 const NumberPrefixNeighbor string = "n" + NumberSeparator
 const NumberPrefixMember string = "m" + NumberSeparator
@@ -22,6 +22,12 @@ const ChildSegmentsConfigHeader string = "segments" + NumberSeparator
 const ChildGroupsConfigHeader string = "groups" + NumberSeparator
 const ChildNeighborsConfigHeader string = "neighbors" + NumberSeparator
 const ChildMembersConfigHeader string = "members" + NumberSeparator
+
+// Value reference prefix for template parameters
+const ValueReferencePrefix string = "values" + NumberSeparator
+
+// Reserved parameter name for object name
+const ReservedParamName string = "name"
 
 func checkPlaceLabelOwner(ns NameSpacer, o LabelOwner,
 	globalParams map[string]map[string]string) (map[string]map[string]string, error) {
@@ -101,4 +107,121 @@ func setMetaValueLabelNameSpace(ns NameSpacer, o LabelOwner,
 		}
 	}
 	return nil
+}
+
+// ReservedPrefixes returns the list of reserved parameter name prefixes.
+// Parameters starting with these prefixes are reserved for internal use.
+func ReservedPrefixes() []string {
+	return []string{
+		NumberPrefixNode,
+		NumberPrefixConnection,
+		NumberPrefixGroup,
+		NumberPrefixOppositeInterface,
+		NumberPrefixNeighbor,
+		NumberPrefixMember,
+		SelfConfigHeader,
+		ChildNodesConfigHeader,
+		ChildInterfacesConfigHeader,
+		ChildConnectionsConfigHeader,
+		ChildSegmentsConfigHeader,
+		ChildGroupsConfigHeader,
+		ChildNeighborsConfigHeader,
+		ChildMembersConfigHeader,
+		ValueReferencePrefix,
+	}
+}
+
+// ReservedNames returns the list of reserved parameter names.
+// These exact names are reserved for internal use.
+func ReservedNames() []string {
+	return []string{
+		ReservedParamName, // "name"
+	}
+}
+
+// CheckReservedParamName checks if a parameter name conflicts with reserved names or prefixes.
+// Returns an error message if the name is reserved, or empty string if it's safe to use.
+func CheckReservedParamName(paramName string) string {
+	// Check exact reserved names
+	for _, reserved := range ReservedNames() {
+		if paramName == reserved {
+			return fmt.Sprintf(
+				"'%s' is a reserved name (used internally for object names in templates); "+
+					"please choose a different name",
+				paramName)
+		}
+	}
+
+	// Check reserved prefixes
+	for _, prefix := range ReservedPrefixes() {
+		if len(paramName) >= len(prefix) && paramName[:len(prefix)] == prefix {
+			purpose := describeReservedPrefix(prefix)
+			return fmt.Sprintf(
+				"'%s' uses reserved prefix '%s' (%s); "+
+					"please rename to avoid this prefix (e.g., '%s' instead)",
+				paramName, prefix, purpose, suggestAlternativeName(paramName, prefix))
+		}
+	}
+
+	return ""
+}
+
+// describeReservedPrefix returns a human-readable description of what a reserved prefix is used for.
+func describeReservedPrefix(prefix string) string {
+	switch prefix {
+	case NumberPrefixNode:
+		return "for cross-object node references"
+	case NumberPrefixConnection:
+		return "for cross-object connection references"
+	case NumberPrefixGroup:
+		return "for cross-object group references"
+	case NumberPrefixOppositeInterface:
+		return "for opposite interface references"
+	case NumberPrefixNeighbor:
+		return "for neighbor references"
+	case NumberPrefixMember:
+		return "for member references"
+	case SelfConfigHeader:
+		return "for interface config block references"
+	case ChildNodesConfigHeader:
+		return "for child nodes config references"
+	case ChildInterfacesConfigHeader:
+		return "for child interfaces config references"
+	case ChildConnectionsConfigHeader:
+		return "for child connections config references"
+	case ChildSegmentsConfigHeader:
+		return "for child segments config references"
+	case ChildGroupsConfigHeader:
+		return "for child groups config references"
+	case ChildNeighborsConfigHeader:
+		return "for child neighbors config references"
+	case ChildMembersConfigHeader:
+		return "for child members config references"
+	case ValueReferencePrefix:
+		return "for Value class references"
+	default:
+		return "reserved for internal use"
+	}
+}
+
+// suggestAlternativeName suggests an alternative parameter name that avoids the reserved prefix.
+func suggestAlternativeName(paramName, prefix string) string {
+	// Remove the prefix and suggest a full word instead
+	suffix := paramName[len(prefix):]
+	if suffix == "" {
+		suffix = "param"
+	}
+
+	// Map common abbreviations to full words
+	switch prefix {
+	case NumberPrefixNode:
+		return "node_" + suffix // node_ -> full word "node_"
+	case NumberPrefixConnection:
+		return "connection_" + suffix // conn_ -> connection_
+	case NumberPrefixGroup:
+		return "group_" + suffix // group_ -> keep as is, but this shouldn't conflict
+	default:
+		// For other prefixes, suggest prefixing with "my_" or "custom_"
+		return "my_" + paramName
+	}
 }

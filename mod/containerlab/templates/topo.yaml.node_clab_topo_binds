@@ -1,0 +1,2 @@
+      binds:
+{{ .values_clab_bind_entry }}

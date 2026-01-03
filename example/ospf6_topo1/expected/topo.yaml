@@ -11,7 +11,6 @@ topology:
       - r1/daemons:/etc/frr/daemons
       - r1/vtysh.conf:/etc/frr/vtysh.conf
       - r1/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
     r2:
@@ -24,7 +23,6 @@ topology:
       - r2/daemons:/etc/frr/daemons
       - r2/vtysh.conf:/etc/frr/vtysh.conf
       - r2/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
     r3:
@@ -37,7 +35,6 @@ topology:
       - r3/daemons:/etc/frr/daemons
       - r3/vtysh.conf:/etc/frr/vtysh.conf
       - r3/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
     r4:
@@ -50,7 +47,6 @@ topology:
       - r4/daemons:/etc/frr/daemons
       - r4/vtysh.conf:/etc/frr/vtysh.conf
       - r4/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
     sw1:

@@ -7,11 +7,10 @@ on:
 
 jobs:
   # 1. Test on multiple platforms
-  # Note: Windows is excluded due to CRLF line ending issues in tests
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, macos-15-intel]
+        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout code
@@ -44,6 +43,9 @@ jobs:
           - goos: darwin
             goarch: arm64
             suffix: ''
+          - goos: windows
+            goarch: amd64
+            suffix: '.exe'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

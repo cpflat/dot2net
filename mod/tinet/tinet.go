@@ -4,15 +4,9 @@ import (
 	"embed"
 	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/cpflat/dot2net/pkg/types"
 )
-
-// special parameter ".virtual" for nodes
-// -> config files for the virtual nodes are not generated and just ignored
-
-const VirtualNodeClassName = "virtual"
 
 const TinetOutputFile = "spec.yaml"
 
@@ -45,33 +39,16 @@ func NewModule() types.Module {
 func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	// add file format
 	formatStyle := &types.FormatStyle{
-		Name: TinetYamlFormatName,
-
-		// New fields (Format Phase)
-		// (BlockSeparator only, no Line processing needed)
-
-		// Legacy (v0.6.x compatibility)
-		BlockSeparator: ", ",
+		Name:                TinetYamlFormatName,
+		MergeBlockSeparator: ", ",
 	}
 	cfg.AddFormatStyle(formatStyle)
 	formatStyle = &types.FormatStyle{
-		Name: SpecCmdFormatName,
-
-		// New fields (Format Phase)
-		FormatLinePrefix: "      - cmd: ",
-
-		// Legacy (v0.6.x compatibility)
-		LinePrefix:     "      - cmd: ",
-		BlockSeparator: "\n",
+		Name:                SpecCmdFormatName,
+		FormatLinePrefix:    "      - cmd: ",
+		MergeBlockSeparator: "\n",
 	}
 	cfg.AddFormatStyle(formatStyle)
-	// 	fileFormat = &types.FileFormat{
-	// 		Name:          TinetVtyshCLIFormatName,
-	// 		LineSeparator: "\" -c \"",
-	// 		BlockPrefix:   "vtysh -c \"conf t\" -c \"",
-	// 		BlockSuffix:   "\"",
-	// 	}
-	// 	cfg.AddFileFormat(fileFormat)
 
 	// add file definition
 	fileDef := &types.FileDefinition{
@@ -125,6 +102,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
+		Parameters:      []string{"tinet_binds"},
 		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3},
 	}
 	cfg.AddNodeClass(nodeClass)
@@ -144,6 +122,21 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	cfg.AddInterfaceClass(interfaceClass)
 	m.AddModuleInterfaceClassLabel(InterfaceClassName)
 
+	// add param_rule for bind mounts using Value class
+	bindsParamRule := &types.ParameterRule{
+		Name:      "tinet_binds",
+		Mode:      types.ParameterRuleModeAttach,
+		Generator: "tinet.filemounts",
+		ConfigTemplates: []*types.ConfigTemplate{
+			{
+				Name:     "tinet_bind_entry",
+				Template: []string{"{{ .source }}:{{ .target }}"},
+				Format:   TinetYamlFormatName,
+			},
+		},
+	}
+	cfg.AddParameterRule(bindsParamRule)
+
 	return nil
 }
 
@@ -152,38 +145,73 @@ func (m TinetModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 	// set network name
 	nm.AddParam(TinetNetworkNameParamName, cfg.Name)
 
-	for _, node := range nm.Nodes {
-		// skip virtual nodes
-		if node.IsVirtual() {
-			continue
-		}
-		// generate file mount point descriptions
-		bindItems := []string{}
-		// Get list of files this node will generate
-		nodeFiles := node.FilesToGenerate(cfg)
-		fileSet := make(map[string]bool)
-		for _, file := range nodeFiles {
-			fileSet[file] = true
-		}
-
-		for _, fileDef := range cfg.FileDefinitions {
-			if fileDef.Path == "" {
-				continue
-			}
-
-			// Check if this node actually generates this file
-			if !fileSet[fileDef.Name] {
-				continue
-			}
-
-			srcPath := filepath.Join(node.Name, fileDef.Name)
-			dstPath := fileDef.Path
-			bindItems = append(bindItems, srcPath+":"+dstPath)
-		}
-		node.AddParam(TinetBindMountsParamName, strings.Join(bindItems, ", "))
-	}
+	// Note: bind mounts are now generated through Value class mechanism
+	// (param_rule "tinet_binds" with generator "tinet.filemounts")
 
 	return nil
+}
+
+// GenerateValueParameters implements ParameterGenerator interface
+// Generates parameter sets for Value objects based on generator name
+func (m *TinetModule) GenerateValueParameters(
+	generatorName string,
+	target types.ValueOwner,
+	cfg *types.Config,
+	nm *types.NetworkModel,
+) ([]map[string]string, error) {
+	switch generatorName {
+	case "filemounts":
+		return m.generateFilemountParams(target, cfg, nm)
+	default:
+		return nil, fmt.Errorf("unknown generator: %s", generatorName)
+	}
+}
+
+// generateFilemountParams generates source/target pairs for container bind mounts
+func (m *TinetModule) generateFilemountParams(
+	target types.ValueOwner,
+	cfg *types.Config,
+	nm *types.NetworkModel,
+) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("filemounts generator requires Node target, got %T", target)
+	}
+
+	// Skip virtual nodes
+	if node.IsVirtual() {
+		return nil, nil
+	}
+
+	// Get list of files this node will generate
+	nodeFiles := node.FilesToGenerate(cfg)
+	fileSet := make(map[string]bool)
+	for _, file := range nodeFiles {
+		fileSet[file] = true
+	}
+
+	var results []map[string]string
+	for _, fileDef := range cfg.FileDefinitions {
+		if fileDef.Path == "" {
+			continue
+		}
+
+		// Check if this node actually generates this file
+		if !fileSet[fileDef.Name] {
+			continue
+		}
+
+		srcPath := filepath.Join(node.Name, fileDef.Name)
+		dstPath := fileDef.Path
+
+		params := map[string]string{
+			"source": srcPath,
+			"target": dstPath,
+		}
+		results = append(results, params)
+	}
+
+	return results, nil
 }
 
 func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {

@@ -5,7 +5,70 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.7.0] - 2026-01-03
+
+### Added
+- **FileDefinition output control**: New fields for flexible file output location
+  - `output` field: `root` outputs to lab directory root, default outputs to node subdirectory
+  - `name_prefix` field: Prepend prefix to output filename (e.g., `init_` → `init_r1`)
+  - `name_suffix` field: Append suffix to output filename (e.g., `.startup` → `r1.startup`)
+  - Enables Kathara-style startup files: `r1.startup`, `r2.startup` in root directory
+- **ConfigTemplate required_params**: Conditional config block generation based on parameter existence
+  - `required_params` field: List of parameters that must exist for block to be generated
+  - If any required parameter is missing, entire block is skipped
+  - Useful for optional parameters like `mem`, `cpus`, `sysctl` in Kathara/Containerlab configs
+- **Value class**: Virtual objects for multi-value parameter generation
+  - New `mode: attach` for param_rules - attaches multiple Values to single objects
+  - `source` field for Value generation: `range`, `sequence`, `list`, `file` types
+  - `generator` field for module-provided Value generation (e.g., `clab.filemounts`)
+  - `config_templates` in param_rules for Value-specific formatting
+  - Template reference syntax: `{{ .values_xxx }}` for formatted Value output
+- **ParameterGenerator interface**: Modules can now generate Value parameter lists dynamically
+- **Module bind mounts via Value class**: Containerlab and TiNet modules now use Value class for file mounts
+  - `clab.filemounts` generator for containerlab bind mounts
+  - `tinet.filemounts` generator for tinet bind mounts
+- **AddParameterRule method**: Config can now have param_rules added dynamically by modules
+- **File source format support**: YAML/JSON/CSV file parsing for Value generation (auto-detected by extension)
+- **Reserved parameter name check**: Validation for param_rule names against reserved prefixes
+  - Prevents collision with internal prefixes: `node_`, `conn_`, `values_`, etc.
+  - Reserved names: `name`
+  - Check functions: `ReservedPrefixes()`, `ReservedNames()`, `CheckReservedParamName()`
+- **Windows CI/CD support**: Added Windows to GitHub Actions workflow
+  - `.gitattributes` for consistent LF line endings across platforms
+  - Windows test environment (`windows-latest`)
+  - Windows binary release (`dot2net-windows-amd64.exe`)
+
+### Changed
+- **Module templates updated**:
+  - Containerlab: `._clab_bindMounts` → `{{ .values_clab_bind_entry }}`
+  - TiNet: `._tn_bindMounts` → `{{ .values_tinet_bind_entry }}`
+- **Containerlab template refactoring**: Replaced if-statements with `required_params`
+  - Split `topo.yaml.node_clab_topo` into separate binds/exec templates
+  - Uses `required_params` for conditional section output (no if-statements in templates)
+- **Internal refactoring**: `addressedObject` renamed to `layerAwareObject` for clarity
+  - Reflects actual purpose: Layer (IP address space) awareness and policy management
+  - Consistent with `AwareLayer()` method naming
+
+### Removed
+- **FormatStyle legacy fields** (BREAKING CHANGE): Removed deprecated fields from v0.6.0
+  - `lineprefix` → use `format_lineprefix`
+  - `linesuffix` → use `format_linesuffix`
+  - `lineseparator` → use `format_lineseparator`
+  - `blockprefix` → use `format_blockprefix`
+  - `blocksuffix` → use `format_blocksuffix`
+  - `blockseparator` → use `merge_blockseparator`
+- **Unused constants and files**:
+  - `NumberPrefixOppositeHeader` constant (duplicate of `NumberPrefixOppositeInterface`)
+  - `pkg/model/namespace.go` (functions moved to appropriate files)
+  - `pkg/model/model_test.go` and test fixtures (covered by `internal/test`)
+  - Legacy module constants (`DefaultNamespaceFormatName`, `DefaultAssemblyFormatName`)
+- **Empty directories**: `pkg/clab/`, `pkg/tinet/` (modules moved to `mod/`)
+
+### Fixed
+- **Example scenario**: `vlan_multihost` param_rule `conn_id` renamed to `connection_id` to avoid reserved prefix collision
+
+### Deprecated
+- Legacy bind mount parameters (`_clab_bindMounts`, `_tn_bindMounts`) replaced by Value class
 
 ## [0.6.2] - 2025-12-31
 

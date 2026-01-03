@@ -1,0 +1,2 @@
+      exec:
+{{ .self_clab_cmds }}

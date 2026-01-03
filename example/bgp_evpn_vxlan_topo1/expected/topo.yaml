@@ -9,7 +9,6 @@ topology:
       - host1/daemons:/etc/frr/daemons
       - host1/vtysh.conf:/etc/frr/vtysh.conf
       - host1/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
     host2:
@@ -20,7 +19,6 @@ topology:
       - host2/daemons:/etc/frr/daemons
       - host2/vtysh.conf:/etc/frr/vtysh.conf
       - host2/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
     p1:
@@ -32,7 +30,6 @@ topology:
       - p1/daemons:/etc/frr/daemons
       - p1/vtysh.conf:/etc/frr/vtysh.conf
       - p1/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1
@@ -46,7 +43,6 @@ topology:
       - pe1/daemons:/etc/frr/daemons
       - pe1/vtysh.conf:/etc/frr/vtysh.conf
       - pe1/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1
@@ -60,7 +56,6 @@ topology:
       - pe2/daemons:/etc/frr/daemons
       - pe2/vtysh.conf:/etc/frr/vtysh.conf
       - pe2/frr.log:/var/log/frr.log
-
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1

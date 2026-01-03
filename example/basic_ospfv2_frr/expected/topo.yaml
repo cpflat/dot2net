@@ -7,7 +7,6 @@ topology:
       binds:
       - r1/daemons:/etc/frr/daemons
       - r1/vtysh.conf:/etc/frr/vtysh.conf
-
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.1/30 dev net0
@@ -22,7 +21,6 @@ topology:
       binds:
       - r2/daemons:/etc/frr/daemons
       - r2/vtysh.conf:/etc/frr/vtysh.conf
-
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.2/30 dev net0
@@ -35,7 +33,6 @@ topology:
       binds:
       - r3/daemons:/etc/frr/daemons
       - r3/vtysh.conf:/etc/frr/vtysh.conf
-
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.6/30 dev net0
@@ -50,7 +47,6 @@ topology:
       binds:
       - r4/daemons:/etc/frr/daemons
       - r4/vtysh.conf:/etc/frr/vtysh.conf
-
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.14/30 dev net0

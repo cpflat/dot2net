@@ -23,6 +23,10 @@ const ClassTypeNeighborHeader string = "neighbor"
 const ClassTypeNeighborLayerAny = "any"
 const ClassTypeMemberHeader string = "member"
 const ClassTypeMemberClassNameAny = "any"
+const ClassTypeValueHeader string = "value"
+
+// Special class names used by modules
+const VirtualNodeClassName string = "virtual"
 
 // Default format names
 const DefaultFormatPhaseFormatName = "DefaultFormatPhaseFormat"
@@ -30,13 +34,13 @@ const DefaultMergePhaseFormatName = "DefaultMergePhaseFormat"
 
 // Default format definitions
 var DefaultFormatPhaseFormat = &FormatStyle{
-	Name:           DefaultFormatPhaseFormatName,
-	BlockSeparator: "\n",
+	Name:                DefaultFormatPhaseFormatName,
+	FormatLineSeparator: "\n",
 }
 
 var DefaultMergePhaseFormat = &FormatStyle{
-	Name:           DefaultMergePhaseFormatName,
-	BlockSeparator: "\n",
+	Name:                DefaultMergePhaseFormatName,
+	MergeBlockSeparator: "\n",
 }
 
 func ClassTypeNeighbor(layer string) string {
@@ -45,6 +49,11 @@ func ClassTypeNeighbor(layer string) string {
 
 func ClassTypeMember(classType string, className string) string {
 	return ClassTypeMemberHeader + "_" + classType + "_" + className
+}
+
+// ClassTypeValue returns the class type string for a Value with given param_rule name
+func ClassTypeValue(paramRuleName string) string {
+	return ClassTypeValueHeader + "_" + paramRuleName
 }
 
 const ClassAll string = "all"         // all objects
@@ -302,6 +311,11 @@ func (cfg *Config) AddConnectionClass(nc *ConnectionClass) {
 	cfg.connectionClassMap[nc.Name] = nc
 }
 
+func (cfg *Config) AddParameterRule(pr *ParameterRule) {
+	cfg.ParameterRules = append(cfg.ParameterRules, pr)
+	cfg.parameterRuleMap[pr.Name] = pr
+}
+
 func (cfg *Config) HasManagementLayer() bool {
 	return cfg.ManagementLayer.AddrRange != ""
 }
@@ -322,7 +336,13 @@ type GlobalSettings struct {
 
 type FileDefinition struct {
 	// Name is used as the filename of generated file.
+	// If empty and NamePrefix/NameSuffix are specified, filename is generated as:
+	//   {NamePrefix}{object_name}{NameSuffix}
 	Name string `yaml:"name" mapstructure:"name"`
+	// NamePrefix is prepended to the object name when Name is empty.
+	NamePrefix string `yaml:"name_prefix" mapstructure:"name_prefix"`
+	// NameSuffix is appended to the object name when Name is empty.
+	NameSuffix string `yaml:"name_suffix" mapstructure:"name_suffix"`
 	// Path is the path that the generated file is placed on the node.
 	// If empty, the file is generated but not placed on the node.
 	Path string `yaml:"path" mapstructure:"path"`
@@ -338,9 +358,14 @@ type FileDefinition struct {
 	//   - Scope = "network": Creates "spec.yaml", "topo.yaml" at root
 	//   - Scope = "node" or "": Creates "r1/frr.conf", "r2/frr.conf", etc.
 	Scope string `yaml:"scope" mapstructure:"scope"`
-	//// Shared flag is used to determine the file is shared among nodes or not.
-	//// If true, the file is placed on the same directory as primary config file. -> To be removed
-	// Shared bool `yaml:"shared" mapstructure:"shared"`
+	// Output specifies where the file is placed in the output directory.
+	// Available values:
+	//   - "root": File is placed at root directory
+	//   - "node": File is placed in node subdirectory (node_name/file_name)
+	//   - "" (empty): Defaults based on Scope (network->root, node->node)
+	// This is useful for Kathara-style startup files that need to be at root
+	// but are generated per-node (e.g., r1.startup, r2.startup).
+	Output string `yaml:"output" mapstructure:"output"`
 }
 
 func (fd *FileDefinition) GetFormats() []string {
@@ -354,18 +379,38 @@ func (fd *FileDefinition) GetFormats() []string {
 	return ret
 }
 
+// GetFileName returns the output filename for this file definition.
+// If NamePrefix or NameSuffix is specified, it generates filename as:
+//   {NamePrefix}{objectName}{NameSuffix}
+// Otherwise, it returns Name directly.
+// This allows Name to be used as an identifier for referencing,
+// while NamePrefix/NameSuffix control the actual output filename.
+func (fd *FileDefinition) GetFileName(objectName string) string {
+	if fd.NamePrefix != "" || fd.NameSuffix != "" {
+		return fd.NamePrefix + objectName + fd.NameSuffix
+	}
+	return fd.Name
+}
+
+// GetOutputLocation returns the effective output location.
+// If Output is specified, it returns Output.
+// If Output is empty, it returns the default based on Scope:
+//   - "network" -> "root"
+//   - "node" or "" -> "node"
+func (fd *FileDefinition) GetOutputLocation() string {
+	if fd.Output != "" {
+		return fd.Output
+	}
+	if fd.Scope == ClassTypeNetwork {
+		return "root"
+	}
+	return "node"
+}
+
 // FormatStyle defines how to format configuration blocks
 // Renamed from FileFormat to align with YAML `format:` section
 type FormatStyle struct {
 	Name string `yaml:"name" mapstructure:"name"`
-
-	// Legacy fields (DEPRECATED: will be removed in v0.7.0)
-	LinePrefix     string `yaml:"lineprefix" mapstructure:"lineprefix"`
-	LineSuffix     string `yaml:"linesuffix" mapstructure:"linesuffix"`
-	LineSeparator  string `yaml:"lineseparator" mapstructure:"lineseparator"`
-	BlockPrefix    string `yaml:"blockprefix" mapstructure:"blockprefix"`
-	BlockSuffix    string `yaml:"blocksuffix" mapstructure:"blocksuffix"`
-	BlockSeparator string `yaml:"blockseparator" mapstructure:"blockseparator"`
 
 	// Format Phase (block生成時の装飾)
 	FormatLinePrefix    string `yaml:"format_lineprefix" mapstructure:"format_lineprefix"`
@@ -380,59 +425,38 @@ type FormatStyle struct {
 	MergeResultSuffix   string `yaml:"merge_resultsuffix" mapstructure:"merge_resultsuffix"`
 }
 
-// Format Phase Getters (with fallback to legacy fields for v0.6.x compatibility)
+// Format Phase Getters
 func (fs *FormatStyle) GetFormatLinePrefix() string {
-	result := ""
-	if fs.FormatLinePrefix != "" {
-		result = fs.FormatLinePrefix
-	} else {
-		result = fs.LinePrefix
-	}
-	return result
+	return fs.FormatLinePrefix
 }
 
 func (fs *FormatStyle) GetFormatLineSuffix() string {
-	if fs.FormatLineSuffix != "" {
-		return fs.FormatLineSuffix
-	}
-	return fs.LineSuffix
+	return fs.FormatLineSuffix
 }
 
 func (fs *FormatStyle) GetFormatLineSeparator() string {
-	if fs.FormatLineSeparator != "" {
-		return fs.FormatLineSeparator
-	}
-	return fs.LineSeparator
+	return fs.FormatLineSeparator
 }
 
 func (fs *FormatStyle) GetFormatBlockPrefix() string {
-	if fs.FormatBlockPrefix != "" {
-		return fs.FormatBlockPrefix
-	}
-	return fs.BlockPrefix
+	return fs.FormatBlockPrefix
 }
 
 func (fs *FormatStyle) GetFormatBlockSuffix() string {
-	if fs.FormatBlockSuffix != "" {
-		return fs.FormatBlockSuffix
-	}
-	return fs.BlockSuffix
+	return fs.FormatBlockSuffix
 }
 
-// Merge Phase Getters (BlockSeparator falls back to legacy field, ResultPrefix/Suffix are new features)
+// Merge Phase Getters
 func (fs *FormatStyle) GetMergeBlockSeparator() string {
-	if fs.MergeBlockSeparator != "" {
-		return fs.MergeBlockSeparator
-	}
-	return fs.BlockSeparator
+	return fs.MergeBlockSeparator
 }
 
 func (fs *FormatStyle) GetMergeResultPrefix() string {
-	return fs.MergeResultPrefix // No fallback (new feature)
+	return fs.MergeResultPrefix
 }
 
 func (fs *FormatStyle) GetMergeResultSuffix() string {
-	return fs.MergeResultSuffix // No fallback (new feature)
+	return fs.MergeResultSuffix
 }
 
 type Layerer interface {
@@ -506,8 +530,36 @@ type IPPolicy struct {
 	layer *Layer
 }
 
+// ParameterRuleMode constants
+const (
+	// ParameterRuleModeDistribute distributes one parameter per object (default, legacy behavior)
+	ParameterRuleModeDistribute = "distribute"
+	// ParameterRuleModeAttach attaches multiple Values to one object
+	ParameterRuleModeAttach = "attach"
+)
+
+// ParameterRuleSource defines the source for generating Value lists
+type ParameterRuleSource struct {
+	// Type specifies the source type: range, sequence, list, file
+	Type string `yaml:"type" mapstructure:"type"`
+	// Start is used for range type
+	Start int `yaml:"start" mapstructure:"start"`
+	// End is used for range type
+	End int `yaml:"end" mapstructure:"end"`
+	// Values is used for list type (inline values)
+	Values []map[string]interface{} `yaml:"values" mapstructure:"values"`
+	// File is used for file type
+	File string `yaml:"file" mapstructure:"file"`
+	// Format specifies the file format: yaml, json, csv, text (default: auto-detect from extension)
+	Format string `yaml:"format" mapstructure:"format"`
+}
+
 type ParameterRule struct {
 	Name string `yaml:"name" mapstructure:"name"`
+	// Mode: "distribute" (default) or "attach"
+	// distribute: N objects get 1 parameter each (legacy behavior)
+	// attach: 1 object gets N Values attached
+	Mode string `yaml:"mode" mapstructure:"mode"`
 	// object (in default) or segment
 	Assign string `yaml:"assign" mapstructure:"assign"`
 	// layer is used only when the assign option is "segment"
@@ -521,6 +573,31 @@ type ParameterRule struct {
 	Footer string `yaml:"footer" mapstructure:"footer"`
 	// for type file
 	SourceFile string `yaml:"sourcefile" mapstructure:"soucefile"`
+
+	// === attach mode fields ===
+	// Source defines how to generate Value list (for attach mode)
+	Source *ParameterRuleSource `yaml:"source" mapstructure:"source"`
+	// Generator specifies a module-provided generator (e.g., "clab.bindmounts")
+	Generator string `yaml:"generator" mapstructure:"generator"`
+	// ParamFormat defines how to format source values into Value parameters
+	ParamFormat map[string]string `yaml:"param_format" mapstructure:"param_format"`
+	// ConfigTemplates defines config blocks for Values
+	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	// Sort specifies ordering: "asc", "desc", or empty (preserve generation order)
+	Sort string `yaml:"sort" mapstructure:"sort"`
+}
+
+// GetMode returns the mode, defaulting to "distribute" if not specified
+func (pr *ParameterRule) GetMode() string {
+	if pr.Mode == "" {
+		return ParameterRuleModeDistribute
+	}
+	return pr.Mode
+}
+
+// IsAttachMode returns true if this rule uses attach mode
+func (pr *ParameterRule) IsAttachMode() bool {
+	return pr.GetMode() == ParameterRuleModeAttach
 }
 
 // interfaces and abstracted structs for object classes
@@ -730,6 +807,9 @@ type ConfigTemplate struct {
 	NeighborNodeClasses []string `yaml:"neighbor_nodes" mapstructure:"neighbor_nodes"`
 	// put empty file or namespace if conditions are not satisfied
 	Empty bool `yaml:"empty" mapstructure:"empty"`
+	// RequiredParams specifies parameters that must exist for this template to generate output
+	// If any of the specified parameters are missing, the entire block is skipped
+	RequiredParams []string `yaml:"required_params,flow" mapstructure:"required_params,flow"`
 
 	// This option is valid only on InterfaceClass or ConnectionClass
 	// If specified, add config only for included output (e.g., tinet only, clab only, etc)
@@ -824,6 +904,18 @@ func (ct *ConfigTemplate) GetAssemblyFormats() []string {
 		return []string{DefaultMergePhaseFormatName}
 	}
 	return ret
+}
+
+// HasRequiredParams checks if all required parameters exist and are non-empty in the given params map.
+// Returns true if RequiredParams is empty or all required parameters exist with non-empty values.
+// Returns false if any required parameter is missing or has an empty value.
+func (ct *ConfigTemplate) HasRequiredParams(params map[string]string) bool {
+	for _, p := range ct.RequiredParams {
+		if v, exists := params[p]; !exists || v == "" {
+			return false
+		}
+	}
+	return true
 }
 
 // return true if conditions satisfied
@@ -938,6 +1030,10 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	cfg.parameterRuleMap = map[string]*ParameterRule{}
 	for _, prule := range cfg.ParameterRules {
+		// Check for reserved parameter names
+		if msg := CheckReservedParamName(prule.Name); msg != "" {
+			return nil, fmt.Errorf("in 'param_rule' section (name: %s): %s", prule.Name, msg)
+		}
 		cfg.parameterRuleMap[prule.Name] = prule
 	}
 
@@ -1115,6 +1211,16 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 			}
 			ct.className = sc.Name
 			ct.classType = ClassTypeSegment
+		}
+	}
+	// Parse ConfigTemplates in ParameterRules (for attach mode)
+	for _, pr := range cfg.ParameterRules {
+		for _, ct := range pr.ConfigTemplates {
+			if err := initConfigTemplate(cfg, ct); err != nil {
+				return nil, err
+			}
+			ct.className = ""
+			ct.classType = ClassTypeValue(pr.Name)
 		}
 	}
 	return cfg, nil

@@ -9,11 +9,6 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
-// special parameter ".virtual" for nodes
-// -> config files for the virtual nodes are not generated and just ignored
-
-const VirtualNodeClassName = "virtual"
-
 const ClabOutputFile = "topo.yaml"
 
 const ClabNetworkNameParamName = "_clab_networkName"
@@ -45,24 +40,14 @@ func NewModule() types.Module {
 func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	// add file format
 	formatStyle := &types.FormatStyle{
-		Name: ClabYamlFormatName,
-
-		// New fields (Format Phase)
-		// (BlockSeparator only, no Line processing needed)
-
-		// Legacy (v0.6.x compatibility)
-		BlockSeparator: ", ",
+		Name:                ClabYamlFormatName,
+		MergeBlockSeparator: ", ",
 	}
 	cfg.AddFormatStyle(formatStyle)
 	formatStyle = &types.FormatStyle{
-		Name: ClabCmdFormatName,
-
-		// New fields (Format Phase)
-		FormatLinePrefix: "      - ",
-
-		// Legacy (v0.6.x compatibility)
-		LinePrefix:     "      - ",
-		BlockSeparator: "\n",
+		Name:                ClabCmdFormatName,
+		FormatLinePrefix:    "      - ",
+		MergeBlockSeparator: "\n",
 	}
 	cfg.AddFormatStyle(formatStyle)
 
@@ -96,19 +81,61 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct1.Template = []string{string(bytes)}
 
-	ct2 := &types.ConfigTemplate{Name: "clab_topo", Depends: []string{"clab_cmds"}}
-	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_topo")
+	// binds section - only output if values_clab_bind_entry exists
+	ct2 := &types.ConfigTemplate{
+		Name:           "clab_topo_binds",
+		RequiredParams: []string{"values_clab_bind_entry"},
+	}
+	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_topo_binds")
 	if err != nil {
 		return err
 	}
 	ct2.Template = []string{string(bytes)}
 
+	// exec section - only output if startup exists (matches original {{ if .self_startup }})
+	ct3 := &types.ConfigTemplate{
+		Name:           "clab_topo_exec",
+		RequiredParams: []string{"self_startup"},
+		Depends:        []string{"clab_cmds"},
+	}
+	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_topo_exec")
+	if err != nil {
+		return err
+	}
+	ct3.Template = []string{string(bytes)}
+
+	// main topo entry - references binds and exec sections
+	ct4 := &types.ConfigTemplate{
+		Name:    "clab_topo",
+		Depends: []string{"clab_topo_binds", "clab_topo_exec"},
+	}
+	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_topo")
+	if err != nil {
+		return err
+	}
+	ct4.Template = []string{string(bytes)}
+
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2},
+		Parameters:      []string{"clab_binds"},
+		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4},
 	}
 	cfg.AddNodeClass(nodeClass)
 	m.AddModuleNodeClassLabel(NodeClassName)
+
+	// add param_rule for bind mounts using Value class
+	bindsParamRule := &types.ParameterRule{
+		Name:      "clab_binds",
+		Mode:      types.ParameterRuleModeAttach,
+		Generator: "clab.filemounts",
+		ConfigTemplates: []*types.ConfigTemplate{
+			{
+				Name:     "clab_bind_entry",
+				Template: []string{"      - {{ .source }}:{{ .target }}"},
+			},
+		},
+	}
+	cfg.AddParameterRule(bindsParamRule)
 
 	return nil
 }
@@ -133,43 +160,73 @@ func (m *ClabModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 		"  - endpoints: "+strings.Join(endpoints, "\n  - endpoints: ")+"\n",
 	)
 
-	for _, node := range nm.Nodes {
-		// skip virtual nodes
-		if node.IsVirtual() {
-			continue
-		}
-		// generate file mount point descriptions
-		bindItems := []string{}
-		// Get list of files this node will generate
-		nodeFiles := node.FilesToGenerate(cfg)
-		fileSet := make(map[string]bool)
-		for _, file := range nodeFiles {
-			fileSet[file] = true
-		}
-
-		for _, fileDef := range cfg.FileDefinitions {
-			if fileDef.Path == "" {
-				continue
-			}
-
-			// Check if this node actually generates this file
-			if !fileSet[fileDef.Name] {
-				continue
-			}
-
-			srcPath := filepath.Join(node.Name, fileDef.Name)
-			dstPath := fileDef.Path
-			bindItems = append(bindItems, srcPath+":"+dstPath)
-		}
-		// Only set bind mounts if there are items (template checks for non-empty)
-		bindMounts := ""
-		if len(bindItems) > 0 {
-			bindMounts = "      - " + strings.Join(bindItems, "\n      - ") + "\n"
-		}
-		node.AddParam(ClabBindMountsParamName, bindMounts)
-	}
+	// Note: bind mounts are now generated through Value class mechanism
+	// (param_rule "clab_binds" with generator "clab.filemounts")
 
 	return nil
+}
+
+// GenerateValueParameters implements ParameterGenerator interface
+// Generates parameter sets for Value objects based on generator name
+func (m *ClabModule) GenerateValueParameters(
+	generatorName string,
+	target types.ValueOwner,
+	cfg *types.Config,
+	nm *types.NetworkModel,
+) ([]map[string]string, error) {
+	switch generatorName {
+	case "filemounts":
+		return m.generateFilemountParams(target, cfg, nm)
+	default:
+		return nil, fmt.Errorf("unknown generator: %s", generatorName)
+	}
+}
+
+// generateFilemountParams generates source/target pairs for container bind mounts
+func (m *ClabModule) generateFilemountParams(
+	target types.ValueOwner,
+	cfg *types.Config,
+	nm *types.NetworkModel,
+) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("filemounts generator requires Node target, got %T", target)
+	}
+
+	// Skip virtual nodes
+	if node.IsVirtual() {
+		return nil, nil
+	}
+
+	// Get list of files this node will generate
+	nodeFiles := node.FilesToGenerate(cfg)
+	fileSet := make(map[string]bool)
+	for _, file := range nodeFiles {
+		fileSet[file] = true
+	}
+
+	var results []map[string]string
+	for _, fileDef := range cfg.FileDefinitions {
+		if fileDef.Path == "" {
+			continue
+		}
+
+		// Check if this node actually generates this file
+		if !fileSet[fileDef.Name] {
+			continue
+		}
+
+		srcPath := filepath.Join(node.Name, fileDef.Name)
+		dstPath := fileDef.Path
+
+		params := map[string]string{
+			"source": srcPath,
+			"target": dstPath,
+		}
+		results = append(results, params)
+	}
+
+	return results, nil
 }
 
 func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {

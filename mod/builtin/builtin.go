@@ -4,10 +4,6 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
-// Legacy constant names (DEPRECATED: use types.DefaultFormatPhaseFormatName and types.DefaultMergePhaseFormatName)
-const DefaultNamespaceFormatName = "DefaultFormatPhaseFormat"
-const DefaultAssemblyFormatName = "DefaultMergePhaseFormat"
-
 type BuiltinModule struct {
 	*types.StandardModule
 }
@@ -21,19 +17,15 @@ func NewModule() types.Module {
 func (m *BuiltinModule) UpdateConfig(cfg *types.Config) error {
 	// Default format for Format Phase (config block generation)
 	formatStyle := &types.FormatStyle{
-		Name: DefaultNamespaceFormatName,
-
-		// Legacy (v0.6.x compatibility)
-		BlockSeparator: "\n",
+		Name:                types.DefaultFormatPhaseFormatName,
+		FormatLineSeparator: "\n",
 	}
 	cfg.AddFormatStyle(formatStyle)
 
 	// Default format for Merge Phase (config block assembly)
 	formatStyle = &types.FormatStyle{
-		Name: DefaultAssemblyFormatName,
-
-		// Legacy (v0.6.x compatibility)
-		BlockSeparator: "\n",
+		Name:                types.DefaultMergePhaseFormatName,
+		MergeBlockSeparator: "\n",
 	}
 	cfg.AddFormatStyle(formatStyle)
 

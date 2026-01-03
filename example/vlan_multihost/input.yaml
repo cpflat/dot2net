@@ -34,7 +34,7 @@ param_rule:
     layer: ip
     min: 100
     max: 1001
-  - name: conn_id
+  - name: connection_id
     assign: connection
     header: conn
     min: 1
@@ -90,7 +90,7 @@ nodeclass:
 interfaceclass:
   - name: all
     primary: true
-    params: [conn_id]
+    params: [connection_id]
     config:
       - name: link
         node: switch
@@ -115,22 +115,22 @@ connectionclass:
   - name: normal_conn
     primary: true
     prefix: "normal"
-    params: [conn_id]
+    params: [connection_id]
     config:
       - group: network_config.txt
         priority: -2
         template:
-          - "# Normal Connection: {{ .name }} (ID: {{ .conn_id }})"
+          - "# Normal Connection: {{ .name }} (ID: {{ .connection_id }})"
           - "connection {{ .name }} type normal"
 
   - name: vlan_conn
     prefix: "vlan_trunk"
-    params: [conn_id, vlan_id]
+    params: [connection_id, vlan_id]
     config:
       - group: network_config.txt
         priority: -2
         template:
-          - "# VLAN Connection: {{ .name }} (ID: {{ .conn_id }}, VLAN: {{ .vlan_id }})"
+          - "# VLAN Connection: {{ .name }} (ID: {{ .connection_id }}, VLAN: {{ .vlan_id }})"
           - "connection {{ .name }} type vlan_trunk vlan {{ .vlan_id }}"
 
 segmentclass:

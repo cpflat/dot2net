@@ -532,19 +532,19 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 			if len(deps) > 0 {
 				switch obj := deps[0].(type) {
 				case *types.Node:
-					relativeName = ChildNodesConfigHeader + configName
+					relativeName = types.ChildNodesConfigHeader + configName
 				case *types.Interface:
-					relativeName = ChildInterfacesConfigHeader + configName
+					relativeName = types.ChildInterfacesConfigHeader + configName
 				case *types.Connection:
-					relativeName = ChildConnectionsConfigHeader + configName
+					relativeName = types.ChildConnectionsConfigHeader + configName
 				case *types.NetworkSegment:
-					relativeName = ChildSegmentsConfigHeader + configName
+					relativeName = types.ChildSegmentsConfigHeader + configName
 				case *types.Group:
-					relativeName = ChildGroupsConfigHeader + configName
+					relativeName = types.ChildGroupsConfigHeader + configName
 				case *types.Neighbor:
-					relativeName = ChildNeighborsConfigHeader + obj.Layer + NumberSeparator + configName
+					relativeName = types.ChildNeighborsConfigHeader + obj.Layer + types.NumberSeparator + configName
 				case *types.Member:
-					relativeName = ChildMembersConfigHeader + obj.ClassType + NumberSeparator + obj.ClassName + NumberSeparator + configName
+					relativeName = types.ChildMembersConfigHeader + obj.ClassType + types.NumberSeparator + obj.ClassName + types.NumberSeparator + configName
 				default:
 					return fmt.Errorf("unsupported dependency type: %T", obj)
 				}
@@ -781,7 +781,7 @@ func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf strin
 	// 	return fmt.Errorf("error on formatting config lines of %s, %w", ns.StringForMessage(), err)
 	// }
 
-	relativeName := SelfConfigHeader + ct.Name
+	relativeName := types.SelfConfigHeader + ct.Name
 	err = setConfigParamForNameSpace(ns, relativeName, formattedConf, verbose)
 	if err != nil {
 		return "", err
@@ -845,7 +845,9 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 			return fmt.Errorf("network %s has file template, but the file scope is not network", filedef.Scope)
 		}
 
-		path := "./" + filedef.Name
+		// For network scope, object name is empty (use Name directly)
+		filename := filedef.GetFileName("")
+		path := "./" + filename
 		err := os.WriteFile(path, []byte(conf), 0644)
 		if err != nil {
 			return err
@@ -858,19 +860,28 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 			return fmt.Errorf("node %s has file template, but the file scope is not node", filedef.Scope)
 		}
 
-		// create directory if not exists
-		dirname := obj.Name
-		f, err := os.Stat(dirname)
-		if os.IsNotExist(err) {
-			err = os.Mkdir(dirname, 0755)
-			if err != nil {
-				return err
+		filename := filedef.GetFileName(obj.Name)
+		outputLocation := filedef.GetOutputLocation()
+
+		var path string
+		if outputLocation == "root" {
+			// Output to root directory
+			path = "./" + filename
+		} else {
+			// Output to node subdirectory (default)
+			dirname := obj.Name
+			f, err := os.Stat(dirname)
+			if os.IsNotExist(err) {
+				err = os.Mkdir(dirname, 0755)
+				if err != nil {
+					return err
+				}
+			} else if !f.IsDir() {
+				return fmt.Errorf("creating directory %s fails because something already exists", dirname)
 			}
-		} else if !f.IsDir() {
-			return fmt.Errorf("creating directory %s fails because something already exists", dirname)
+			path = filepath.Join(dirname, filename)
 		}
 
-		path := filepath.Join(dirname, filedef.Name)
 		err = os.WriteFile(path, []byte(conf), 0644)
 		if err != nil {
 			return err
@@ -965,6 +976,28 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 			panic(fmt.Sprintf("panic: unexpected type of Member Referer: %T", t))
 		}
 	default:
+	}
+
+	// check required_params condition
+	// Check both regular params and relative params (self_* parameters)
+	if len(configTemplate.RequiredParams) > 0 {
+		params := ns.GetParams()
+		relativeParams := ns.GetRelativeParams()
+		// Merge params for checking
+		allParams := make(map[string]string, len(params)+len(relativeParams))
+		for k, v := range params {
+			allParams[k] = v
+		}
+		for k, v := range relativeParams {
+			allParams[k] = v
+		}
+		if !configTemplate.HasRequiredParams(allParams) {
+			if verbose {
+				fmt.Fprintf(os.Stderr, " required_params %v not satisfied for %v\n",
+					configTemplate.RequiredParams, ns.StringForMessage())
+			}
+			return "missing required params", false
+		}
 	}
 
 	return "", true
@@ -1199,23 +1232,33 @@ func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 
 	// Generate file list from FileDefinitions
 	for _, fileDef := range cfg.FileDefinitions {
-		// Skip empty file names
-		if fileDef.Name == "" {
+		// Skip if no filename can be generated
+		// (Name is empty and no NamePrefix/NameSuffix)
+		if fileDef.Name == "" && fileDef.NamePrefix == "" && fileDef.NameSuffix == "" {
 			continue
 		}
 
 		switch fileDef.Scope {
 		case types.ClassTypeNetwork:
 			// Network-scope files (root level)
-			// Check if the network actually generates this file
+			// For network scope, object name is empty
+			filename := fileDef.GetFileName("")
 			if contains(nm.FilesToGenerate(cfg), fileDef.Name) {
-				files = append(files, fileDef.Name)
+				files = append(files, filename)
 			}
 		case types.ClassTypeNode, "":
-			// Node-scope files (node_name/file_name) - Scope="" defaults to node scope
+			// Node-scope files - Scope="" defaults to node scope
+			outputLocation := fileDef.GetOutputLocation()
 			for _, node := range nm.Nodes {
 				if !node.IsVirtual() && contains(node.FilesToGenerate(cfg), fileDef.Name) {
-					files = append(files, node.Name+"/"+fileDef.Name)
+					filename := fileDef.GetFileName(node.Name)
+					if outputLocation == "root" {
+						// Output to root directory
+						files = append(files, filename)
+					} else {
+						// Output to node subdirectory (default)
+						files = append(files, node.Name+"/"+filename)
+					}
 				}
 			}
 		}

@@ -16,8 +16,6 @@ import (
 // const DefaultInterfacePrefix string = "net"
 
 const ManagementInterfaceName string = "mgmt"
-
-const NumberReplacerName string = "name"
 const ManagementLayerReplacer string = "mgmt"
 
 const NumberAS string = "as"
@@ -121,6 +119,8 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 		return nil, err
 	}
 
+	// Note: generateValueReferenceParams is called in BuildConfigFiles after LoadTemplates
+
 	// // build config commands from config templates
 	// cfg, err = loadTemplates(cfg)
 	// if err != nil {
@@ -144,6 +144,12 @@ func BuildConfigFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool) e
 	}
 
 	cfg, err = types.LoadTemplates(cfg)
+	if err != nil {
+		return err
+	}
+
+	// Generate values_xxx params after templates are parsed
+	err = generateValueReferenceParams(cfg, nm)
 	if err != nil {
 		return err
 	}
@@ -959,6 +965,25 @@ func assignParameters(cfg *types.Config, nm *types.NetworkModel) error {
 		return err
 	}
 	err = assignGroupParameters(cfg, nm)
+	if err != nil {
+		return err
+	}
+	err = assignAttachModeParameters(cfg, nm)
 
 	return err
+}
+
+// makeRelativeNamespace builds relative namespace for all NameSpacers in the NetworkModel.
+// This must be called after all parameters are assigned.
+func makeRelativeNamespace(nm *types.NetworkModel) error {
+	globals, err := types.InitGloballNameSpace(nm)
+	if err != nil {
+		return err
+	}
+
+	for _, ns := range nm.NameSpacers() {
+		ns.BuildRelativeNameSpace(globals)
+	}
+
+	return nil
 }

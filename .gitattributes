@@ -1,0 +1,9 @@
+# Force LF line endings for all text files
+# This ensures consistent line endings across all platforms (Linux, macOS, Windows)
+* text=auto eol=lf
+
+# Explicitly mark binary files
+*.png binary
+*.jpg binary
+*.gif binary
+*.pdf binary
