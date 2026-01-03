@@ -320,7 +320,10 @@ func collectGeneratedFiles(tmpDir string) []string {
 
 		// Exclude input files
 		if relPath != TopologyFileName && relPath != DefinitionFileName {
-			files = append(files, relPath)
+			// Normalize path separators to forward slashes for cross-platform consistency
+			// ListGeneratedFiles uses "/" consistently, so we need to match
+			normalizedPath := filepath.ToSlash(relPath)
+			files = append(files, normalizedPath)
 		}
 		return nil
 	})
