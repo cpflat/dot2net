@@ -28,7 +28,6 @@ layer:
 
 nodeclass:
   - name: router
-    primary: true
     values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.4
@@ -39,6 +38,8 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
       - file: frr.conf
+        blocks:
+          after: ["interfaces_ospf_addr"]
         template:
           - "ip forwarding"
           - "!"
@@ -46,13 +47,11 @@ nodeclass:
           - " ospf router-id {{ .ip_loopback }}"
           - "{{ .interfaces_ospf_net }}"
           - "!"
-          - "{{ .interfaces_ospf_addr }}"
       - name: startup
         template: []
 
 interfaceclass:
   - name: default
-    primary: true
     policy: [ip]
     config:
       - name: ospf_addr

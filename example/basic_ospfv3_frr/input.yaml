@@ -41,7 +41,6 @@ nodeclass:
           - sysctl -w net.ipv6.conf.default.seg6_enabled=1
           - sysctl -w net.ipv4.conf.default.rp_filter=0
   - name: router
-    primary: true
     params: [lo]
     values:
       kind: linux
@@ -67,7 +66,6 @@ nodeclass:
           - router ospf6
           - ospf6 router-id {{ .lo_loopback }}
   - name: server
-    primary: true
     params: [lo]
     values:
       kind: linux
@@ -85,7 +83,6 @@ nodeclass:
 
 interfaceclass:
   - name: default
-    primary: true
     params: [ip]
     config:
       - name: common

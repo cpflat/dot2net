@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2026-02-05
+
+### Fixed
+- **GroupClass ConfigTemplate initialization**: Fixed bug where `groupclass` config templates were not initialized in `LoadTemplates()`, causing `{{ .groups_template_name }}` references to fail
+- **Group parameter namespace**: Fixed bug where Group's own parameters were not copied to `relativeParams` in `BuildRelativeNameSpace()`, causing template variables like `{{ .hostname }}` to be missing
+
+### Changed
+- **Tutorial updated**: Synchronized tutorial with example/ospf_simple
+  - DOT: Changed `class=` to `xlabel=` (recommended for visualization)
+  - YAML: Added `blocks.after` for frr.conf (v0.6.0 feature)
+- **example/bgp_features**: Refactored to use `blocks.after` with `self_` prefix for cleaner BGP config template composition, eliminating empty lines when iBGP/eBGP is not present
+
+### Removed
+- **Legacy primary flag references**: Removed all remaining `primary: true` from tutorial, tests, and all example scenarios, and deleted commented-out primary-related code from `pkg/model/model.go` (primary flag was deprecated in v0.5.0)
+
 ## [0.7.0] - 2026-01-03
 
 ### Added
@@ -147,7 +162,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 For earlier version history, see git commit log.
 
-[Unreleased]: https://github.com/cpflat/dot2net/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/cpflat/dot2net/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/cpflat/dot2net/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/cpflat/dot2net/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/cpflat/dot2net/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/cpflat/dot2net/compare/v0.5.1...v0.6.0

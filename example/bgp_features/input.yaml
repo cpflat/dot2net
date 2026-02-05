@@ -42,7 +42,6 @@ layer:
 
 nodeclass:
   - name: switch
-    primary: true
     values:
       kind: linux
       image: nicolaka/netshoot
@@ -53,7 +52,6 @@ nodeclass:
           - "ip link set br0 up"
           - "{{ .interfaces_link }}"
   - name: router
-    primary: true
     params: [ipv4lo, ipv6lo]
     interface_policy: [ipv4, ipv6]
     values:
@@ -80,7 +78,7 @@ nodeclass:
           - "{{ .interfaces_zebraconf }}"
   - name: bgp
     config:
-      - file: bgpd.conf
+      - name: bgp_header
         template:
           - "log file /var/log/frr.log"
           - "!"
@@ -90,10 +88,12 @@ nodeclass:
           - " bgp router-id {{ .ipv4_loopback }}"
           - " bgp log-neighbor-changes"
           - " no bgp ebgp-requires-policy"
-          - "{{ .interfaces_ibgp_nbconf }}{{ .interfaces_ebgp_nbconf }}"
+      - name: bgp_af_header
+        template:
           - " !"
           - " address-family ipv4 unicast"
-          - "{{ .interfaces_ibgp_afconf }}{{ .interfaces_ebgp_afconf }}"
+      - name: bgp_footer
+        template:
           - "  network 192.168.255.0/24"  # loopback range
           - " exit-address-family"
           - "!"
@@ -101,6 +101,11 @@ nodeclass:
           - "!"
           - "route-map testmap-out permit 999"
           - "!"
+      - file: bgpd.conf
+        depends: [bgp_header, bgp_af_header, bgp_footer]
+        blocks:
+          after: [self_bgp_header, interfaces_ibgp_nbconf, interfaces_ebgp_nbconf, self_bgp_af_header, interfaces_ibgp_afconf, interfaces_ebgp_afconf, self_bgp_footer]
+        template: []
   - name: ospf
     config:
       - file: ospfd.conf
@@ -133,7 +138,6 @@ nodeclass:
 
 interfaceclass:
   - name: all
-    primary: true
     config:
       - name: link
         node: switch

@@ -1,0 +1,53 @@
+# Test scenario for blocks functionality
+# This is a feature test, not a production FRR/TiNET scenario
+
+name: test_blocks_basic
+
+global:
+  path: local
+
+file:
+  - name: node_config.txt
+    path: node_config.txt
+  - name: interfaces.txt
+    path: interfaces.txt
+
+interfaceclass:
+  - name: default
+    config:
+      # Interface config that will be referenced from node
+      - name: interface_config
+        template:
+          - "interface {{.name}}"
+          - "  description {{.node_name}}"
+
+nodeclass:
+  - name: router
+    config:
+      # Test 1: Named config that will be referenced by blocks.before
+      - name: header_config
+        template:
+          - "# Configuration Header"
+          - "# Node: {{.name}}"
+
+      # Test 2: Named config that will be referenced by blocks.after
+      - name: footer_config
+        template:
+          - "# Configuration Footer"
+          - "# End of config for {{.name}}"
+
+      # Test 3: Main config using blocks.before and blocks.after
+      - file: node_config.txt
+        blocks:
+          before: ["self_header_config"]
+          after: ["self_footer_config"]
+        template:
+          - "hostname {{.name}}"
+          - "# Main configuration section"
+
+      # Test 4: Using blocks.after with interfaces_ reference
+      - file: interfaces.txt
+        blocks:
+          after: ["interfaces_interface_config"]
+        template:
+          - "# Interface Configurations"

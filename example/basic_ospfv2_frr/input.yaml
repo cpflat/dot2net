@@ -27,7 +27,6 @@ layer:
 
 nodeclass:
   - name: router
-    primary: true
     params: [lo]
     values:
       kind: linux
@@ -43,7 +42,6 @@ nodeclass:
         blocks:
           after: ["interfaces_common_cmds", "interfaces_router_cmds"]
   - name: server
-    primary: true
     values:
       kind: linux
       image: nicolaka/netshoot
@@ -56,7 +54,6 @@ nodeclass:
 
 interfaceclass:
   - name: default
-    primary: true
     params: [ip]
     config:
       - name: common_cmds

@@ -15,9 +15,9 @@ wiki
 *.pdf
 
 # Example scenarios: exclude generated files, keep expected/
-# Subdirectories (generated router configs)
-example/**/*/
-!example/**/expected/
+# Subdirectories (generated router configs like r1/, node1/, etc.)
+example/*/*/
+!example/*/expected/
 # Generated spec/topo files
-example/**/spec.yaml
-example/**/topo.yaml
+example/*/spec.yaml
+example/*/topo.yaml

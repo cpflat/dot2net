@@ -40,7 +40,6 @@ param_rule:
 
 nodeclass:
   - name: switch
-    primary: true
     values:
       kind: linux
       image: nicolaka/netshoot
@@ -51,7 +50,6 @@ nodeclass:
           - "ip link set br0 up"
           - "{{ .interfaces_link }}"
   - name: router
-    primary: true
     values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
@@ -80,7 +78,6 @@ nodeclass:
 
 interfaceclass:
   - name: default
-    primary: true
     params: [vlan, cname]
     config:
       - name: link

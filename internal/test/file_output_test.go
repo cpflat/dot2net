@@ -33,7 +33,6 @@ file:
 
 nodeclass:
   - name: router
-    primary: true
     config:
       - file: config.txt
         template:
@@ -60,7 +59,6 @@ file:
 
 nodeclass:
   - name: router
-    primary: true
     config:
       - file: startup
         template:
@@ -88,7 +86,6 @@ file:
 
 nodeclass:
   - name: router
-    primary: true
     config:
       - file: script
         template:
@@ -116,7 +113,6 @@ file:
 
 nodeclass:
   - name: router
-    primary: true
     config:
       - file: script
         template:
@@ -145,7 +141,6 @@ file:
 
 nodeclass:
   - name: router
-    primary: true
     config:
       - file: startup
         template:
@@ -175,7 +170,6 @@ file:
 
 nodeclass:
   - name: router
-    primary: true
 
 networkclass:
   - name: _default
@@ -305,7 +299,6 @@ file:
 
 nodeclass:
   - name: router
-    primary: true
     config:
       - file: startup
         template:
@@ -393,7 +386,6 @@ file:
 
 nodeclass:
   - name: router
-    primary: true
     config:
       - file: startup
         template: ["#!/bin/bash"]

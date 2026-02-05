@@ -29,7 +29,6 @@ param_rule:
 
 nodeclass:
   - name: default
-    primary: true
     params: [lo]
     values:
       kind: linux
@@ -51,7 +50,6 @@ nodeclass:
 
 interfaceclass:
   - name: default
-    primary: true
     params: [ip]
     config:
       - name: frr_cmds

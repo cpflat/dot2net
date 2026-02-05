@@ -31,7 +31,6 @@ layer:
 
 nodeclass:
   - name: switch
-    primary: true
     values:
       kind: linux
       image: nicolaka/netshoot
@@ -42,7 +41,6 @@ nodeclass:
           - "ip link set br0 up"
           - "{{ .interfaces_link }}"
   - name: router
-    primary: true
     params: [lo]
     interface_policy: [ip]
     values:

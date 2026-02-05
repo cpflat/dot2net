@@ -1,0 +1,7 @@
+digraph {
+    // Simple topology for testing blocks functionality
+    node1 [xlabel="router"];
+    node2 [xlabel="router"];
+
+    node1 -> node2 [dir="none"];
+}

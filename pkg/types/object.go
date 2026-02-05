@@ -2342,10 +2342,15 @@ func (g *Group) SetGroupRelativeParams(ns NameSpacer, header string) error {
 
 func (g *Group) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
 
-	// global params (place lanels)
+	// global params (place labels)
 	setGlobalParams(g, globalParams)
 
-	// base params
+	// base params - copy self params to relativeParams
+	for k, val := range g.GetParams() {
+		g.SetRelativeParam(k, val)
+	}
+
+	// group params with prefix (for group_ prefixed access)
 	g.SetGroupRelativeParams(g, "")
 
 	return nil

@@ -1,0 +1,6 @@
+# Configuration Header
+# Node: node2
+hostname node2
+# Main configuration section
+# Configuration Footer
+# End of config for node2

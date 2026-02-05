@@ -1,0 +1,3 @@
+# Interface Configurations
+interface net0
+  description node1

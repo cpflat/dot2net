@@ -1,0 +1,60 @@
+name: value_class_basic
+
+# No modules - just generate config files directly
+
+# Define param_rule with mode: attach to generate Values
+param_rule:
+  # Generate VLAN IDs from a range
+  - name: vlan_ids
+    mode: attach
+    source:
+      type: range
+      start: 100
+      end: 102
+    config:
+      - name: vlan_entry
+        template:
+          - "vlan {{ .value }}"
+
+  # Generate static configuration items from a list
+  - name: static_routes
+    mode: attach
+    source:
+      type: list
+      values:
+        - dest: "10.0.0.0/8"
+          gateway: "192.168.1.1"
+        - dest: "172.16.0.0/12"
+          gateway: "192.168.1.2"
+    config:
+      - name: route_entry
+        template:
+          - "ip route {{ .dest }} {{ .gateway }}"
+
+file:
+  - name: switch.conf
+    path: /etc/switch.conf
+
+nodeclass:
+  - name: switch
+    params: [vlan_ids, static_routes]
+    values:
+      image: switch_image
+    config:
+      - file: switch.conf
+        template:
+          - "! Switch Configuration"
+          - "hostname {{ .name }}"
+          - "!"
+          - "! VLAN Configuration"
+          - "{{ .values_vlan_entry }}"
+          - "!"
+          - "! Static Routes"
+          - "{{ .values_route_entry }}"
+          - "!"
+
+connectionclass:
+  - name: trunk
+
+interfaceclass:
+  - name: default

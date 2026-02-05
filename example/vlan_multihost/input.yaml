@@ -46,7 +46,6 @@ param_rule:
 
 nodeclass:
   - name: switch
-    primary: true
     values:
       kind: linux
       image: nicolaka/netshoot
@@ -57,7 +56,6 @@ nodeclass:
           - "ip link set br0 up"
           - "{{ .interfaces_link }}"
   - name: router
-    primary: true
     values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
@@ -89,7 +87,6 @@ nodeclass:
 
 interfaceclass:
   - name: all
-    primary: true
     params: [connection_id]
     config:
       - name: link
@@ -113,7 +110,6 @@ interfaceclass:
 
 connectionclass:
   - name: normal_conn
-    primary: true
     prefix: "normal"
     params: [connection_id]
     config:

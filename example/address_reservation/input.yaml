@@ -36,7 +36,6 @@ param_rule:
 
 nodeclass:
   - name: all
-    primary: true
     params: [lo, as]
     values:
       kind: linux
@@ -73,7 +72,6 @@ nodeclass:
 interfaceclass:
   - name: mgmtif
   - name: default
-    primary: true
     params: [ip, vlan, cname]
     config:
       - name: router_cmds

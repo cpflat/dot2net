@@ -14,7 +14,6 @@ layer:
 
 nodeclass:
   - name: switch
-    primary: true
     values:
       kind: linux
       image: nicolaka/netshoot
@@ -27,7 +26,6 @@ nodeclass:
           - "ip link set br0 up"
 
   - name: server
-    primary: true
     interface_policy: [ip]
     values:
       kind: linux

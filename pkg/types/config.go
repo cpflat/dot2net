@@ -1213,6 +1213,15 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 			ct.classType = ClassTypeSegment
 		}
 	}
+	for _, gc := range cfg.GroupClasses {
+		for _, ct := range gc.ConfigTemplates {
+			if err := initConfigTemplate(cfg, ct); err != nil {
+				return nil, err
+			}
+			ct.className = gc.Name
+			ct.classType = ClassTypeGroup
+		}
+	}
 	// Parse ConfigTemplates in ParameterRules (for attach mode)
 	for _, pr := range cfg.ParameterRules {
 		for _, ct := range pr.ConfigTemplates {

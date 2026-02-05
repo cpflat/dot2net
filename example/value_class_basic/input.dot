@@ -1,0 +1,8 @@
+digraph {
+	// Simple topology: two switches connected via trunk port
+	sw1[xlabel="switch"];
+	sw2[xlabel="switch"];
+
+	// trunk connection between switches
+	sw1->sw2[dir="none", xlabel="trunk"];
+}

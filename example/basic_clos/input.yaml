@@ -23,7 +23,6 @@ param_rule:
 
 nodeclass:
   - name: all
-    primary: true
     params: [lo, as]
     values:
       kind: linux
@@ -58,7 +57,6 @@ nodeclass:
 
 interfaceclass:
   - name: default
-    primary: true
     params: [ip]
     config:
       - name: router_cmds

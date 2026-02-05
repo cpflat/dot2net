@@ -34,7 +34,6 @@ layer:
 
 nodeclass:
   - name: switch
-    primary: true
     values:
       kind: linux
       image: nicolaka/netshoot
@@ -46,7 +45,6 @@ nodeclass:
           - "ip link add br0 type bridge"
           - "ip link set br0 up"
   - name: router
-    primary: true
     params: [lo]
     interface_policy: [ip]
     values:
@@ -100,7 +98,6 @@ nodeclass:
 
 interfaceclass:
   - name: all
-    primary: true
     config:
       - group: sw
         node: switch
