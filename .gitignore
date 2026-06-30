@@ -3,10 +3,14 @@ CLAUDE.md
 .kiro
 doc
 wiki
+.serena
 
 # IDE settings
 .claude/
 .vscode/
+
+# Cipher MCP session database (runtime, local-only)
+data/
 
 # Build artifacts
 /dot2net
@@ -21,3 +25,6 @@ example/*/*/
 # Generated spec/topo files
 example/*/spec.yaml
 example/*/topo.yaml
+
+# heinzel: task artifacts (symlink -> heinzel-records). not part of the repo
+/heinzel
