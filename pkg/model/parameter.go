@@ -36,6 +36,9 @@ func getParameterCandidates(cfg *types.Config, rule *types.ParameterRule, cnt in
 				break
 			}
 		}
+		if len(params) < cnt {
+			return nil, fmt.Errorf("not enough candidates for %s (%d required, %d available)", rule.Name, cnt, len(params))
+		}
 	default: // "int"
 		if rule.Max > 0 && rule.Max-rule.Min < cnt {
 			return nil, fmt.Errorf("not enough candidates for %s (%d required)", rule.Name, cnt)

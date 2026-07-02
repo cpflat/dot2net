@@ -156,8 +156,9 @@ func GraphToDot(cfg *types.Config, nm *types.NetworkModel, layer string) (string
 					}
 
 					// add corresponding ip address information to node labels
-					n := g.Nodes.Lookup[node.Name]
-					n.Attrs[KEY_NODE_LABEL] = n.Attrs[KEY_NODE_LABEL] + ", " + iface.Name + ": " + addr
+					if n, ok := g.Nodes.Lookup[node.Name]; ok {
+						n.Attrs[KEY_NODE_LABEL] = n.Attrs[KEY_NODE_LABEL] + ", " + iface.Name + ": " + addr
+					}
 				}
 			}
 		}

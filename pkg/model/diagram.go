@@ -22,10 +22,13 @@ func DiagramFromDotFile(filepath string) (*Diagram, error) {
 	if err != nil {
 		return nil, err
 	}
-	graphAst, _ := gographviz.Parse(src)
+	graphAst, err := gographviz.Parse(src)
+	if err != nil {
+		return nil, err
+	}
 	graph := gographviz.NewGraph()
 	if err := gographviz.Analyse(graphAst, graph); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	diagram := &Diagram{graph: graph, nodeGroups: map[string][]string{}}
