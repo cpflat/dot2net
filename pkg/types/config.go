@@ -929,7 +929,7 @@ func (ct *ConfigTemplate) NodeClassCheck(node *Node) bool {
 		}
 	} else {
 		ncs := make([]string, 0, len(ct.NodeClasses)+1)
-		copy(ncs, ct.NodeClasses)
+		ncs = append(ncs, ct.NodeClasses...)
 		if ct.NodeClass != "" {
 			ncs = append(ncs, ct.NodeClass)
 		}
@@ -953,7 +953,7 @@ func (ct *ConfigTemplate) NeighborNodeClassCheck(node *Node) bool {
 		}
 	} else {
 		ncs := make([]string, 0, len(ct.NeighborNodeClasses)+1)
-		copy(ncs, ct.NeighborNodeClasses)
+		ncs = append(ncs, ct.NeighborNodeClasses...)
 		if ct.NeighborNodeClass != "" {
 			ncs = append(ncs, ct.NeighborNodeClass)
 		}

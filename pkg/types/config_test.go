@@ -211,3 +211,121 @@ func TestConfigTemplate_HasRequiredParams(t *testing.T) {
 		})
 	}
 }
+
+// newNodeWithClasses builds a minimal Node carrying the given class labels,
+// enough for NodeClassCheck / NeighborNodeClassCheck (which only call HasClass).
+func newNodeWithClasses(classes ...string) *Node {
+	n := &Node{ParsedLabels: newParsedLabels()}
+	n.AddClassLabels(classes...)
+	return n
+}
+
+func TestConfigTemplate_NodeClassCheck(t *testing.T) {
+	tests := []struct {
+		name        string
+		nodeClass   string   // singular constraint (yaml: node)
+		nodeClasses []string // plural constraint (yaml: nodes)
+		nodeClasses2 []string // classes actually held by the node
+		want        bool
+	}{
+		{
+			name:         "no constraint - always true",
+			nodeClasses2: []string{"router"},
+			want:         true,
+		},
+		{
+			name:         "singular match",
+			nodeClass:    "router",
+			nodeClasses2: []string{"router"},
+			want:         true,
+		},
+		{
+			name:         "singular no match",
+			nodeClass:    "router",
+			nodeClasses2: []string{"switch"},
+			want:         false,
+		},
+		{
+			// CR-007 regression: before the copy->append fix, the plural
+			// NodeClasses list was silently dropped, so this returned false.
+			name:         "plural - node has one of the classes",
+			nodeClasses:  []string{"router", "bgp"},
+			nodeClasses2: []string{"bgp"},
+			want:         true,
+		},
+		{
+			name:         "plural - node has none",
+			nodeClasses:  []string{"router", "bgp"},
+			nodeClasses2: []string{"switch"},
+			want:         false,
+		},
+		{
+			name:         "plural and singular - match via singular",
+			nodeClass:    "mgmt",
+			nodeClasses:  []string{"router", "bgp"},
+			nodeClasses2: []string{"mgmt"},
+			want:         true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ct := &ConfigTemplate{
+				NodeClass:   tt.nodeClass,
+				NodeClasses: tt.nodeClasses,
+			}
+			got := ct.NodeClassCheck(newNodeWithClasses(tt.nodeClasses2...))
+			if got != tt.want {
+				t.Errorf("NodeClassCheck() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestConfigTemplate_NeighborNodeClassCheck(t *testing.T) {
+	tests := []struct {
+		name                string
+		neighborNodeClass   string   // singular constraint (yaml: neighbor_node)
+		neighborNodeClasses []string // plural constraint (yaml: neighbor_nodes)
+		nodeClasses         []string // classes actually held by the node
+		want                bool
+	}{
+		{
+			name:        "no constraint - always true",
+			nodeClasses: []string{"router"},
+			want:        true,
+		},
+		{
+			name:              "singular match",
+			neighborNodeClass: "router",
+			nodeClasses:       []string{"router"},
+			want:              true,
+		},
+		{
+			// CR-007 regression: plural list was dropped before the fix.
+			name:                "plural - node has one of the classes",
+			neighborNodeClasses: []string{"router", "bgp"},
+			nodeClasses:         []string{"bgp"},
+			want:                true,
+		},
+		{
+			name:                "plural - node has none",
+			neighborNodeClasses: []string{"router", "bgp"},
+			nodeClasses:         []string{"switch"},
+			want:                false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ct := &ConfigTemplate{
+				NeighborNodeClass:   tt.neighborNodeClass,
+				NeighborNodeClasses: tt.neighborNodeClasses,
+			}
+			got := ct.NeighborNodeClassCheck(newNodeWithClasses(tt.nodeClasses...))
+			if got != tt.want {
+				t.Errorf("NeighborNodeClassCheck() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
