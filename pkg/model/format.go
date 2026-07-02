@@ -310,7 +310,7 @@ func getConfig(tpl *template.Template, namespace map[string]string) (string, err
 	writer := new(strings.Builder)
 	err := tpl.Execute(writer, namespace)
 	if err != nil {
-		return "", fmt.Errorf("missing variables in parameters: %W", err)
+		return "", fmt.Errorf("missing variables in parameters: %w", err)
 	}
 	return writer.String(), nil
 }

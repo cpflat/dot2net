@@ -20,6 +20,9 @@ import (
 func loadContext(c *cli.Context) (d *model.Diagram, cfg *types.Config, err error) {
 
 	dotPaths := c.Args().Slice()
+	if len(dotPaths) == 0 {
+		return nil, nil, fmt.Errorf("no dot file specified")
+	}
 
 	d, err = model.DiagramFromDotFile(dotPaths[0])
 	if err != nil {

@@ -175,6 +175,8 @@ func (d *Diagram) MergeDiagram(d2 *Diagram) {
 			set.Append(groups...)
 			set.Append(groups2...)
 			d.nodeGroups[name] = set.ToSlice()
+		} else {
+			d.nodeGroups[name] = groups2
 		}
 	}
 }
