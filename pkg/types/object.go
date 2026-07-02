@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -835,6 +836,7 @@ func (nm *NetworkModel) FilesToGenerate(cfg *Config) []string {
 	for file := range fileSet {
 		files = append(files, file)
 	}
+	sort.Strings(files)
 	return files
 }
 
@@ -1231,6 +1233,7 @@ func (n *Node) FilesToGenerate(cfg *Config) []string {
 	for file := range fileSet {
 		files = append(files, file)
 	}
+	sort.Strings(files)
 	return files
 }
 

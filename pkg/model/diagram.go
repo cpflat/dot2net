@@ -66,7 +66,7 @@ func (d *Diagram) SortedLinks() []*gographviz.Edge {
 			vjmax = ret[j].Dst
 		} else {
 			vjmin = ret[j].Dst
-			vjmax = ret[i].Src
+			vjmax = ret[j].Src
 		}
 		if vimin == vjmin {
 			return vimax < vjmax
