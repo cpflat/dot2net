@@ -1063,7 +1063,9 @@ func (n *Node) CreateManagementInterface(cfg *Config, name string) (*Interface, 
 
 		// add management interface
 		iface := n.NewInterface(name)
-		iface.SetLabels(cfg, []string{ic.Name}, []string{})
+		if err := iface.SetLabels(cfg, []string{ic.Name}, []string{}); err != nil {
+			return nil, err
+		}
 		iface.ParsedLabels.Classes = append(iface.ParsedLabels.Classes, ic)
 		// iface.parsedLabels = newParsedLabels()
 		// iface.parsedLabels.classLabels = append(iface.parsedLabels.classLabels, ic.Name)

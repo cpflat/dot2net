@@ -54,11 +54,15 @@ func InitGloballNameSpace(nm *NetworkModel) (map[string]map[string]string, error
 		}
 
 		for _, iface := range node.Interfaces {
-			checkPlaceLabelOwner(iface, iface, globalParams)
+			if _, err := checkPlaceLabelOwner(iface, iface, globalParams); err != nil {
+				return nil, err
+			}
 		}
 	}
 	for _, group := range nm.Groups {
-		checkPlaceLabelOwner(group, group, globalParams)
+		if _, err := checkPlaceLabelOwner(group, group, globalParams); err != nil {
+			return nil, err
+		}
 	}
 
 	// Set numbers for place labels from global namespace
