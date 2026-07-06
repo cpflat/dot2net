@@ -61,17 +61,18 @@ func (pool *ipPool) getitem(idx int) (netip.Prefix, error) {
 	}
 	byte_increase := idx << (8 - 1 - (pool.bits-1)%8)
 	//byte_increase := int(math.Pow(2, float64(8-bits%8))) * idx
-	for byte_idx > 0 { // byte index to modify
+	for byte_idx >= 0 { // byte index to modify (including the most significant byte)
 		tmp_sum := int(slice[byte_idx]) + byte_increase
-		byte_increase = tmp_sum >> 8
-		if byte_increase > 0 { // tmp_sum > 256
-			slice[byte_idx] = byte(tmp_sum - byte_increase<<8)
-			// current_slice[byte_idx] = byte(tmp_sum % 256)
-			byte_idx = byte_idx - 1
-		} else {
-			slice[byte_idx] = byte(tmp_sum)
+		slice[byte_idx] = byte(tmp_sum) // low 8 bits
+		byte_increase = tmp_sum >> 8    // carry to the next higher byte
+		if byte_increase == 0 {
 			break
 		}
+		byte_idx = byte_idx - 1
+	}
+	if byte_increase > 0 {
+		// carry propagated beyond the most significant byte: index is out of the pool range
+		return netip.Prefix{}, fmt.Errorf("address index %d out of range for pool %s", idx, pool.String())
 	}
 
 	new_addr, ok := netip.AddrFromSlice(slice)

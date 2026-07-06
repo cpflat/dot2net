@@ -170,3 +170,47 @@ func TestGetIPAddr(t *testing.T) {
 		}
 	})
 }
+
+func TestGetItem(t *testing.T) {
+	tests := []struct {
+		name    string
+		pool    string // pool prefix range
+		bits    int    // prefix length to allocate
+		idx     int
+		want    string // expected prefix string; ignored when wantErr
+		wantErr bool
+	}{
+		{name: "/24 from /8: idx 0", pool: "10.0.0.0/8", bits: 24, idx: 0, want: "10.0.0.0/24"},
+		{name: "/24 from /8: idx 1", pool: "10.0.0.0/8", bits: 24, idx: 1, want: "10.0.1.0/24"},
+		{name: "/24 from /8: idx 256 (carry into 2nd octet)", pool: "10.0.0.0/8", bits: 24, idx: 256, want: "10.1.0.0/24"},
+		// CR-008 regression: for bits<=8 the carry loop (byte_idx>0) never ran,
+		// so idx was ignored and every index returned the pool base.
+		{name: "/8 from /0: bits<=8 must use idx", pool: "0.0.0.0/0", bits: 8, idx: 5, want: "5.0.0.0/8"},
+		// CR-008 regression: a carry reaching the most significant byte was dropped
+		// because the loop stopped at byte_idx>0 without updating byte 0.
+		{name: "/16 from /0: carry into most significant byte", pool: "0.0.0.0/0", bits: 16, idx: 256, want: "1.0.0.0/16"},
+		// carry beyond the most significant byte -> out of range error
+		{name: "/8 from /0: overflow beyond top byte errors", pool: "0.0.0.0/0", bits: 8, idx: 256, wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pool, err := initIPPool(netip.MustParsePrefix(tt.pool), tt.bits)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := pool.getitem(tt.idx)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("getitem(%d) expected error, got %v", tt.idx, got.String())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("getitem(%d) unexpected error: %v", tt.idx, err)
+			}
+			if got.String() != tt.want {
+				t.Errorf("getitem(%d) = %v, want %v", tt.idx, got.String(), tt.want)
+			}
+		})
+	}
+}
