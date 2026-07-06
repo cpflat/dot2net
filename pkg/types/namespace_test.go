@@ -225,7 +225,10 @@ func TestSuggestAlternativeName(t *testing.T) {
 	}{
 		{"conn_id", NumberPrefixConnection, "connection_id"},
 		{"conn_", NumberPrefixConnection, "connection_param"},
-		{"node_id", NumberPrefixNode, "node_id"},
+		// CR-059: node_/group_ must not re-prepend the reserved prefix (which
+		// would return the original reserved name); fall back to "my_".
+		{"node_id", NumberPrefixNode, "my_node_id"},
+		{"group_x", NumberPrefixGroup, "my_group_x"},
 		{"values_test", ValueReferencePrefix, "my_values_test"},
 	}
 

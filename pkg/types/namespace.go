@@ -216,16 +216,15 @@ func suggestAlternativeName(paramName, prefix string) string {
 		suffix = "param"
 	}
 
-	// Map common abbreviations to full words
 	switch prefix {
-	case NumberPrefixNode:
-		return "node_" + suffix // node_ -> full word "node_"
 	case NumberPrefixConnection:
-		return "connection_" + suffix // conn_ -> connection_
-	case NumberPrefixGroup:
-		return "group_" + suffix // group_ -> keep as is, but this shouldn't conflict
+		// "conn_" maps to the full word "connection_", which is not itself a
+		// reserved prefix, so this is a valid non-conflicting suggestion.
+		return "connection_" + suffix
 	default:
-		// For other prefixes, suggest prefixing with "my_" or "custom_"
+		// For reserved prefixes without a distinct non-reserved full word
+		// (node_, group_, value refs, ...), re-prepending the same prefix would
+		// return the original reserved name; fall back to a generic prefix.
 		return "my_" + paramName
 	}
 }
