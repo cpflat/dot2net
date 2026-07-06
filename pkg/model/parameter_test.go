@@ -616,14 +616,18 @@ func TestGenerateValuesFromSource_ParamFormat(t *testing.T) {
 		t.Errorf("expected 2 params, got %d", len(params))
 	}
 
-	// Check that param_format adds new keys
-	// Note: current implementation does simple value assignment, not template expansion
-	// This test documents the current behavior
-	if _, ok := params[0]["vlan_id"]; !ok {
-		t.Errorf("params[0] should have vlan_id key")
+	// param_format templates are expanded against each parameter set (CR-011).
+	if params[0]["vlan_id"] != "100" {
+		t.Errorf("params[0][vlan_id] = %q, want %q", params[0]["vlan_id"], "100")
 	}
-	if _, ok := params[0]["vlan_name"]; !ok {
-		t.Errorf("params[0] should have vlan_name key")
+	if params[0]["vlan_name"] != "VLAN100" {
+		t.Errorf("params[0][vlan_name] = %q, want %q", params[0]["vlan_name"], "VLAN100")
+	}
+	if params[1]["vlan_id"] != "101" {
+		t.Errorf("params[1][vlan_id] = %q, want %q", params[1]["vlan_id"], "101")
+	}
+	if params[1]["vlan_name"] != "VLAN101" {
+		t.Errorf("params[1][vlan_name] = %q, want %q", params[1]["vlan_name"], "VLAN101")
 	}
 
 	// Original keys should still exist

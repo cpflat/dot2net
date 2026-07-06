@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"text/template"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/goccy/go-yaml"
@@ -376,12 +377,26 @@ func generateValueParamsFromSource(cfg *types.Config, rule *types.ParameterRule)
 		return nil, fmt.Errorf("unknown source type: %s", rule.Source.Type)
 	}
 
-	// Apply param_format to generate final parameters
-	if rule.ParamFormat != nil && len(rule.ParamFormat) > 0 {
+	// Apply param_format to generate final parameters. Each value is a
+	// text/template expanded against the parameter set (e.g. "VLAN{{ .value }}").
+	// Expand all templates against the original set first, then apply, so the
+	// result does not depend on map iteration order.
+	if len(rule.ParamFormat) > 0 {
 		for i := range params {
+			formatted := make(map[string]string, len(rule.ParamFormat))
 			for k, tmplVal := range rule.ParamFormat {
-				// Simple variable substitution (TODO: use proper template engine)
-				params[i][k] = tmplVal
+				tmpl, err := template.New(k).Parse(tmplVal)
+				if err != nil {
+					return nil, fmt.Errorf("invalid param_format template for %q: %w", k, err)
+				}
+				var buf strings.Builder
+				if err := tmpl.Execute(&buf, params[i]); err != nil {
+					return nil, fmt.Errorf("failed to expand param_format for %q: %w", k, err)
+				}
+				formatted[k] = buf.String()
+			}
+			for k, v := range formatted {
+				params[i][k] = v
 			}
 		}
 	}
