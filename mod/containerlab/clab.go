@@ -216,7 +216,7 @@ func (m *ClabModule) generateFilemountParams(
 			continue
 		}
 
-		srcPath := path.Join(node.Name, fileDef.Name)
+		srcPath := path.Join(node.Name, fileDef.GetFileName(node.Name))
 		dstPath := fileDef.Path
 
 		params := map[string]string{
