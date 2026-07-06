@@ -176,7 +176,16 @@ func assignInterfaceParameters(cfg *types.Config, nm *types.NetworkModel) error 
 		}
 	}
 
-	for key, ifaces := range interfacesForParams {
+	// Iterate parameter rules in a deterministic order (map iteration order is
+	// randomized). Each key is an independent rule, so this does not change
+	// assigned values, but keeps rule processing order stable.
+	sortedParamKeys := make([]string, 0, len(interfacesForParams))
+	for key := range interfacesForParams {
+		sortedParamKeys = append(sortedParamKeys, key)
+	}
+	sort.Strings(sortedParamKeys)
+	for _, key := range sortedParamKeys {
+		ifaces := interfacesForParams[key]
 		rule, ok := cfg.ParameterRuleByName(key)
 		if !ok {
 			return fmt.Errorf("invalid parameter rule name %s", key)
