@@ -79,9 +79,13 @@ func getConnectionNetwork(conn *types.Connection, layer *types.Layer) (string, s
 func getInterfaceAddress(iface *types.Interface, layer *types.Layer) (string, error) {
 	addr, err := iface.GetParamValue(layer.IPAddressReplacer())
 	if err != nil {
+		nodeName := "<unknown>"
+		if iface.Node != nil {
+			nodeName = iface.Node.Name
+		}
 		err = fmt.Errorf(
-			"panic: Interface %s of Node %s is aware of layer %s but does not have ip address",
-			iface.Name, iface.Node.Name, layer.Name,
+			"interface %s of node %s is aware of layer %s but has no ip address: %w",
+			iface.Name, nodeName, layer.Name, err,
 		)
 	}
 	return addr, err

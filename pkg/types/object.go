@@ -1103,6 +1103,9 @@ func (n *Node) Childs(c string) ([]NameSpacer, error) {
 		}
 		return objs, nil
 	case ClassTypeMemberHeader:
+		if len(tmp) < 3 {
+			return nil, fmt.Errorf("invalid member reference %q (expected <header>_<classType>_<className>)", c)
+		}
 		classType := tmp[1]
 		className := tmp[2]
 		for _, m := range n.GetMembers() {
@@ -1465,12 +1468,18 @@ func (iface *Interface) Childs(c string) ([]NameSpacer, error) {
 	tmp := strings.SplitN(c, "_", 3) // Maximum 3 splits for Member
 	switch tmp[0] {
 	case ClassTypeNeighborHeader:
+		if len(tmp) < 2 {
+			return nil, fmt.Errorf("invalid neighbor reference %q (expected <header>_<layer>)", c)
+		}
 		layer := tmp[1]
 		for _, iface := range iface.Neighbors[layer] {
 			objs = append(objs, iface)
 		}
 		return objs, nil
 	case ClassTypeMemberHeader:
+		if len(tmp) < 3 {
+			return nil, fmt.Errorf("invalid member reference %q (expected <header>_<classType>_<className>)", c)
+		}
 		classType := tmp[1]
 		className := tmp[2]
 		for _, m := range iface.GetMembers() {
@@ -1743,6 +1752,9 @@ func (conn *Connection) Childs(c string) ([]NameSpacer, error) {
 
 	switch tmp[0] {
 	case ClassTypeMemberHeader:
+		if len(tmp) < 3 {
+			return nil, fmt.Errorf("invalid member reference %q (expected <header>_<classType>_<className>)", c)
+		}
 		classType := tmp[1]
 		className := tmp[2]
 		for _, m := range conn.GetMembers() {
@@ -1887,6 +1899,9 @@ func (seg *NetworkSegment) Childs(c string) ([]NameSpacer, error) {
 
 	switch tmp[0] {
 	case ClassTypeMemberHeader:
+		if len(tmp) < 3 {
+			return nil, fmt.Errorf("invalid member reference %q (expected <header>_<classType>_<className>)", c)
+		}
 		classType := tmp[1]
 		className := tmp[2]
 		for _, m := range seg.GetMembers() {

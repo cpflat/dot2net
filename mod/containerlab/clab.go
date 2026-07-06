@@ -155,10 +155,13 @@ func (m *ClabModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 		endpoint := fmt.Sprintf("[%s:%s, %s:%s]", conn.Src.Node.Name, conn.Src.Name, conn.Dst.Node.Name, conn.Dst.Name)
 		endpoints = append(endpoints, endpoint)
 	}
-	nm.AddParam(
-		ClabEndpointsParamName,
-		"  - endpoints: "+strings.Join(endpoints, "\n  - endpoints: ")+"\n",
-	)
+	// Avoid emitting a dangling "  - endpoints: " line (invalid YAML) when there
+	// are no non-virtual connections.
+	endpointsStr := ""
+	if len(endpoints) > 0 {
+		endpointsStr = "  - endpoints: " + strings.Join(endpoints, "\n  - endpoints: ") + "\n"
+	}
+	nm.AddParam(ClabEndpointsParamName, endpointsStr)
 
 	// Note: bind mounts are now generated through Value class mechanism
 	// (param_rule "clab_binds" with generator "clab.filemounts")
