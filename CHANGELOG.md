@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+Bug fixes from a systematic code review (correctness, determinism, and robustness):
+
+- **Deterministic output**: sort links, generated file lists, group creation, and parameter-rule processing so builds are byte-stable across runs (previously map / edge iteration order could vary)
+- **`param_format` expansion**: `param_format` values are now expanded as `text/template` (e.g. `VLAN{{ .value }}`) instead of being assigned as the literal template string
+- **Multiple NodeClass matching**: `NodeClassCheck` / `NeighborNodeClassCheck` no longer drop the plural `nodes:` / `neighbor_nodes:` list (a `copy` into a zero-length slice was a no-op)
+- **Address block calculation**: `getitem` now carries into the most significant byte and handles prefix lengths ≤ 8 (previously it could ignore the index or drop the top-byte carry); `getAvailablePrefix` no longer overflows its scan bound for large (e.g. IPv6) pools
+- **Bind mount source path**: tinet / containerlab bind mounts use the actual generated filename (`GetFileName`) instead of the file-definition id, fixing paths when `name_prefix` / `name_suffix` is set
+- **Errors instead of panics**: return errors (rather than panicking) on missing dot-file arguments, malformed DOT input, ambiguous edges during diagram merge, out-of-range member / neighbor references, and insufficient `file` parameter candidates
+- **Error propagation**: surface previously-discarded errors from place-label checks and management-interface labels, and fix `%w` error wrapping so failures carry their cause
+- **Diagram merge**: merging diagrams no longer drops node groups that exist only in the second diagram
+- **Containerlab endpoints**: no longer emit a dangling `endpoints:` line when a node has no non-virtual connections
+- **Visual output**: guard against nil node / interface references and wrap the underlying error when an interface lacks an IP address
+- **`suggestAlternativeName`**: suggest a genuinely different name for the `node_` / `group_` reserved prefixes (previously returned the same name)
+
+### Added
+- Regression tests for `getitem` address arithmetic, multiple-NodeClass matching, and `param_format` expansion
+
 ## [0.7.1] - 2026-02-05
 
 ### Fixed
