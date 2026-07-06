@@ -47,6 +47,18 @@ func (d *Diagram) SortedNodes() []*gographviz.Node {
 	return ret
 }
 
+// SortedSubGraphs returns the subgraphs (groups) in a deterministic order.
+// gographviz stores subgraphs in a map, so iterating it directly is
+// non-deterministic; group creation must use this instead.
+func (d *Diagram) SortedSubGraphs() []*gographviz.SubGraph {
+	ret := make([]*gographviz.SubGraph, 0, len(d.graph.SubGraphs.SubGraphs))
+	for _, s := range d.graph.SubGraphs.SubGraphs {
+		ret = append(ret, s)
+	}
+	sort.Slice(ret, func(i, j int) bool { return ret[i].Name < ret[j].Name })
+	return ret
+}
+
 func (d *Diagram) Links() []*gographviz.Edge {
 	return d.graph.Edges.Edges
 }
