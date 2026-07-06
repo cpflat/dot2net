@@ -33,7 +33,9 @@ func loadContext(c *cli.Context) (d *model.Diagram, cfg *types.Config, err error
 		if err != nil {
 			return nil, nil, err
 		}
-		d.MergeDiagram(newnd)
+		if err := d.MergeDiagram(newnd); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	cfgPath := c.String("config")

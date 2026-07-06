@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"os"
 	"regexp"
 	"sort"
@@ -130,7 +131,7 @@ func (d *Diagram) searchGroupMembers(parent string) []string {
 // Labels in same components are merged.
 // Lines are considered same only when the end nodes and "their ports" are completely same
 // (Note that links without specified ports are always considered different).
-func (d *Diagram) MergeDiagram(d2 *Diagram) {
+func (d *Diagram) MergeDiagram(d2 *Diagram) error {
 
 	// add nodes and their attributes
 	for _, node2 := range d2.graph.Nodes.Nodes {
@@ -159,7 +160,7 @@ func (d *Diagram) MergeDiagram(d2 *Diagram) {
 			}
 		}
 		if len(match) > 1 {
-			panic("multiple corresponding edges found in MergeDiagram process")
+			return fmt.Errorf("multiple corresponding edges found while merging diagrams for %s-%s", edge2.Src, edge2.Dst)
 		} else if len(match) == 1 {
 			// link exists, merge attributes
 			edge := match[0]
@@ -194,6 +195,7 @@ func (d *Diagram) MergeDiagram(d2 *Diagram) {
 			d.nodeGroups[name] = groups2
 		}
 	}
+	return nil
 }
 
 func mergeAttrs(attrs1 gographviz.Attrs, attrs2 gographviz.Attrs) gographviz.Attrs {
