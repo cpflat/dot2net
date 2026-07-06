@@ -161,10 +161,15 @@ func (pool *ipPool) getAvailablePrefix(cnt int) ([]netip.Prefix, error) {
 	// Special case: -1 means get all available prefixes without capacity check
 	if cnt < 0 {
 		var prefixes []netip.Prefix
-		// Use availableBits to determine the maximum range, but with safety limit
-		maxRange := 1 << pool.availableBits
-		if maxRange > 10000 || pool.availableBits > 20 {
-			maxRange = 10000 // Safety limit for very large pools
+		// Use availableBits to determine the maximum range, but with safety limit.
+		// Check availableBits BEFORE computing 1<<availableBits: for large pools
+		// (e.g. IPv6) the shift would overflow int and produce a garbage bound.
+		maxRange := 10000 // Safety limit for very large pools
+		if pool.availableBits <= 20 {
+			maxRange = 1 << pool.availableBits
+			if maxRange > 10000 {
+				maxRange = 10000
+			}
 		}
 		for i := 0; i < maxRange; i++ {
 			if _, exists := pool.boundIndex[i]; !exists {
