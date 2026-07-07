@@ -14,7 +14,7 @@ Bug fixes from a systematic code review (correctness, determinism, and robustnes
 - **Deterministic output**: sort links, generated file lists, group creation, and parameter-rule processing so builds are byte-stable across runs (previously map / edge iteration order could vary)
 - **`param_format` expansion**: `param_format` values are now expanded as `text/template` (e.g. `VLAN{{ .value }}`) instead of being assigned as the literal template string
 - **Multiple NodeClass matching**: `NodeClassCheck` / `NeighborNodeClassCheck` no longer drop the plural `nodes:` / `neighbor_nodes:` list (a `copy` into a zero-length slice was a no-op)
-- **Address block calculation**: `getitem` now carries into the most significant byte and handles prefix lengths ≤ 8 (previously it could ignore the index or drop the top-byte carry); `getAvailablePrefix` no longer overflows its scan bound for large (e.g. IPv6) pools
+- **Address calculation**: `getitem` now carries into the most significant byte and handles prefix lengths ≤ 8 (previously it could ignore the index or drop the top-byte carry); `prefixToIndex` uses big-integer math (correct for IPv6-sized differences, no per-byte borrow bug), and `reserveAddr` skips addresses outside the pool instead of recording a bogus index; pool enumeration works in log order (no `2^n` overflow) and is bounded by the new `max_address_count` setting
 - **Bind mount source path**: tinet / containerlab bind mounts use the actual generated filename (`GetFileName`) instead of the file-definition id, fixing paths when `name_prefix` / `name_suffix` is set
 - **Errors instead of panics**: return errors (rather than panicking) on missing dot-file arguments, malformed DOT input, ambiguous edges during diagram merge, out-of-range member / neighbor references, and insufficient `file` parameter candidates
 - **Error propagation**: surface previously-discarded errors from place-label checks and management-interface labels, and fix `%w` error wrapping so failures carry their cause
@@ -24,7 +24,8 @@ Bug fixes from a systematic code review (correctness, determinism, and robustnes
 - **`suggestAlternativeName`**: suggest a genuinely different name for the `node_` / `group_` reserved prefixes (previously returned the same name)
 
 ### Added
-- Regression tests for `getitem` address arithmetic, multiple-NodeClass matching, and `param_format` expansion
+- **`max_address_count` global setting**: caps how many addresses/prefixes are enumerated when an address pool is expanded fully (default 65536), preventing oversized (e.g. IPv6) pools from exhausting memory
+- Regression tests for `getitem` / `prefixToIndex` address arithmetic and enumeration caps, multiple-NodeClass matching, and `param_format` expansion
 
 ## [0.7.1] - 2026-02-05
 
