@@ -641,7 +641,7 @@ func assignIPParameters(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 
 	for _, layer := range cfg.Layers {
 		// loopback
-		err := assignIPLoopbacks(nm, layer)
+		err := assignIPLoopbacks(nm, layer, cfg.GlobalSettings.MaxAddressCount)
 		if err != nil {
 			return err
 		}
@@ -667,7 +667,7 @@ func assignIPParameters(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 		setNeighbors(segs, layer)
 
 		// assign ip addresses
-		err = assignIPAddresses(nm, layer)
+		err = assignIPAddresses(nm, layer, cfg.GlobalSettings.MaxAddressCount)
 		if err != nil {
 			return err
 		}

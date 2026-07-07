@@ -2,7 +2,6 @@ package model
 
 import (
 	"fmt"
-	"math"
 	"math/big"
 	"net/netip"
 	"strconv"
@@ -12,6 +11,21 @@ import (
 
 	"github.com/cpflat/dot2net/pkg/types"
 )
+
+// DefaultMaxAddressCount bounds how many addresses/prefixes are enumerated when
+// a pool is expanded fully. It is used when GlobalSettings.MaxAddressCount is
+// unset. 65536 comfortably fits a /16 while preventing oversized (e.g. IPv6)
+// pools from blowing up memory.
+const DefaultMaxAddressCount = 65536
+
+// resolveMaxAddressCount returns the effective enumeration cap for a configured
+// value (0 or negative falls back to the default).
+func resolveMaxAddressCount(configured int) int {
+	if configured <= 0 {
+		return DefaultMaxAddressCount
+	}
+	return configured
+}
 
 // An ipPool manage reservation of prefix range.
 // It allocate address blocks considering the address reservation.
@@ -23,9 +37,10 @@ type ipPool struct {
 	boundIndex   map[int]struct{}
 	segments     []*netSegment
 	n_unassigned int
+	maxCount     int // cap on full enumeration; see DefaultMaxAddressCount
 }
 
-func initIPPool(prefixRange netip.Prefix, bits int) (*ipPool, error) {
+func initIPPool(prefixRange netip.Prefix, bits int, maxCount int) (*ipPool, error) {
 	pbits := prefixRange.Bits()
 	if pbits > bits { // pool range is smaller
 		return nil, fmt.Errorf("prefix range %+v is too small for prefixes of length %+v", prefixRange, bits)
@@ -37,6 +52,7 @@ func initIPPool(prefixRange netip.Prefix, bits int) (*ipPool, error) {
 		availableBits: bits - pbits,
 		//length:      1 << (bits - pbits),
 		boundIndex: map[int]struct{}{},
+		maxCount:   resolveMaxAddressCount(maxCount),
 	}
 	return &pool, nil
 }
@@ -133,7 +149,7 @@ func (pool *ipPool) reservePrefix(prefix netip.Prefix) error {
 		// out of prefixRange (no reservation)
 	} else if prefix.Bits() < pool.bits {
 		// bind all duplicated address blocks
-		prefixes, err := getIPAddrBlocks(prefix, pool.bits, -1)
+		prefixes, err := getIPAddrBlocks(prefix, pool.bits, -1, pool.maxCount)
 		if err != nil {
 			return err
 		}
@@ -170,14 +186,13 @@ func (pool *ipPool) getAvailablePrefix(cnt int) ([]netip.Prefix, error) {
 	// Special case: -1 means get all available prefixes without capacity check
 	if cnt < 0 {
 		var prefixes []netip.Prefix
-		// Use availableBits to determine the maximum range, but with safety limit.
-		// Check availableBits BEFORE computing 1<<availableBits: for large pools
-		// (e.g. IPv6) the shift would overflow int and produce a garbage bound.
-		maxRange := 10000 // Safety limit for very large pools
-		if pool.availableBits <= 20 {
-			maxRange = 1 << pool.availableBits
-			if maxRange > 10000 {
-				maxRange = 10000
+		// Bound the scan by the configured cap. Check availableBits before
+		// computing 1<<availableBits: for large pools (e.g. IPv6) the shift would
+		// overflow int and produce a garbage bound.
+		maxRange := pool.maxCount
+		if pool.availableBits < 63 {
+			if full := 1 << pool.availableBits; full < maxRange {
+				maxRange = full
 			}
 		}
 		for i := 0; i < maxRange; i++ {
@@ -407,7 +422,7 @@ func setNeighbors(segs []*types.NetworkSegment, layer *types.Layer) {
 	}
 }
 
-func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix, error) {
+func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int, maxCount int) ([]netip.Prefix, error) {
 	pbits := poolrange.Bits()
 	err_too_small := fmt.Errorf("poolrange is too small")
 
@@ -420,11 +435,18 @@ func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix,
 			return []netip.Prefix{poolrange}, nil
 		}
 	} else { // pbits < bits
-		// calculate number of prefixes to generate
-		potential := int(math.Pow(2, float64(bits-pbits)))
+		// number of prefixes to generate. 2^availBits is never materialized
+		// (it overflows for IPv6); full enumeration is capped by maxCount.
+		maxCount = resolveMaxAddressCount(maxCount)
+		availBits := bits - pbits
 		if cnt <= 0 {
-			cnt = potential
-		} else if cnt > potential {
+			cnt = maxCount
+			if availBits < 63 {
+				if full := 1 << availBits; full < cnt {
+					cnt = full
+				}
+			}
+		} else if availBits < 63 && cnt > (1<<availBits) {
 			return nil, err_too_small
 		}
 		var pool = make([]netip.Prefix, 0, cnt)
@@ -437,7 +459,7 @@ func getIPAddrBlocks(poolrange netip.Prefix, bits int, cnt int) ([]netip.Prefix,
 		current_slice := poolrange.Addr().AsSlice()
 		for i := 0; i < cnt-1; i++ { // pool addr index
 			byte_idx := bits / 8
-			byte_increase := int(math.Pow(2, float64(8-bits%8)))
+			byte_increase := 1 << (8 - bits%8)
 			for byte_idx > 0 { // byte index to modify
 				tmp_sum := int(current_slice[byte_idx]) + byte_increase
 				if tmp_sum >= 256 {
@@ -484,7 +506,7 @@ func searchIPLoopbacks(nm *types.NetworkModel, pool *ipPool, layer *types.Layer)
 	return allLoopbacks, cnt, nil
 }
 
-func assignIPLoopbacks(nm *types.NetworkModel, layer *types.Layer) error {
+func assignIPLoopbacks(nm *types.NetworkModel, layer *types.Layer, maxCount int) error {
 	poolmap := map[string]*ipPool{}
 	for _, policy := range layer.LoopbackPolicy {
 		poolrange, err := netip.ParsePrefix(policy.AddrRange)
@@ -492,7 +514,7 @@ func assignIPLoopbacks(nm *types.NetworkModel, layer *types.Layer) error {
 			return fmt.Errorf("invalid range (%v) for policy (%v)", policy.AddrRange, policy.Name)
 		}
 		bits := poolrange.Addr().BitLen() // always 32 or 128
-		pool, err := initIPPool(poolrange, bits)
+		pool, err := initIPPool(poolrange, bits, maxCount)
 		if err != nil {
 			return err
 		}
@@ -564,7 +586,7 @@ func assignManagementIPAddresses(cfg *types.Config, nm *types.NetworkModel) erro
 		return fmt.Errorf("invalid range (%v) for management layer", mlayer.AddrRange)
 	}
 	bits := poolrange.Addr().BitLen()
-	pool, err := initIPPool(poolrange, bits)
+	pool, err := initIPPool(poolrange, bits, cfg.GlobalSettings.MaxAddressCount)
 	if err != nil {
 		return err
 	}
@@ -620,7 +642,7 @@ func assignManagementIPAddresses(cfg *types.Config, nm *types.NetworkModel) erro
 	return nil
 }
 
-func assignIPAddresses(nm *types.NetworkModel, layer *types.Layer) error {
+func assignIPAddresses(nm *types.NetworkModel, layer *types.Layer, maxCount int) error {
 	poolmap := map[string]*ipPool{}
 	for _, policy := range layer.IPPolicy {
 		poolrange, err := netip.ParsePrefix(policy.AddrRange)
@@ -628,7 +650,7 @@ func assignIPAddresses(nm *types.NetworkModel, layer *types.Layer) error {
 			return fmt.Errorf("invalid range (%v) for policy (%v)", policy.AddrRange, policy.Name)
 		}
 		bits := policy.DefaultPrefixLength
-		pool, err := initIPPool(poolrange, bits)
+		pool, err := initIPPool(poolrange, bits, maxCount)
 		if err != nil {
 			return err
 		}
@@ -703,7 +725,7 @@ func assignIPAddresses(nm *types.NetworkModel, layer *types.Layer) error {
 				seg.prefix = prefixes[0]
 				prefixes = prefixes[1:]
 			}
-			addrs, err := getIPAddr(seg.prefix, len(seg.uifaces), seg.raddrs)
+			addrs, err := getIPAddr(seg.prefix, len(seg.uifaces), seg.raddrs, maxCount)
 			if err != nil {
 				return err
 			}
@@ -725,21 +747,32 @@ func assignIPAddresses(nm *types.NetworkModel, layer *types.Layer) error {
 	return nil
 }
 
-func getIPAddr(pool netip.Prefix, cnt int, reserved []netip.Addr) ([]netip.Addr, error) {
-	var potential int
+func getIPAddr(pool netip.Prefix, cnt int, reserved []netip.Addr, maxCount int) ([]netip.Addr, error) {
 	err_too_small := fmt.Errorf("addr pool is too small")
+	maxCount = resolveMaxAddressCount(maxCount)
 
-	// calculate number of addresses to generate
+	// hostBits = number of host bits. skip = addresses excluded from assignment
+	// (network address, plus broadcast for IPv4). We never materialize 2^hostBits
+	// (it overflows for IPv6); capacity is checked in log order.
+	hostBits := pool.Addr().BitLen() - pool.Bits()
+	skip := 1 // network address
 	if pool.Addr().Is4() {
-		// IPv4: skip network address and broadcast address
-		potential = int(math.Pow(2, float64(32-pool.Bits()))) - 2 - len(reserved)
-	} else {
-		// IPv6: skip network address
-		potential = int(math.Pow(2, float64(128-pool.Bits()))) - 1 - len(reserved)
+		skip = 2 // network + broadcast
 	}
+
 	if cnt <= 0 {
-		cnt = potential
-	} else if cnt > potential {
+		// Generate all usable addresses, capped by maxCount.
+		cnt = maxCount
+		if hostBits < 63 {
+			if usable := (1 << hostBits) - skip - len(reserved); usable < cnt {
+				cnt = usable
+			}
+		}
+		if cnt < 0 {
+			cnt = 0
+		}
+	} else if hostBits < 63 && cnt+skip+len(reserved) > (1<<hostBits) {
+		// Capacity check in log order (2^hostBits is never materialized).
 		return nil, err_too_small
 	}
 

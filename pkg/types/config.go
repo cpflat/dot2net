@@ -332,6 +332,11 @@ type GlobalSettings struct {
 	PathSpecification string `yaml:"path" mapstructure:"path"`
 	MountSourcePath   string `yaml:"mountsourcepath" mapstructure:"mountsourcepath"`
 	NodeAutoRename    bool   `yaml:"nodeautoname" mapstructure:"nodeautoname"`
+	// MaxAddressCount caps how many addresses/prefixes are enumerated when an
+	// address pool is expanded fully (loopback / segment / reservation handling).
+	// It bounds internal count-up so an oversized (e.g. IPv6) pool cannot blow up
+	// memory. 0 or negative uses DefaultMaxAddressCount.
+	MaxAddressCount int `yaml:"max_address_count" mapstructure:"max_address_count"`
 }
 
 type FileDefinition struct {

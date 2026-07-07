@@ -9,7 +9,7 @@ func TestGetIPAddrBlocks(t *testing.T) {
 	t.Run("ipv4", func(t *testing.T) {
 		poolprefix := netip.MustParsePrefix("10.252.0.0/14")
 		bits := 18
-		pool, err := getIPAddrBlocks(poolprefix, bits, 0)
+		pool, err := getIPAddrBlocks(poolprefix, bits, 0, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -22,7 +22,7 @@ func TestGetIPAddrBlocks(t *testing.T) {
 			t.Errorf("last prefix mismatch %v", last)
 		}
 
-		pool, err = getIPAddrBlocks(poolprefix, bits, 5)
+		pool, err = getIPAddrBlocks(poolprefix, bits, 5, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -39,7 +39,7 @@ func TestGetIPAddrBlocks(t *testing.T) {
 	t.Run("ipv6", func(t *testing.T) {
 		poolprefix := netip.MustParsePrefix("2001:db8:1232::/45")
 		bits := 50
-		pool, err := getIPAddrBlocks(poolprefix, bits, 0)
+		pool, err := getIPAddrBlocks(poolprefix, bits, 0, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -58,7 +58,7 @@ func TestGetIPAddrBlocks(t *testing.T) {
 func TestIPAddrPool(t *testing.T) {
 	t.Run("ipv4", func(t *testing.T) {
 		poolprefix := netip.MustParsePrefix("10.252.0.0/14")
-		pool, err := initIPPool(poolprefix, 16)
+		pool, err := initIPPool(poolprefix, 16, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -73,7 +73,7 @@ func TestIPAddrPool(t *testing.T) {
 			t.Errorf("last prefix mismatch %v, %v", last, target)
 		}
 
-		pool, err = initIPPool(poolprefix, 16)
+		pool, err = initIPPool(poolprefix, 16, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -91,7 +91,7 @@ func TestIPAddrPool(t *testing.T) {
 		}
 
 		poolprefix = netip.MustParsePrefix("10.0.0.0/8")
-		pool, err = initIPPool(poolprefix, 12)
+		pool, err = initIPPool(poolprefix, 12, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -116,7 +116,7 @@ func TestGetIPAddr(t *testing.T) {
 	empty := []netip.Addr{}
 	t.Run("ipv4", func(t *testing.T) {
 		prefix := netip.MustParsePrefix("192.0.2.16/28")
-		addrs, err := getIPAddr(prefix, 0, empty)
+		addrs, err := getIPAddr(prefix, 0, empty, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -129,7 +129,7 @@ func TestGetIPAddr(t *testing.T) {
 			t.Errorf("last addr mismatch %v", last)
 		}
 
-		addrs, err = getIPAddr(prefix, 9, empty)
+		addrs, err = getIPAddr(prefix, 9, empty, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -144,7 +144,7 @@ func TestGetIPAddr(t *testing.T) {
 
 	t.Run("ipv6", func(t *testing.T) {
 		prefix := netip.MustParsePrefix("2001:db8:1234:abcd:5678:fedc:1111:1120/123")
-		addrs, err := getIPAddr(prefix, 0, empty)
+		addrs, err := getIPAddr(prefix, 0, empty, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -157,7 +157,7 @@ func TestGetIPAddr(t *testing.T) {
 			t.Errorf("last addr mismatch %v", last)
 		}
 
-		addrs, err = getIPAddr(prefix, 6, empty)
+		addrs, err = getIPAddr(prefix, 6, empty, 0)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -194,7 +194,7 @@ func TestGetItem(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			pool, err := initIPPool(netip.MustParsePrefix(tt.pool), tt.bits)
+			pool, err := initIPPool(netip.MustParsePrefix(tt.pool), tt.bits, 0)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -217,7 +217,7 @@ func TestGetItem(t *testing.T) {
 
 func TestPrefixToIndex(t *testing.T) {
 	// getitem and prefixToIndex must be inverse of each other (CR-017).
-	pool, err := initIPPool(netip.MustParsePrefix("10.0.0.0/8"), 24)
+	pool, err := initIPPool(netip.MustParsePrefix("10.0.0.0/8"), 24, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -236,11 +236,37 @@ func TestPrefixToIndex(t *testing.T) {
 	}
 
 	// A prefix below the pool range is an error, not a bogus index (CR-017).
-	pool2, err := initIPPool(netip.MustParsePrefix("10.255.0.0/24"), 32)
+	pool2, err := initIPPool(netip.MustParsePrefix("10.255.0.0/24"), 32, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool2.prefixToIndex(netip.MustParsePrefix("10.254.255.255/32")); err == nil {
 		t.Error("prefixToIndex of a below-range prefix should error")
+	}
+}
+
+func TestAddressEnumerationCap(t *testing.T) {
+	// A large IPv6 pool expanded fully (cnt<=0) must be capped by maxCount rather
+	// than trying to enumerate 2^64 addresses (CR-019). This must return promptly.
+	addrs, err := getIPAddr(netip.MustParsePrefix("2001:db8::/64"), 0, []netip.Addr{}, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(addrs) != 5 {
+		t.Errorf("IPv6 getIPAddr cap: got %d addresses, want 5", len(addrs))
+	}
+
+	// Full block enumeration is likewise capped by maxCount.
+	blocks, err := getIPAddrBlocks(netip.MustParsePrefix("2001:db8::/32"), 64, -1, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(blocks) != 7 {
+		t.Errorf("getIPAddrBlocks cap: got %d blocks, want 7", len(blocks))
+	}
+
+	// maxCount<=0 falls back to the default.
+	if got := resolveMaxAddressCount(0); got != DefaultMaxAddressCount {
+		t.Errorf("resolveMaxAddressCount(0) = %d, want %d", got, DefaultMaxAddressCount)
 	}
 }
