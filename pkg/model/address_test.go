@@ -214,3 +214,33 @@ func TestGetItem(t *testing.T) {
 		})
 	}
 }
+
+func TestPrefixToIndex(t *testing.T) {
+	// getitem and prefixToIndex must be inverse of each other (CR-017).
+	pool, err := initIPPool(netip.MustParsePrefix("10.0.0.0/8"), 24)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, idx := range []int{0, 1, 5, 256, 1000, 65535} {
+		p, err := pool.getitem(idx)
+		if err != nil {
+			t.Fatalf("getitem(%d): %v", idx, err)
+		}
+		got, err := pool.prefixToIndex(p)
+		if err != nil {
+			t.Fatalf("prefixToIndex(%v): %v", p, err)
+		}
+		if got != idx {
+			t.Errorf("round-trip idx %d -> %v -> %d", idx, p, got)
+		}
+	}
+
+	// A prefix below the pool range is an error, not a bogus index (CR-017).
+	pool2, err := initIPPool(netip.MustParsePrefix("10.255.0.0/24"), 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool2.prefixToIndex(netip.MustParsePrefix("10.254.255.255/32")); err == nil {
+		t.Error("prefixToIndex of a below-range prefix should error")
+	}
+}

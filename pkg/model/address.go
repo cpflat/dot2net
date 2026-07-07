@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"math"
+	"math/big"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -91,21 +92,29 @@ func (pool *ipPool) prefixToIndex(prefix netip.Prefix) (int, error) {
 
 	topSlice := pool.prefixRange.Addr().AsSlice()
 	givenSlice := prefix.Addr().AsSlice()
-	cnt := 0
-	for i := 0; i < len(topSlice); i++ {
-		diff := int(givenSlice[i] - topSlice[i])
-		if diff > 0 {
-			if pool.bits >= (i+1)*8 {
-				cnt = cnt + diff<<(pool.bits-(i+1)*8)
-			} else {
-				cnt = cnt + diff>>((i+1)*8-pool.bits)
-			}
-		}
+	// index = (given - base) >> hostBits. Computed as whole big integers to
+	// avoid per-byte borrow bugs and to stay correct for IPv6-sized differences.
+	top := new(big.Int).SetBytes(topSlice)
+	given := new(big.Int).SetBytes(givenSlice)
+	diff := new(big.Int).Sub(given, top)
+	if diff.Sign() < 0 {
+		return -1, fmt.Errorf("prefix %s is below pool range %s", prefix, pool.prefixRange)
 	}
-	return cnt, nil
+	hostBits := uint(len(topSlice)*8 - pool.bits)
+	diff.Rsh(diff, hostBits)
+	if !diff.IsInt64() {
+		return -1, fmt.Errorf("prefix %s index out of range for pool %s", prefix, pool.prefixRange)
+	}
+	return int(diff.Int64()), nil
 }
 
 func (pool *ipPool) reserveAddr(addr netip.Addr) error {
+	if !pool.prefixRange.Contains(addr) {
+		// address is outside this pool; nothing to reserve here.
+		// (The previous byte-wise index math silently produced a bogus
+		// out-of-range index for such addresses instead of skipping them.)
+		return nil
+	}
 	prefix, err := addr.Prefix(pool.bits)
 	if err != nil {
 		// out of pool range
