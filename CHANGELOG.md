@@ -17,7 +17,8 @@ Bug fixes from a systematic code review (correctness, determinism, and robustnes
 - **Address calculation**: `getitem` now carries into the most significant byte and handles prefix lengths ≤ 8 (previously it could ignore the index or drop the top-byte carry); `prefixToIndex` uses big-integer math (correct for IPv6-sized differences, no per-byte borrow bug), and `reserveAddr` skips addresses outside the pool instead of recording a bogus index; pool enumeration works in log order (no `2^n` overflow) and is bounded by the new `max_address_count` setting
 - **Bind mount source path**: tinet / containerlab bind mounts use the actual generated filename (`GetFileName`) instead of the file-definition id, fixing paths when `name_prefix` / `name_suffix` is set
 - **Errors instead of panics**: return errors (rather than panicking) on missing dot-file arguments, malformed DOT input, ambiguous edges during diagram merge, out-of-range member / neighbor references, and insufficient `file` parameter candidates
-- **Error propagation**: surface previously-discarded errors from place-label checks and management-interface labels, and fix `%w` error wrapping so failures carry their cause
+- **Error propagation**: surface previously-discarded errors from place-label checks, management-interface labels, group labels, and the relative-namespace chain (unknown PlaceLabel referenced by a MetaValueLabel); fix `%w` error wrapping so failures carry their cause
+- **Class label validation**: an undefined class label is now reported (or skipped, per `ignore_undefined_class`) consistently across node/interface/connection/group; corrected mislabeled "interfaceclass" errors for connection/group classes
 - **Diagram merge**: merging diagrams no longer drops node groups that exist only in the second diagram
 - **Containerlab endpoints**: no longer emit a dangling `endpoints:` line when a node has no non-virtual connections
 - **Visual output**: guard against nil node / interface references and wrap the underlying error when an interface lacks an IP address
@@ -25,6 +26,7 @@ Bug fixes from a systematic code review (correctness, determinism, and robustnes
 
 ### Added
 - **`max_address_count` global setting**: caps how many addresses/prefixes are enumerated when an address pool is expanded fully (default 65536), preventing oversized (e.g. IPv6) pools from exhausting memory
+- **`ignore_undefined_class` global setting**: when `true`, class labels that match no defined class are skipped instead of causing an error (e.g. subgraph labels used only for display); default `false`
 - Regression tests for `getitem` / `prefixToIndex` address arithmetic and enumeration caps, multiple-NodeClass matching, and `param_format` expansion
 
 ## [0.7.1] - 2026-02-05
