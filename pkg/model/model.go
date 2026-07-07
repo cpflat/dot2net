@@ -184,7 +184,9 @@ func buildSkeleton(cfg *types.Config, d *Diagram) (*types.NetworkModel, error) {
 	nm.Groups = make([]*types.Group, 0, len(d.graph.SubGraphs.SubGraphs))
 	for _, s := range d.SortedSubGraphs() {
 		group := nm.NewGroup(s.Name)
-		group.SetLabels(cfg, getSubGraphLabels(s), []string{})
+		if err := group.SetLabels(cfg, getSubGraphLabels(s), []string{}); err != nil {
+			return nil, err
+		}
 	}
 
 	nm.Nodes = make([]*types.Node, 0, len(d.graph.Nodes.Nodes))

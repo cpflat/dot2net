@@ -902,6 +902,9 @@ func (n *Node) SetLabels(cfg *Config, labels []string, moduleLabels []string) er
 	for _, cls := range n.ClassLabels() {
 		nc, ok := cfg.NodeClassByName(cls)
 		if !ok {
+			if cfg.GlobalSettings.IgnoreUndefinedClass {
+				continue
+			}
 			return fmt.Errorf("invalid nodeclass name %s", cls)
 		}
 		n.ParsedLabels.Classes = append(n.ParsedLabels.Classes, nc)
@@ -1282,6 +1285,9 @@ func (iface *Interface) SetLabels(cfg *Config, labels []string, moduleLabels []s
 	for _, cls := range iface.ClassLabels() {
 		ic, ok := cfg.InterfaceClassByName(cls)
 		if !ok {
+			if cfg.GlobalSettings.IgnoreUndefinedClass {
+				continue
+			}
 			return fmt.Errorf("invalid interfaceclass name %s", cls)
 		}
 		iface.ParsedLabels.Classes = append(iface.ParsedLabels.Classes, ic)
@@ -1650,7 +1656,10 @@ func (conn *Connection) SetLabels(cfg *Config, labels []string, moduleLabels []s
 	for _, cls := range conn.ClassLabels() {
 		cc, ok := cfg.ConnectionClassByName(cls)
 		if !ok {
-			return fmt.Errorf("invalid interfaceclass name %s", cls)
+			if cfg.GlobalSettings.IgnoreUndefinedClass {
+				continue
+			}
+			return fmt.Errorf("invalid connectionclass name %s", cls)
 		}
 		conn.ParsedLabels.Classes = append(conn.ParsedLabels.Classes, cc)
 	}
@@ -2254,7 +2263,10 @@ func (g *Group) SetLabels(cfg *Config, labels []string, moduleLabels []string) e
 	for _, cls := range g.ClassLabels() {
 		gc, ok := cfg.GroupClassByName(cls)
 		if !ok {
-			return fmt.Errorf("invalid interfaceclass name %s", cls)
+			if cfg.GlobalSettings.IgnoreUndefinedClass {
+				continue
+			}
+			return fmt.Errorf("invalid groupclass name %s", cls)
 		}
 		g.ParsedLabels.Classes = append(g.ParsedLabels.Classes, gc)
 	}

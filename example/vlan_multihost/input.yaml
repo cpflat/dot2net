@@ -2,6 +2,8 @@ name: ospf_simple
 
 global:
   path: local
+  # subgraph labels (host1/2/3) are used as display labels, not group classes
+  ignore_undefined_class: true
 
 module:
   - tinet

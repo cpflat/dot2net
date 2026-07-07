@@ -337,6 +337,11 @@ type GlobalSettings struct {
 	// It bounds internal count-up so an oversized (e.g. IPv6) pool cannot blow up
 	// memory. 0 or negative uses DefaultMaxAddressCount.
 	MaxAddressCount int `yaml:"max_address_count" mapstructure:"max_address_count"`
+	// IgnoreUndefinedClass controls how a class label that does not match any
+	// defined class is handled. false (default): it is an error. true: it is
+	// silently skipped (useful when e.g. a subgraph label is meant for display
+	// rather than as a group class).
+	IgnoreUndefinedClass bool `yaml:"ignore_undefined_class" mapstructure:"ignore_undefined_class"`
 }
 
 type FileDefinition struct {
