@@ -1200,9 +1200,7 @@ func (n *Node) setNodeBaseRelativeNameSpace(
 	}
 
 	// meta value labels
-	setMetaValueLabelNameSpace(ns, n, globalParams, header)
-
-	return nil
+	return setMetaValueLabelNameSpace(ns, n, globalParams, header)
 }
 
 func (n *Node) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
@@ -1210,9 +1208,7 @@ func (n *Node) BuildRelativeNameSpace(globalParams map[string]map[string]string)
 	setGlobalParams(n, globalParams)
 
 	// base params
-	n.setNodeBaseRelativeNameSpace(n, globalParams, "")
-
-	return nil
+	return n.setNodeBaseRelativeNameSpace(n, globalParams, "")
 }
 
 // FilesToGenerate returns a list of file names that the node will generate based on its classes.
@@ -1580,9 +1576,7 @@ func (iface *Interface) setInterfaceBaseRelativeNameSpace(
 	}
 
 	// meta value labels
-	setMetaValueLabelNameSpace(ns, iface, globalParams, header)
-
-	return nil
+	return setMetaValueLabelNameSpace(ns, iface, globalParams, header)
 }
 
 func (iface *Interface) BuildRelativeNameSpace(globalParams map[string]map[string]string) error {
@@ -1591,11 +1585,15 @@ func (iface *Interface) BuildRelativeNameSpace(globalParams map[string]map[strin
 	setGlobalParams(iface, globalParams)
 
 	// base params
-	iface.setInterfaceBaseRelativeNameSpace(iface, globalParams, "")
+	if err := iface.setInterfaceBaseRelativeNameSpace(iface, globalParams, ""); err != nil {
+		return err
+	}
 
 	// opposite interface params
 	if iface.Connection != nil {
-		iface.Opposite.setInterfaceBaseRelativeNameSpace(iface, globalParams, NumberPrefixOppositeInterface)
+		if err := iface.Opposite.setInterfaceBaseRelativeNameSpace(iface, globalParams, NumberPrefixOppositeInterface); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -2106,19 +2104,27 @@ func (n *Neighbor) BuildRelativeNameSpace(globalParams map[string]map[string]str
 	setGlobalParams(n, globalParams)
 
 	// base params (n.self)
-	n.Self.setInterfaceBaseRelativeNameSpace(n, globalParams, "")
+	if err := n.Self.setInterfaceBaseRelativeNameSpace(n, globalParams, ""); err != nil {
+		return err
+	}
 
 	// base opposite params
 	if n.Self.Connection != nil {
-		n.Self.Opposite.setInterfaceBaseRelativeNameSpace(n.Self, globalParams, NumberPrefixOppositeInterface)
+		if err := n.Self.Opposite.setInterfaceBaseRelativeNameSpace(n.Self, globalParams, NumberPrefixOppositeInterface); err != nil {
+			return err
+		}
 	}
 
 	// neighbor params
-	n.Neighbor.setInterfaceBaseRelativeNameSpace(n, globalParams, NumberPrefixNeighbor)
+	if err := n.Neighbor.setInterfaceBaseRelativeNameSpace(n, globalParams, NumberPrefixNeighbor); err != nil {
+		return err
+	}
 
 	// neighbor opposite params
 	if n.Neighbor.Connection != nil {
-		n.Neighbor.Opposite.setInterfaceBaseRelativeNameSpace(n.Neighbor, globalParams, NumberPrefixNeighbor+NumberPrefixOppositeInterface)
+		if err := n.Neighbor.Opposite.setInterfaceBaseRelativeNameSpace(n.Neighbor, globalParams, NumberPrefixNeighbor+NumberPrefixOppositeInterface); err != nil {
+			return err
+		}
 	}
 
 	return nil

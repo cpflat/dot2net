@@ -715,7 +715,9 @@ func makeRelativeNamespace(nm *types.NetworkModel) error {
 	}
 
 	for _, ns := range nm.NameSpacers() {
-		ns.BuildRelativeNameSpace(globals)
+		if err := ns.BuildRelativeNameSpace(globals); err != nil {
+			return err
+		}
 	}
 
 	return nil
