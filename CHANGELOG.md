@@ -28,6 +28,14 @@ Bug fixes from a systematic code review (correctness, determinism, and robustnes
 - **`max_address_count` global setting**: caps how many addresses/prefixes are enumerated when an address pool is expanded fully (default 65536), preventing oversized (e.g. IPv6) pools from exhausting memory
 - **`ignore_undefined_class` global setting**: when `true`, class labels that match no defined class are skipped instead of causing an error (e.g. subgraph labels used only for display); default `false`
 - Regression tests for `getitem` / `prefixToIndex` address arithmetic and enumeration caps, multiple-NodeClass matching, and `param_format` expansion
+- **Expanded test suite** covering previously-untested core code (no behavior change):
+  - `pkg/types/object.go`: class conflict detection, relative-namespace prefix composition, group parameter precedence, and construction boundaries (isolated node, self-loop, multi-edge)
+  - `pkg/model/dependency.go`: topological sort and cycle detection (self-loop, multi-node cycles, cycle-path recovery, missing/errored dependencies) exercised directly
+  - `pkg/visual`: `abbreviateIPAddress` / `getInterfaceAddress` plus structural checks of `GraphToDot` (parseable DOT) and `GetDataJSON`
+  - CLI: end-to-end `clean` safety test (deletes only generated files/emptied directories, never user files) and `--dry-run`
+  - Module output: structural validation of generated containerlab / tinet YAML (node kind/image, links, interfaces) instead of filename-suffix matching
+  - Determinism: builds each representative scenario twice and asserts byte-identical output
+  - Failure paths: malformed DOT / YAML and undefined-class references (strict vs. `ignore_undefined_class`)
 
 ## [0.7.1] - 2026-02-05
 
