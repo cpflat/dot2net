@@ -815,11 +815,49 @@ func TestGetParameterCandidates_IntegerNotEnough(t *testing.T) {
 		Footer: "",
 	}
 
-	// Request more than available (max - min = 2, but requesting 5)
+	// Candidates span the half-open range [Min, Max), i.e. Max-Min = 2 values
+	// (1 and 2); requesting 5 exceeds that and must error.
 	_, err := getParameterCandidates(cfg, rule, 5)
 	if err == nil {
 		t.Error("expected error when requesting more params than available, got nil")
 	}
+}
+
+// TestGetParameterCandidates_IntegerBoundary pins the exact off-by-one boundary
+// of the integer candidate range [Min, Max): requesting exactly Max-Min values
+// succeeds and yields Min..Max-1, while requesting one more errors. This guards
+// against a `<` vs `<=` regression in the capacity check.
+func TestGetParameterCandidates_IntegerBoundary(t *testing.T) {
+	cfg := &types.Config{}
+	// Max-Min = 3 available candidates: 10, 11, 12 (Max=13 is exclusive).
+	rule := &types.ParameterRule{
+		Name: "boundary",
+		Type: "integer",
+		Min:  10,
+		Max:  13,
+	}
+
+	t.Run("exact capacity succeeds", func(t *testing.T) {
+		got, err := getParameterCandidates(cfg, rule, 3)
+		if err != nil {
+			t.Fatalf("cnt == Max-Min should succeed, got: %v", err)
+		}
+		want := []string{"10", "11", "12"}
+		if len(got) != len(want) {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("candidate[%d] = %q, want %q", i, got[i], want[i])
+			}
+		}
+	})
+
+	t.Run("one over capacity errors", func(t *testing.T) {
+		if _, err := getParameterCandidates(cfg, rule, 4); err == nil {
+			t.Error("cnt == Max-Min+1 should error, got nil")
+		}
+	})
 }
 
 func TestGetParameterCandidates_File(t *testing.T) {

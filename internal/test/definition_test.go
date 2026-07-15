@@ -461,11 +461,14 @@ digraph {
 				t.Fatalf("Failed to list generated files: %v", err)
 			}
 
-			// Check expected files
+			// Check expected files.
+			// Match on the exact file path (the expected names are top-level
+			// generated files); using an exact match rather than HasSuffix
+			// avoids "spec.yaml" spuriously matching e.g. "myspec.yaml".
 			for _, expectedFile := range tt.expectFiles {
 				found := false
 				for _, file := range files {
-					if strings.HasSuffix(file, expectedFile) {
+					if file == expectedFile {
 						found = true
 						break
 					}

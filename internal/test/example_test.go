@@ -26,36 +26,36 @@ func TestExampleScenarios(t *testing.T) {
 	}
 	rootDir := filepath.Join(wd, "..", "..") // project root
 	exampleDir := filepath.Join(rootDir, "example")
-	
+
 	// Find all scenarios with input.dot and input.yaml
 	entries, err := os.ReadDir(exampleDir)
 	if err != nil {
 		t.Fatalf("failed to read example directory: %v", err)
 	}
-	
+
 	var scenarios []string
 	for _, entry := range entries {
 		if !entry.IsDir() {
 			continue
 		}
-		
+
 		scenarioPath := filepath.Join(exampleDir, entry.Name())
 		dotFile := filepath.Join(scenarioPath, TopologyFileName)
 		yamlFile := filepath.Join(scenarioPath, DefinitionFileName)
-		
+
 		if _, err := os.Stat(dotFile); err == nil {
 			if _, err := os.Stat(yamlFile); err == nil {
 				scenarios = append(scenarios, entry.Name())
 			}
 		}
 	}
-	
+
 	if len(scenarios) == 0 {
 		t.Fatalf("no valid scenarios found in %s", exampleDir)
 	}
-	
+
 	t.Logf("Found %d scenarios: %v", len(scenarios), scenarios)
-	
+
 	for _, scenarioName := range scenarios {
 		t.Run(scenarioName, func(t *testing.T) {
 			tryScenario(t, rootDir, scenarioName)
@@ -107,12 +107,19 @@ func tryScenario(t *testing.T, rootDir string, scenarioName string) {
 	// copyFile(t, filepath.Join(scenarioDir, DefinitionFileName), defFile)
 
 	// execute dot2net
-	oldWd, _ := os.Getwd()
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
 	err = os.Chdir(tmpDir)
 	if err != nil {
 		t.Fatalf("failed to change working directory: %v", err)
 	}
-	defer os.Chdir(oldWd)
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Errorf("failed to restore working directory: %v", err)
+		}
+	}()
 
 	d, err := model.DiagramFromDotFile(topoFile)
 	if err != nil {
@@ -244,13 +251,13 @@ func normalizePaths(content, tmpDir string) string {
 	if err != nil {
 		abs = tmpDir
 	}
-	
+
 	// Collect all possible path variations to replace
 	pathsToReplace := []string{
 		abs + string(filepath.Separator),
 		tmpDir + string(filepath.Separator),
 	}
-	
+
 	// Handle macOS /var -> /private/var symlink issue
 	if strings.HasPrefix(abs, "/var/") {
 		privatePath := "/private" + abs + string(filepath.Separator)
@@ -260,7 +267,7 @@ func normalizePaths(content, tmpDir string) string {
 		privatePath := "/private" + tmpDir + string(filepath.Separator)
 		pathsToReplace = append(pathsToReplace, privatePath)
 	}
-	
+
 	// Sort by length descending to replace longer paths first
 	for i := 0; i < len(pathsToReplace); i++ {
 		for j := i + 1; j < len(pathsToReplace); j++ {
@@ -269,12 +276,12 @@ func normalizePaths(content, tmpDir string) string {
 			}
 		}
 	}
-	
+
 	// Apply all replacements in order (longest first)
 	for _, path := range pathsToReplace {
 		content = strings.ReplaceAll(content, path, "")
 	}
-	
+
 	return content
 }
 

@@ -208,7 +208,11 @@ networkclass:
 			if err := os.Chdir(tmpDir); err != nil {
 				t.Fatalf("failed to change directory: %v", err)
 			}
-			defer os.Chdir(origDir)
+			defer func() {
+				if err := os.Chdir(origDir); err != nil {
+					t.Errorf("failed to restore working directory: %v", err)
+				}
+			}()
 
 			// Load config and build model
 			cfg, err := types.LoadConfig(yamlFile)
@@ -325,7 +329,11 @@ nodeclass:
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to change directory: %v", err)
 	}
-	defer os.Chdir(origDir)
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Errorf("failed to restore working directory: %v", err)
+		}
+	}()
 
 	// Load and build
 	cfg, err := types.LoadConfig(yamlFile)
