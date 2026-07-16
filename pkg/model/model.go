@@ -262,9 +262,11 @@ func buildSkeleton(cfg *types.Config, d *Diagram) (*types.NetworkModel, error) {
 		if len(conn.PlaceLabels()) > 0 {
 			return nil, fmt.Errorf("connection cannot have placeLabels")
 		}
-		//if (len(srcIf.Labels.ClassLabels) == 0 || len(dstIf.Labels.ClassLabels) == 0) && len(conn.Labels.ClassLabels) == 0 {
-		//	return nil, fmt.Errorf("set default interfaceclass or connectionclass to leave links unlabeled")
-		//}
+		// Unlabeled links are intentionally permitted: an interface/connection
+		// with no explicit class may still receive the "all"/"default" class or
+		// a module-provided class later, and a link that legitimately needs no
+		// configuration should not be rejected. Do not reinstate a hard error
+		// here without a corresponding "default" class requirement.
 	}
 
 	return nm, nil
@@ -445,11 +447,14 @@ func assignConnectionNames(nm *types.NetworkModel) error {
 
 	for _, conn := range nm.Connections {
 		if conn.Name == "" {
-			// Get prefix from ConnectionClass
+			// Get prefix from ConnectionClass. GetClasses() returns the classes
+			// in deterministic label order, so "first non-empty prefix wins" is
+			// stable across runs. The type assertion is guarded so a class of an
+			// unexpected type is skipped rather than causing a panic.
 			prefix := types.DefaultConnectionPrefix
 			for _, cls := range conn.GetClasses() {
-				cc := cls.(*types.ConnectionClass)
-				if cc.Prefix != "" {
+				cc, ok := cls.(*types.ConnectionClass)
+				if ok && cc.Prefix != "" {
 					prefix = cc.Prefix
 					break
 				}
@@ -500,11 +505,14 @@ func assignSegmentNames(nm *types.NetworkModel) error {
 
 	for _, segment := range allSegments {
 		if segment.Name == "" {
-			// Get prefix from SegmentClass
+			// Get prefix from SegmentClass. GetClasses() returns the classes in
+			// deterministic label order, so "first non-empty prefix wins" is
+			// stable. The type assertion is guarded to skip unexpected types
+			// instead of panicking.
 			prefix := types.DefaultSegmentPrefix
 			for _, cls := range segment.GetClasses() {
-				sc := cls.(*types.SegmentClass)
-				if sc.Prefix != "" {
+				sc, ok := cls.(*types.SegmentClass)
+				if ok && sc.Prefix != "" {
 					prefix = sc.Prefix
 					break
 				}
@@ -546,9 +554,14 @@ func assignSegmentNames(nm *types.NetworkModel) error {
 func setGivenParameters(nm *types.NetworkModel) error {
 	// add parameters only when no same key in namespace
 	addParam := func(lo types.LabelOwner, k string, v string) error {
+		// IMPORTANT: *types.Connection also satisfies types.NameSpacer, so its
+		// case MUST precede the NameSpacer case below. A type switch matches the
+		// first applicable case in order; reordering these two would silently
+		// stop propagating connection values to the endpoint interfaces.
 		switch obj := lo.(type) {
 		case *types.Connection:
-			// Connection requires special handling: add to both interfaces
+			// Connection requires special handling: the value is propagated to
+			// both endpoint interfaces as well as the Connection itself.
 			if !obj.Src.HasParam(k) {
 				obj.Src.AddParam(k, v)
 			}
@@ -559,7 +572,7 @@ func setGivenParameters(nm *types.NetworkModel) error {
 			if !obj.HasParam(k) {
 				obj.AddParam(k, v)
 			}
-		case types.NameSpacer: // *Node, *Interface, *Group, (*Connection handled above)
+		case types.NameSpacer: // *Node, *Interface, *Group (NOT *Connection, matched above)
 			if !obj.HasParam(k) {
 				obj.AddParam(k, v)
 			}
