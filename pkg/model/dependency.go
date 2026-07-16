@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sort"
 
-	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/cpflat/dot2net/pkg/types"
+	mapset "github.com/deckarep/golang-set/v2"
 )
 
 // DependencyNode represents a node in dependency graph
@@ -13,6 +13,10 @@ type DependencyNode[T any] interface {
 	GetID() string
 	GetDependencies() ([]string, error)
 	GetItem() T
+	// GetLabel returns a human-readable identifier used in diagnostics such as
+	// cyclic-dependency messages. Unlike GetID (an internal synthetic key like
+	// "template_3"), it should name the underlying object meaningfully.
+	GetLabel() string
 }
 
 // DependencyGraph handles topological sorting of dependency nodes
@@ -68,7 +72,7 @@ func (dg *DependencyGraph[T]) visit(nodeID string, sorted *[]T) error {
 		return nil
 	}
 	if dg.temporary.Contains(nodeID) {
-		// Find the cycle path
+		// Build a human-readable cycle path from the current visit stack.
 		cycleStartIndex := -1
 		for i, pathNode := range dg.visitPath {
 			if pathNode == nodeID {
@@ -76,25 +80,34 @@ func (dg *DependencyGraph[T]) visit(nodeID string, sorted *[]T) error {
 				break
 			}
 		}
-		
+
 		var cyclePath []string
 		if cycleStartIndex >= 0 {
-			cyclePath = append(cyclePath, dg.visitPath[cycleStartIndex:]...)
-			cyclePath = append(cyclePath, nodeID) // complete the cycle
+			for _, id := range dg.visitPath[cycleStartIndex:] {
+				cyclePath = append(cyclePath, dg.labelFor(id))
+			}
+			cyclePath = append(cyclePath, dg.labelFor(nodeID)) // complete the cycle
 		} else {
-			cyclePath = []string{nodeID}
+			cyclePath = []string{dg.labelFor(nodeID)}
 		}
-		
-		return fmt.Errorf("cyclic dependency detected: %s", fmt.Sprintf("%s", cyclePath))
+
+		return fmt.Errorf("cyclic dependency detected: %s", cyclePath)
 	}
 
+	// Mark as being visited and ensure the temporary mark and visit-path entry
+	// are always cleaned up together on every return path (error or success),
+	// keeping dg state consistent so the graph can be reused safely.
 	dg.temporary.Add(nodeID)
 	dg.visitPath = append(dg.visitPath, nodeID)
+	defer func() {
+		dg.temporary.Remove(nodeID)
+		dg.visitPath = dg.visitPath[:len(dg.visitPath)-1]
+	}()
+
 	node := dg.nodes[nodeID]
 
 	dependencies, err := node.GetDependencies()
 	if err != nil {
-		dg.visitPath = dg.visitPath[:len(dg.visitPath)-1] // remove from path on error
 		return err
 	}
 
@@ -105,19 +118,25 @@ func (dg *DependencyGraph[T]) visit(nodeID string, sorted *[]T) error {
 
 	for _, depID := range sortedDeps {
 		if _, exists := dg.nodes[depID]; !exists {
-			dg.visitPath = dg.visitPath[:len(dg.visitPath)-1] // remove from path on error
-			return fmt.Errorf("dependency %s not found for node %s", depID, nodeID)
+			return fmt.Errorf("dependency %s not found for node %s", dg.labelFor(depID), dg.labelFor(nodeID))
 		}
 		if err := dg.visit(depID, sorted); err != nil {
 			return err
 		}
 	}
 
-	dg.temporary.Remove(nodeID)
-	dg.visitPath = dg.visitPath[:len(dg.visitPath)-1] // remove from path when done
 	dg.permanent.Add(nodeID)
 	*sorted = append(*sorted, node.GetItem())
 	return nil
+}
+
+// labelFor returns a human-readable label for a node ID (falling back to the
+// raw ID if the node is unknown), used in diagnostic messages.
+func (dg *DependencyGraph[T]) labelFor(nodeID string) string {
+	if node, ok := dg.nodes[nodeID]; ok {
+		return node.GetLabel()
+	}
+	return nodeID
 }
 
 // reorderConfigTemplates sorts ConfigTemplates based on their dependency relationships
@@ -125,7 +144,7 @@ func reorderConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplat
 	// Build name and group mappings
 	ctmap := make(map[string][]int)
 	grouped := make(map[string][]int)
-	
+
 	for ind, ct := range cts {
 		if ct.Name != "" {
 			ctmap[ct.Name] = append(ctmap[ct.Name], ind)
@@ -137,7 +156,7 @@ func reorderConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplat
 
 	// Create dependency graph
 	dg := NewDependencyGraph[*types.ConfigTemplate]()
-	
+
 	for i, ct := range cts {
 		node := &ConfigTemplateDependencyNode{
 			template: ct,
@@ -155,8 +174,8 @@ func reorderConfigTemplates(cts []*types.ConfigTemplate) ([]*types.ConfigTemplat
 type ConfigTemplateDependencyNode struct {
 	template *types.ConfigTemplate
 	index    int
-	ctmap    map[string][]int  // name -> indices
-	grouped  map[string][]int  // group -> indices
+	ctmap    map[string][]int // name -> indices
+	grouped  map[string][]int // group -> indices
 }
 
 func (ctdn *ConfigTemplateDependencyNode) GetID() string {
@@ -194,11 +213,23 @@ func (ctdn *ConfigTemplateDependencyNode) GetItem() *types.ConfigTemplate {
 	return ctdn.template
 }
 
+func (ctdn *ConfigTemplateDependencyNode) GetLabel() string {
+	ct := ctdn.template
+	switch {
+	case ct.Name != "":
+		return fmt.Sprintf("template:%s", ct.Name)
+	case ct.File != "":
+		return fmt.Sprintf("template(file:%s)", ct.File)
+	default:
+		return ctdn.GetID()
+	}
+}
+
 // reorderNameSpacers sorts NameSpacers based on their dependency relationships using DependClasses and Depends methods
 func reorderNameSpacers(namespacers []types.NameSpacer) ([]types.NameSpacer, error) {
 	// Create dependency graph
 	dg := NewDependencyGraph[types.NameSpacer]()
-	
+
 	for i, ns := range namespacers {
 		node := &NameSpacerDependencyNode{
 			namespacer:  ns,
@@ -220,6 +251,10 @@ type NameSpacerDependencyNode struct {
 
 func (nsdn *NameSpacerDependencyNode) GetID() string {
 	return fmt.Sprintf("namespacer_%d", nsdn.index)
+}
+
+func (nsdn *NameSpacerDependencyNode) GetLabel() string {
+	return nsdn.namespacer.StringForMessage()
 }
 
 func (nsdn *NameSpacerDependencyNode) GetItem() types.NameSpacer {

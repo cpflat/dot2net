@@ -24,7 +24,8 @@ func (n testDepNode) GetDependencies() ([]string, error) {
 	}
 	return n.deps, nil
 }
-func (n testDepNode) GetItem() string { return n.id }
+func (n testDepNode) GetItem() string  { return n.id }
+func (n testDepNode) GetLabel() string { return n.id }
 
 func buildGraph(nodes ...testDepNode) *DependencyGraph[string] {
 	dg := NewDependencyGraph[string]()
@@ -178,6 +179,27 @@ func TestDependencyGraph_GetDependenciesError(t *testing.T) {
 	_, err := dg.TopologicalSort()
 	if !errors.Is(err, sentinel) {
 		t.Fatalf("expected GetDependencies error to propagate, got %v", err)
+	}
+}
+
+// TestReorderConfigTemplates_CycleUsesReadableLabels verifies that a cyclic
+// dependency between config templates is reported with human-readable names
+// (CR-037) rather than the internal synthetic node IDs (template_0, ...).
+func TestReorderConfigTemplates_CycleUsesReadableLabels(t *testing.T) {
+	cts := []*types.ConfigTemplate{
+		{Name: "alpha", Depends: []string{"beta"}},
+		{Name: "beta", Depends: []string{"alpha"}},
+	}
+	_, err := reorderConfigTemplates(cts)
+	if err == nil {
+		t.Fatalf("expected cyclic dependency error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "template:alpha") || !strings.Contains(msg, "template:beta") {
+		t.Errorf("cycle message %q should name templates alpha/beta", msg)
+	}
+	if strings.Contains(msg, "template_0") || strings.Contains(msg, "template_1") {
+		t.Errorf("cycle message %q leaks internal synthetic IDs", msg)
 	}
 }
 
