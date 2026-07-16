@@ -1,6 +1,10 @@
 package types
 
-import "testing"
+import (
+	"os"
+	"strings"
+	"testing"
+)
 
 func TestFileDefinition_GetFileName(t *testing.T) {
 	tests := []struct {
@@ -118,7 +122,7 @@ func TestFileDefinition_GetOutputLocation(t *testing.T) {
 			want: "node",
 		},
 		{
-			name: "Both Output and Scope empty -> node (default)",
+			name:    "Both Output and Scope empty -> node (default)",
 			fileDef: FileDefinition{},
 			want:    "node",
 		},
@@ -222,11 +226,11 @@ func newNodeWithClasses(classes ...string) *Node {
 
 func TestConfigTemplate_NodeClassCheck(t *testing.T) {
 	tests := []struct {
-		name        string
-		nodeClass   string   // singular constraint (yaml: node)
-		nodeClasses []string // plural constraint (yaml: nodes)
+		name         string
+		nodeClass    string   // singular constraint (yaml: node)
+		nodeClasses  []string // plural constraint (yaml: nodes)
 		nodeClasses2 []string // classes actually held by the node
-		want        bool
+		want         bool
 	}{
 		{
 			name:         "no constraint - always true",
@@ -325,6 +329,48 @@ func TestConfigTemplate_NeighborNodeClassCheck(t *testing.T) {
 			got := ct.NeighborNodeClassCheck(newNodeWithClasses(tt.nodeClasses...))
 			if got != tt.want {
 				t.Errorf("NeighborNodeClassCheck() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+// TestLoadConfig_DuplicateClassNames verifies that LoadConfig rejects duplicate
+// class names instead of silently keeping the last definition (CR-057).
+func TestLoadConfig_DuplicateClassNames(t *testing.T) {
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+	}{
+		{
+			name:    "duplicate nodeclass",
+			yaml:    "name: t\nnodeclass:\n  - name: router\n  - name: router\n",
+			wantErr: "duplicate nodeclass name",
+		},
+		{
+			name:    "duplicate interfaceclass",
+			yaml:    "name: t\ninterfaceclass:\n  - name: eth\n  - name: eth\n",
+			wantErr: "duplicate interfaceclass name",
+		},
+		{
+			name:    "duplicate param_rule",
+			yaml:    "name: t\nparam_rule:\n  - name: vlan\n  - name: vlan\n",
+			wantErr: "duplicate param_rule name",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := dir + "/config.yaml"
+			if err := os.WriteFile(path, []byte(tt.yaml), 0644); err != nil {
+				t.Fatalf("write config: %v", err)
+			}
+			_, err := LoadConfig(path)
+			if err == nil {
+				t.Fatalf("expected error for %s, got nil", tt.name)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error %q does not contain %q", err.Error(), tt.wantErr)
 			}
 		})
 	}

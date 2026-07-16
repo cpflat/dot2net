@@ -316,6 +316,11 @@ func (cfg *Config) AddParameterRule(pr *ParameterRule) {
 	cfg.parameterRuleMap[pr.Name] = pr
 }
 
+// HasManagementLayer reports whether a management layer is configured. Note the
+// heuristic: a management layer is considered present only when its address
+// range is set, so a mgmt_layer block that omits "range" is silently treated as
+// absent. (Distinguishing "declared but incomplete" from "not declared" would
+// require making ManagementLayer a pointer.)
 func (cfg *Config) HasManagementLayer() bool {
 	return cfg.ManagementLayer.AddrRange != ""
 }
@@ -582,7 +587,7 @@ type ParameterRule struct {
 	Header string `yaml:"header" mapstructure:"header"`
 	Footer string `yaml:"footer" mapstructure:"footer"`
 	// for type file
-	SourceFile string `yaml:"sourcefile" mapstructure:"soucefile"`
+	SourceFile string `yaml:"sourcefile" mapstructure:"sourcefile"`
 
 	// === attach mode fields ===
 	// Source defines how to generate Value list (for attach mode)
@@ -1044,16 +1049,25 @@ func LoadConfig(path string) (*Config, error) {
 		if msg := CheckReservedParamName(prule.Name); msg != "" {
 			return nil, fmt.Errorf("in 'param_rule' section (name: %s): %s", prule.Name, msg)
 		}
+		if _, dup := cfg.parameterRuleMap[prule.Name]; dup {
+			return nil, fmt.Errorf("duplicate param_rule name %q", prule.Name)
+		}
 		cfg.parameterRuleMap[prule.Name] = prule
 	}
 
 	cfg.nodeClassMap = map[string]*NodeClass{}
 	for _, node := range cfg.NodeClasses {
+		if _, dup := cfg.nodeClassMap[node.Name]; dup {
+			return nil, fmt.Errorf("duplicate nodeclass name %q", node.Name)
+		}
 		cfg.nodeClassMap[node.Name] = node
 	}
 	cfg.interfaceClassMap = map[string]*InterfaceClass{}
 	cfg.neighborClassMap = map[string]map[string][]*NeighborClass{}
 	for _, iface := range cfg.InterfaceClasses {
+		if _, dup := cfg.interfaceClassMap[iface.Name]; dup {
+			return nil, fmt.Errorf("duplicate interfaceclass name %q", iface.Name)
+		}
 		cfg.interfaceClassMap[iface.Name] = iface
 		for _, neighbor := range iface.NeighborClasses {
 			if _, ok := cfg.neighborClassMap[iface.Name]; !ok {
@@ -1066,14 +1080,23 @@ func LoadConfig(path string) (*Config, error) {
 	}
 	cfg.connectionClassMap = map[string]*ConnectionClass{}
 	for _, conn := range cfg.ConnectionClasses {
+		if _, dup := cfg.connectionClassMap[conn.Name]; dup {
+			return nil, fmt.Errorf("duplicate connectionclass name %q", conn.Name)
+		}
 		cfg.connectionClassMap[conn.Name] = conn
 	}
 	cfg.groupClassMap = map[string]*GroupClass{}
 	for _, group := range cfg.GroupClasses {
+		if _, dup := cfg.groupClassMap[group.Name]; dup {
+			return nil, fmt.Errorf("duplicate groupclass name %q", group.Name)
+		}
 		cfg.groupClassMap[group.Name] = group
 	}
 	cfg.segmentClassMap = map[string]*SegmentClass{}
 	for _, segment := range cfg.SegmentClasses {
+		if _, dup := cfg.segmentClassMap[segment.Name]; dup {
+			return nil, fmt.Errorf("duplicate segmentclass name %q", segment.Name)
+		}
 		cfg.segmentClassMap[segment.Name] = segment
 	}
 	cfg.SorterConfigTemplateGroups = mapset.NewSet[string]()
