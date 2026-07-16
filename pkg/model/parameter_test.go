@@ -365,6 +365,7 @@ func TestGenerateValuesFromSource_Sequence(t *testing.T) {
 		start       int
 		end         int
 		expectedLen int
+		wantErr     bool
 		checkFirst  map[string]string
 		checkLast   map[string]string
 	}{
@@ -385,20 +386,19 @@ func TestGenerateValuesFromSource_Sequence(t *testing.T) {
 			checkLast:   map[string]string{"value": "2", "index": "2"},
 		},
 		{
-			name:        "zero count defaults to 10",
-			start:       0,
-			end:         0,
-			expectedLen: 10,
-			checkFirst:  map[string]string{"value": "0", "index": "0"},
-			checkLast:   map[string]string{"value": "9", "index": "9"},
+			// Empty range (start == end) is a configuration error (CR-023):
+			// previously it silently produced 10 entries.
+			name:    "empty sequence errors",
+			start:   0,
+			end:     0,
+			wantErr: true,
 		},
 		{
-			name:        "negative count defaults to 10",
-			start:       5,
-			end:         3,
-			expectedLen: 10,
-			checkFirst:  map[string]string{"value": "0", "index": "0"},
-			checkLast:   map[string]string{"value": "9", "index": "9"},
+			// Inverted range (start > end) is a configuration error (CR-023).
+			name:    "inverted sequence errors",
+			start:   5,
+			end:     3,
+			wantErr: true,
 		},
 	}
 
@@ -415,6 +415,12 @@ func TestGenerateValuesFromSource_Sequence(t *testing.T) {
 			}
 
 			params, err := generateValueParamsFromSource(cfg, rule)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for empty/inverted sequence, got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("generateValueParamsFromSource failed: %v", err)
 			}
@@ -856,6 +862,24 @@ func TestGetParameterCandidates_IntegerBoundary(t *testing.T) {
 	t.Run("one over capacity errors", func(t *testing.T) {
 		if _, err := getParameterCandidates(cfg, rule, 4); err == nil {
 			t.Error("cnt == Max-Min+1 should error, got nil")
+		}
+	})
+
+	t.Run("Max < Min is an invalid rule", func(t *testing.T) {
+		bad := &types.ParameterRule{Name: "bad", Type: "integer", Min: 10, Max: 5}
+		if _, err := getParameterCandidates(cfg, bad, 1); err == nil {
+			t.Error("expected error for Max < Min, got nil")
+		}
+	})
+
+	t.Run("Max == 0 means unlimited", func(t *testing.T) {
+		unlimited := &types.ParameterRule{Name: "unbounded", Type: "integer", Min: 100, Max: 0}
+		got, err := getParameterCandidates(cfg, unlimited, 5)
+		if err != nil {
+			t.Fatalf("Max == 0 should impose no cap, got: %v", err)
+		}
+		if len(got) != 5 || got[0] != "100" || got[4] != "104" {
+			t.Errorf("unbounded candidates = %v, want 100..104", got)
 		}
 	})
 }

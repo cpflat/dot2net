@@ -155,6 +155,13 @@ func (ns *NameSpace) IterateFlaggedParams() <-chan string {
 	return ns.paramFlags.Iter()
 }
 
+// AddParam sets parameter k to v with last-write-wins semantics: it performs a
+// plain map assignment and neither checks for an existing key nor rejects
+// reserved names / prefixes. Parameter assignment is therefore order-dependent;
+// the model build establishes the values in a fixed sequence (network -> node
+// -> connection -> interface -> segment, see assign*Parameters in
+// pkg/model/parameter.go), and callers relying on a value must run after the
+// producer that sets it.
 func (ns *NameSpace) AddParam(k, v string) {
 	ns.params[k] = v
 }

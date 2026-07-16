@@ -17,6 +17,17 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
+// getParameterCandidates returns cnt candidate parameter values for a rule.
+//
+// For the "file" type, values are read line by line from the source file; it is
+// an error if the file yields fewer than cnt non-empty lines.
+//
+// For the default ("int") type, candidates are consecutive integers drawn from
+// the half-open interval [Min, Max): the i-th candidate is Min+i (0 <= i < cnt),
+// so the largest value is Max-1 and the interval holds Max-Min candidates.
+// Max == 0 means "no upper bound" (unlimited): the capacity check is skipped and
+// cnt integers starting at Min are always produced. A configured Max < Min is
+// invalid and reported as an error.
 func getParameterCandidates(cfg *types.Config, rule *types.ParameterRule, cnt int) ([]string, error) {
 	params := []string{}
 
@@ -41,8 +52,14 @@ func getParameterCandidates(cfg *types.Config, rule *types.ParameterRule, cnt in
 			return nil, fmt.Errorf("not enough candidates for %s (%d required, %d available)", rule.Name, cnt, len(params))
 		}
 	default: // "int"
-		if rule.Max > 0 && rule.Max-rule.Min < cnt {
-			return nil, fmt.Errorf("not enough candidates for %s (%d required)", rule.Name, cnt)
+		// Max == 0 means "no upper bound"; only validate when Max is set.
+		if rule.Max > 0 {
+			if rule.Max < rule.Min {
+				return nil, fmt.Errorf("invalid parameter rule %s: max (%d) is less than min (%d)", rule.Name, rule.Max, rule.Min)
+			}
+			if rule.Max-rule.Min < cnt {
+				return nil, fmt.Errorf("not enough candidates for %s (%d required)", rule.Name, cnt)
+			}
 		}
 		for i := 0; i < cnt; i++ {
 			value := fmt.Sprintf("%s%d%s", rule.Header, rule.Min+i, rule.Footer)
@@ -335,6 +352,8 @@ func generateValueParamsFromSource(cfg *types.Config, rule *types.ParameterRule)
 
 	switch rule.Source.Type {
 	case "range":
+		// "range" is inclusive on both ends: value runs over [Start, End] and
+		// index is the 0-based offset from Start.
 		for i := rule.Source.Start; i <= rule.Source.End; i++ {
 			paramSet := make(map[string]string)
 			paramSet["value"] = fmt.Sprintf("%d", i)
@@ -342,9 +361,13 @@ func generateValueParamsFromSource(cfg *types.Config, rule *types.ParameterRule)
 			params = append(params, paramSet)
 		}
 	case "sequence":
+		// "sequence" produces End-Start entries with a 0-based value and index
+		// (the half-open interval [0, End-Start)). Start must be strictly less
+		// than End; an empty or inverted range is a configuration error.
 		count := rule.Source.End - rule.Source.Start
 		if count <= 0 {
-			count = 10 // default count
+			return nil, fmt.Errorf("param_rule %s has an empty sequence source: start (%d) must be less than end (%d)",
+				rule.Name, rule.Source.Start, rule.Source.End)
 		}
 		for i := 0; i < count; i++ {
 			paramSet := make(map[string]string)
