@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.3] - 2026-07-30
+
+### Changed
+
+- **DOT parsing dependency**: replaced the forked gographviz
+  (`cpflat/gographviz` via a `replace` directive) with the standalone
+  [dotlike](https://github.com/cpflat/dotlike) v0.0.1 library.
+  `DiagramFromDotFile` now uses dotlike's one-shot `Parse` (collapsing the
+  previous `Parse`→`NewGraph`→`Analyse` sequence). No behavior change; output
+  remains byte-stable.
+
 ## [0.7.2] - 2026-07-16
 
 ### Fixed

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/awalterschulze/gographviz"
+	"github.com/cpflat/dotlike"
 
 	"github.com/cpflat/dot2net/pkg/model"
 	"github.com/cpflat/dot2net/pkg/types"
@@ -53,7 +53,7 @@ func TestGraphToDot(t *testing.T) {
 	}
 
 	// The emitted DOT must be syntactically valid (re-parseable).
-	if _, err := gographviz.Parse([]byte(out)); err != nil {
+	if _, err := dotlike.Parse([]byte(out)); err != nil {
 		t.Errorf("GraphToDot produced unparseable DOT: %v\n%s", err, out)
 	}
 

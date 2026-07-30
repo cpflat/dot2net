@@ -5,14 +5,12 @@ go 1.21
 toolchain go1.23.4
 
 require (
-	github.com/awalterschulze/gographviz v2.0.3+incompatible
+	github.com/cpflat/dotlike v0.0.1
 	github.com/deckarep/golang-set/v2 v2.2.0
 	github.com/goccy/go-yaml v1.9.5
 	github.com/google/go-cmp v0.7.0
 	github.com/urfave/cli/v2 v2.11.1
 )
-
-replace github.com/awalterschulze/gographviz => github.com/cpflat/gographviz v0.0.0
 
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect

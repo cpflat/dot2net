@@ -7,14 +7,14 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/awalterschulze/gographviz"
+	"github.com/cpflat/dotlike"
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
 var SEPARATOR *regexp.Regexp
 
 type Diagram struct {
-	graph      *gographviz.Graph
+	graph      *dotlike.Graph
 	nodeGroups map[string][]string
 }
 
@@ -23,12 +23,8 @@ func DiagramFromDotFile(filepath string) (*Diagram, error) {
 	if err != nil {
 		return nil, err
 	}
-	graphAst, err := gographviz.Parse(src)
+	graph, err := dotlike.Parse(src)
 	if err != nil {
-		return nil, err
-	}
-	graph := gographviz.NewGraph()
-	if err := gographviz.Analyse(graphAst, graph); err != nil {
 		return nil, err
 	}
 
@@ -37,22 +33,22 @@ func DiagramFromDotFile(filepath string) (*Diagram, error) {
 	return diagram, nil
 }
 
-func (d *Diagram) Nodes() []*gographviz.Node {
+func (d *Diagram) Nodes() []*dotlike.Node {
 	return d.graph.Nodes.Nodes
 }
 
-func (d *Diagram) SortedNodes() []*gographviz.Node {
-	ret := make([]*gographviz.Node, len(d.graph.Nodes.Nodes))
+func (d *Diagram) SortedNodes() []*dotlike.Node {
+	ret := make([]*dotlike.Node, len(d.graph.Nodes.Nodes))
 	copy(ret, d.graph.Nodes.Nodes)
 	sort.Slice(ret, func(i, j int) bool { return ret[i].Name < ret[j].Name })
 	return ret
 }
 
 // SortedSubGraphs returns the subgraphs (groups) in a deterministic order.
-// gographviz stores subgraphs in a map, so iterating it directly is
+// dotlike stores subgraphs in a map, so iterating it directly is
 // non-deterministic; group creation must use this instead.
-func (d *Diagram) SortedSubGraphs() []*gographviz.SubGraph {
-	ret := make([]*gographviz.SubGraph, 0, len(d.graph.SubGraphs.SubGraphs))
+func (d *Diagram) SortedSubGraphs() []*dotlike.SubGraph {
+	ret := make([]*dotlike.SubGraph, 0, len(d.graph.SubGraphs.SubGraphs))
 	for _, s := range d.graph.SubGraphs.SubGraphs {
 		ret = append(ret, s)
 	}
@@ -60,12 +56,12 @@ func (d *Diagram) SortedSubGraphs() []*gographviz.SubGraph {
 	return ret
 }
 
-func (d *Diagram) Links() []*gographviz.Edge {
+func (d *Diagram) Links() []*dotlike.Edge {
 	return d.graph.Edges.Edges
 }
 
-func (d *Diagram) SortedLinks() []*gographviz.Edge {
-	ret := make([]*gographviz.Edge, len(d.graph.Edges.Edges))
+func (d *Diagram) SortedLinks() []*dotlike.Edge {
+	ret := make([]*dotlike.Edge, len(d.graph.Edges.Edges))
 	copy(ret, d.graph.Edges.Edges)
 	sort.SliceStable(ret, func(i, j int) bool {
 		var vimin, vimax string
@@ -93,11 +89,11 @@ func (d *Diagram) SortedLinks() []*gographviz.Edge {
 	return ret
 }
 
-func (d *Diagram) Groups() map[string]*gographviz.SubGraph {
+func (d *Diagram) Groups() map[string]*dotlike.SubGraph {
 	return d.graph.SubGraphs.SubGraphs
 }
 
-func (d *Diagram) NodeGroups(name string) (groups []*gographviz.SubGraph) {
+func (d *Diagram) NodeGroups(name string) (groups []*dotlike.SubGraph) {
 	for _, gname := range d.nodeGroups[name] {
 		group := d.graph.SubGraphs.SubGraphs[gname]
 		groups = append(groups, group)
@@ -146,7 +142,7 @@ func (d *Diagram) MergeDiagram(d2 *Diagram) error {
 
 	// add links and their attributes
 	for _, edge2 := range d2.graph.Edges.Edges {
-		match := []*gographviz.Edge{}
+		match := []*dotlike.Edge{}
 		for _, edge := range d.graph.Edges.SrcToDsts[edge2.Src][edge2.Dst] {
 			if edge.SrcPort == edge2.SrcPort && edge.DstPort == edge2.DstPort &&
 				edge.SrcPort != "" && edge.DstPort != "" {
@@ -198,7 +194,7 @@ func (d *Diagram) MergeDiagram(d2 *Diagram) error {
 	return nil
 }
 
-func mergeAttrs(attrs1 gographviz.Attrs, attrs2 gographviz.Attrs) gographviz.Attrs {
+func mergeAttrs(attrs1 dotlike.Attrs, attrs2 dotlike.Attrs) dotlike.Attrs {
 	ret := attrs1.Copy()
 
 	for k, v2 := range attrs2 {
@@ -213,7 +209,7 @@ func mergeAttrs(attrs1 gographviz.Attrs, attrs2 gographviz.Attrs) gographviz.Att
 	return ret
 }
 
-func getNodeLabels(n *gographviz.Node) (labels []string) {
+func getNodeLabels(n *dotlike.Node) (labels []string) {
 	for k, v := range n.Attrs {
 		switch k {
 		case
@@ -231,7 +227,7 @@ func getNodeLabels(n *gographviz.Node) (labels []string) {
 	return labels
 }
 
-func getEdgeLabels(e *gographviz.Edge) (labels []string, srcLabels []string, dstLabels []string) {
+func getEdgeLabels(e *dotlike.Edge) (labels []string, srcLabels []string, dstLabels []string) {
 	for k, v := range e.Attrs {
 		switch k {
 		case
@@ -257,7 +253,7 @@ func getEdgeLabels(e *gographviz.Edge) (labels []string, srcLabels []string, dst
 	return labels, srcLabels, dstLabels
 }
 
-func getSubGraphLabels(s *gographviz.SubGraph) (labels []string) {
+func getSubGraphLabels(s *dotlike.SubGraph) (labels []string) {
 	for k, v := range s.Attrs {
 		switch k {
 		case

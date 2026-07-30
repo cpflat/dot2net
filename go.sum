@@ -1,5 +1,5 @@
-github.com/cpflat/gographviz v0.0.0 h1:KoZvkgjt/RWXFqmOIW5w7bEzuw8LqhNMKHkD2LSMwj8=
-github.com/cpflat/gographviz v0.0.0/go.mod h1:er8nIGXl0N8C7JW9OMpkfH92dShWgXVi7NnxIUrz8JI=
+github.com/cpflat/dotlike v0.0.1 h1:+dkNQock3QIqvwatkB7Ukkizq4mE5HhzHzSUXVO2gLo=
+github.com/cpflat/dotlike v0.0.1/go.mod h1:YG97DZRMRgm/CgT4xQ22kUdO1nUQknuljYaoh+pDbCM=
 github.com/cpuguy83/go-md2man/v2 v2.0.2 h1:p1EgwI/C7NhT0JmVkwCD2ZBK8j4aeHQX2pMHHBfMQ6w=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/awalterschulze/gographviz"
+	"github.com/cpflat/dotlike"
 
 	"github.com/cpflat/dot2net/pkg/types"
 	// "github.com/cpflat/dot2net/pkg/model"
@@ -103,7 +103,7 @@ func GraphToDot(cfg *types.Config, nm *types.NetworkModel, layer string) (string
 		layers = append(layers, l)
 	}
 
-	g := gographviz.NewGraph()
+	g := dotlike.NewGraph()
 	if err := g.SetName("G"); err != nil {
 		return "", err
 	}
