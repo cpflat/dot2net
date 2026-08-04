@@ -1,5 +1,9 @@
 name: ospf_simple
 
+class_policy:
+  interface:
+    base: [all]
+
 global:
   path: local
   # subgraph labels (host1/2/3) are used as display labels, not group classes

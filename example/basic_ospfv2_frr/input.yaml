@@ -1,5 +1,9 @@
 name: ospf
 
+class_policy:
+  interface:
+    default: [default]
+
 module:
   - frr
   - tinet

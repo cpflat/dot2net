@@ -3,6 +3,10 @@
 
 name: test_blocks_basic
 
+class_policy:
+  interface:
+    default: [default]
+
 global:
   path: local
 

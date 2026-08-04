@@ -1,5 +1,9 @@
 name: ospf-topo1
 
+class_policy:
+  interface:
+    default: [default]
+
 global:
   path: local
 

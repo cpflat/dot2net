@@ -56,8 +56,34 @@ func ClassTypeValue(paramRuleName string) string {
 	return ClassTypeValueHeader + "_" + paramRuleName
 }
 
+// ClassAll and ClassDefault are the legacy "magic" class names: defining a class
+// with one of these names silently changed how it was applied. They are deprecated
+// in favour of the class_policy section, which states the same thing explicitly and
+// frees up "all" and "default" as ordinary class names. They still work, with a
+// warning, so existing configurations keep running.
 const ClassAll string = "all"         // all objects
 const ClassDefault string = "default" // all empty objects
+
+// ClassPolicyEntry declares which classes apply implicitly for one object type.
+//
+//   - Base classes apply to every object of that type. They sit in the base tier,
+//     so any class the user names on the object overrides them (see ClassTier* in
+//     object.go).
+//   - Default classes apply only to objects that carry no class label at all. They
+//     stand in for user-written classes and share the user tier.
+type ClassPolicyEntry struct {
+	Base    []string `yaml:"base,flow" mapstructure:"base,flow"`
+	Default []string `yaml:"default,flow" mapstructure:"default,flow"`
+}
+
+// ClassPolicy replaces the legacy magic class names "all" and "default".
+type ClassPolicy struct {
+	Node       ClassPolicyEntry `yaml:"node" mapstructure:"node"`
+	Interface  ClassPolicyEntry `yaml:"interface" mapstructure:"interface"`
+	Connection ClassPolicyEntry `yaml:"connection" mapstructure:"connection"`
+	Group      ClassPolicyEntry `yaml:"group" mapstructure:"group"`
+	Segment    ClassPolicyEntry `yaml:"segment" mapstructure:"segment"`
+}
 const PlaceLabelPrefix string = "@"
 const ValueLabelSeparator string = "="
 const RelationalClassLabelSeparator string = "#"
@@ -95,6 +121,7 @@ func AllOutput() []string {
 type Config struct {
 	Name            string            `yaml:"name" mapstructure:"name"`
 	Modules         []string          `yaml:"module" mapstructure:"module"`
+	ClassPolicy     ClassPolicy       `yaml:"class_policy" mapstructure:"class_policy"`
 	GlobalSettings  GlobalSettings    `yaml:"global" mapstructure:"global"`
 	FileDefinitions []*FileDefinition `yaml:"file" mapstructure:"file"`
 	FormatStyles    []*FormatStyle    `yaml:"format,flow" mapstructure:"format,flow"`
@@ -122,6 +149,10 @@ type Config struct {
 	segmentClassMap    map[string]*SegmentClass
 	neighborClassMap   map[string]map[string][]*NeighborClass // interfaceclass name, ipspace name
 	localDir           string
+
+	// resolvedClassPolicy is class_policy after the legacy "all"/"default" fallback
+	// has been applied, keyed by ClassType*. Built once in LoadConfig.
+	resolvedClassPolicy map[string]ClassPolicyEntry
 
 	LoadedModules              []Module           // reference to loaded modules, internal
 	SorterConfigTemplateGroups mapset.Set[string] // list of sort-style config template groups
@@ -224,16 +255,15 @@ func (cfg *Config) classifyLabels(given []string) *ParsedLabels {
 	return pl
 }
 
-func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool) *ParsedLabels {
+// getValidClasses builds the ordered class list for one object. base and def come
+// from the class_policy section (or from the legacy magic names, see resolveClassPolicy).
+func (cfg *Config) getValidClasses(given []string, base []string, def []string) *ParsedLabels {
 	pl := cfg.classifyLabels(given)
 	classLabels := pl.classLabels
 
-	cnt := len(classLabels)
-	if hasAll {
-		cnt = cnt + 1
-	}
-	if len(classLabels) == 0 && hasDefault {
-		cnt = cnt + 1
+	cnt := len(classLabels) + len(base)
+	if len(classLabels) == 0 {
+		cnt = cnt + len(def)
 	}
 	classes := make([]string, 0, cnt)
 
@@ -242,9 +272,9 @@ func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool)
 	// Resolution walks this slice and keeps the first value it sees, so the order
 	// here *is* the precedence order (see ClassTier* in object.go).
 	if len(classLabels) == 0 {
-		if hasDefault {
-			classes = append(classes, ClassDefault)
-			pl.setClassTier(ClassDefault, ClassTierUser)
+		for _, name := range def {
+			classes = append(classes, name)
+			pl.setClassTier(name, ClassTierUser)
 		}
 	} else {
 		classes = append(classes, classLabels...)
@@ -252,9 +282,9 @@ func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool)
 			pl.setClassTier(name, ClassTierUser)
 		}
 	}
-	if hasAll {
-		classes = append(classes, ClassAll)
-		pl.setClassTier(ClassAll, ClassTierBase)
+	for _, name := range base {
+		classes = append(classes, name)
+		pl.setClassTier(name, ClassTierBase)
 	}
 
 	pl.classLabels = classes
@@ -262,33 +292,28 @@ func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool)
 }
 
 func (cfg *Config) GetValidNodeClasses(given []string) *ParsedLabels {
-	_, hasAllNodeClass := cfg.nodeClassMap[ClassAll]
-	_, hasDefaultNodeClass := cfg.nodeClassMap[ClassDefault]
-	return cfg.getValidClasses(given, hasAllNodeClass, hasDefaultNodeClass)
+	p := cfg.resolvedClassPolicy[ClassTypeNode]
+	return cfg.getValidClasses(given, p.Base, p.Default)
 }
 
 func (cfg *Config) GetValidInterfaceClasses(given []string) *ParsedLabels {
-	_, hasAllInterfaceClass := cfg.interfaceClassMap[ClassAll]
-	_, hasDefaultInterfaceClass := cfg.interfaceClassMap[ClassDefault]
-	return cfg.getValidClasses(given, hasAllInterfaceClass, hasDefaultInterfaceClass)
+	p := cfg.resolvedClassPolicy[ClassTypeInterface]
+	return cfg.getValidClasses(given, p.Base, p.Default)
 }
 
 func (cfg *Config) GetValidConnectionClasses(given []string) *ParsedLabels {
-	_, hasAllConnectionClass := cfg.connectionClassMap[ClassAll]
-	_, hasDefaultConnectionClass := cfg.connectionClassMap[ClassDefault]
-	return cfg.getValidClasses(given, hasAllConnectionClass, hasDefaultConnectionClass)
+	p := cfg.resolvedClassPolicy[ClassTypeConnection]
+	return cfg.getValidClasses(given, p.Base, p.Default)
 }
 
 func (cfg *Config) GetValidGroupClasses(given []string) *ParsedLabels {
-	_, hasAllGroupClass := cfg.groupClassMap[ClassAll]
-	_, hasDefaultGroupClass := cfg.groupClassMap[ClassDefault]
-	return cfg.getValidClasses(given, hasAllGroupClass, hasDefaultGroupClass)
+	p := cfg.resolvedClassPolicy[ClassTypeGroup]
+	return cfg.getValidClasses(given, p.Base, p.Default)
 }
 
 func (cfg *Config) GetValidSegmentClasses(given []string) *ParsedLabels {
-	_, hasAllSegmentClass := cfg.segmentClassMap[ClassAll]
-	_, hasDefaultSegmentClass := cfg.segmentClassMap[ClassDefault]
-	return cfg.getValidClasses(given, hasAllSegmentClass, hasDefaultSegmentClass)
+	p := cfg.resolvedClassPolicy[ClassTypeSegment]
+	return cfg.getValidClasses(given, p.Base, p.Default)
 }
 
 func (cfg *Config) AddFormatStyle(fmtstyle *FormatStyle) {
@@ -1108,9 +1133,72 @@ func LoadConfig(path string) (*Config, error) {
 		}
 		cfg.segmentClassMap[segment.Name] = segment
 	}
+	if err := cfg.resolveClassPolicy(); err != nil {
+		return nil, err
+	}
+
 	cfg.SorterConfigTemplateGroups = mapset.NewSet[string]()
 
 	return &cfg, err
+}
+
+// resolveClassPolicy fills resolvedClassPolicy from the class_policy section,
+// falling back to the legacy magic class names ("all" / "default") when a slot is
+// not configured. Using a legacy name prints a deprecation warning once.
+//
+// A class named in class_policy must exist, otherwise the policy would silently do
+// nothing; that is reported as a configuration error.
+func (cfg *Config) resolveClassPolicy() error {
+	cfg.resolvedClassPolicy = map[string]ClassPolicyEntry{}
+
+	types := []struct {
+		classType string
+		entry     ClassPolicyEntry
+		exists    func(string) bool
+	}{
+		{ClassTypeNode, cfg.ClassPolicy.Node, func(n string) bool { _, ok := cfg.nodeClassMap[n]; return ok }},
+		{ClassTypeInterface, cfg.ClassPolicy.Interface, func(n string) bool { _, ok := cfg.interfaceClassMap[n]; return ok }},
+		{ClassTypeConnection, cfg.ClassPolicy.Connection, func(n string) bool { _, ok := cfg.connectionClassMap[n]; return ok }},
+		{ClassTypeGroup, cfg.ClassPolicy.Group, func(n string) bool { _, ok := cfg.groupClassMap[n]; return ok }},
+		{ClassTypeSegment, cfg.ClassPolicy.Segment, func(n string) bool { _, ok := cfg.segmentClassMap[n]; return ok }},
+	}
+
+	legacy := map[string][]string{} // legacy name -> class types still relying on it
+
+	for _, t := range types {
+		resolved := ClassPolicyEntry{Base: t.entry.Base, Default: t.entry.Default}
+
+		if len(resolved.Base) == 0 && t.exists(ClassAll) {
+			resolved.Base = []string{ClassAll}
+			legacy[ClassAll] = append(legacy[ClassAll], t.classType)
+		}
+		if len(resolved.Default) == 0 && t.exists(ClassDefault) {
+			resolved.Default = []string{ClassDefault}
+			legacy[ClassDefault] = append(legacy[ClassDefault], t.classType)
+		}
+
+		for _, name := range append(append([]string{}, resolved.Base...), resolved.Default...) {
+			if !t.exists(name) {
+				return fmt.Errorf("class_policy for %s refers to undefined %sclass %q", t.classType, t.classType, name)
+			}
+		}
+		cfg.resolvedClassPolicy[t.classType] = resolved
+	}
+
+	for _, name := range []string{ClassAll, ClassDefault} {
+		if classTypes, ok := legacy[name]; ok {
+			slot := "base"
+			if name == ClassDefault {
+				slot = "default"
+			}
+			fmt.Fprintf(os.Stderr,
+				"warning: class name %q is deprecated as an implicit rule (used for: %s). "+
+					"Declare it explicitly instead:\n  class_policy:\n    <type>:\n      %s: [%s]\n",
+				name, strings.Join(classTypes, ", "), slot, name)
+		}
+	}
+
+	return nil
 }
 
 func loadTemplate(tpl []string, path string) (*template.Template, error) {

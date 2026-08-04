@@ -1,5 +1,9 @@
 name: ospf6-topo1
 
+class_policy:
+  interface:
+    base: [all]
+
 global:
   path: local
 

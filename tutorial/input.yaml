@@ -1,5 +1,9 @@
 name: tutorial
 
+class_policy:
+  interface:
+    default: [default]
+
 global:
   path: local
 

@@ -1,5 +1,9 @@
 name: value_class_basic
 
+class_policy:
+  interface:
+    default: [default]
+
 # No modules - just generate config files directly
 
 # Define param_rule with mode: attach to generate Values

@@ -1,5 +1,9 @@
 name: bgp_evpn_vxlan_topo1
 
+class_policy:
+  interface:
+    base: [all]
+
 module:
   - frr
   - tinet

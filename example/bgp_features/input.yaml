@@ -1,5 +1,9 @@
 name: bgp_features
 
+class_policy:
+  interface:
+    base: [all]
+
 module:
   - tinet
   - containerlab

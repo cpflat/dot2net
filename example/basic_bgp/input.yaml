@@ -1,5 +1,11 @@
 name: bgp
 
+class_policy:
+  node:
+    default: [default]
+  interface:
+    default: [default]
+
 module:
   - frr
   - tinet

@@ -1,5 +1,9 @@
 name: ospf_simple
 
+class_policy:
+  interface:
+    default: [default]
+
 global:
   path: local
 

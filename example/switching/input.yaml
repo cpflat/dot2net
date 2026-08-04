@@ -1,5 +1,9 @@
 name: test
 
+class_policy:
+  interface:
+    default: [default]
+
 module:
   - tinet
   - containerlab
