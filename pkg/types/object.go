@@ -41,6 +41,25 @@ type Module interface {
 	GetModuleInterfaceClassLabels() []string
 	AddModuleConnectionClassLabel(label string)
 	GetModuleConnectionClassLabels() []string
+	AddModuleGroupClassLabel(label string)
+	GetModuleGroupClassLabels() []string
+}
+
+// ObjectClassifier is optionally implemented by modules that need to look at the
+// topology and classify or reshape it *before* class labels are resolved.
+//
+// It runs between skeleton construction and class resolution. That position is the
+// whole point: class labels are turned into class objects once, in checkClasses,
+// so a label added after that would never be resolved. A module that wants an
+// object to be picked up by a connectionclass, param_rule or template condition has
+// to add the label here.
+//
+// At this point objects exist and carry their DOT labels, but they are not named
+// yet and have almost no parameters - naming and parameter assignment come later.
+// So this hook is for deciding *what an object is*, not for computing values; use
+// ParameterProvider for that.
+type ObjectClassifier interface {
+	ClassifyObjects(cfg *Config, nm *NetworkModel) error
 }
 
 // ParameterProvider is optionally implemented by modules that supply parameters
@@ -84,6 +103,7 @@ type StandardModule struct {
 	NodeClassLabels       []string
 	InterfaceClassLabels  []string
 	ConnectionClassLabels []string
+	GroupClassLabels      []string
 }
 
 func NewStandardModule() *StandardModule {
@@ -91,6 +111,7 @@ func NewStandardModule() *StandardModule {
 		NodeClassLabels:       []string{},
 		InterfaceClassLabels:  []string{},
 		ConnectionClassLabels: []string{},
+		GroupClassLabels:      []string{},
 	}
 }
 
@@ -116,6 +137,14 @@ func (m *StandardModule) AddModuleConnectionClassLabel(label string) {
 
 func (m *StandardModule) GetModuleConnectionClassLabels() []string {
 	return m.ConnectionClassLabels
+}
+
+func (m *StandardModule) AddModuleGroupClassLabel(label string) {
+	m.GroupClassLabels = append(m.GroupClassLabels, label)
+}
+
+func (m *StandardModule) GetModuleGroupClassLabels() []string {
+	return m.GroupClassLabels
 }
 
 // abstracted structures
@@ -1081,20 +1110,35 @@ func (n *Node) SetLabels(cfg *Config, labels []string, moduleLabels []string) er
 	for _, name := range moduleLabels {
 		n.ParsedLabels.setClassTier(name, ClassTierModule)
 	}
+	if err := n.resolveClasses(cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+
+// resolveClasses turns the class labels into class definitions. It runs both from
+// SetLabels and at the start of SetClasses, because labels can still be added in
+// between: AddClassLabels for relational classes, and modules through the
+// ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
+func (n *Node) resolveClasses(cfg *Config) error {
+	n.ParsedLabels.Classes = []ObjectClass{}
 	for _, cls := range n.ClassLabels() {
-		nc, ok := cfg.NodeClassByName(cls)
+		def, ok := cfg.NodeClassByName(cls)
 		if !ok {
 			if cfg.GlobalSettings.IgnoreUndefinedClass {
 				continue
 			}
 			return fmt.Errorf("invalid nodeclass name %s", cls)
 		}
-		n.ParsedLabels.Classes = append(n.ParsedLabels.Classes, nc)
+		n.ParsedLabels.Classes = append(n.ParsedLabels.Classes, def)
 	}
 	return nil
 }
-
 func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
+	if err := n.resolveClasses(cfg); err != nil {
+		return err
+	}
 	// Resolve attributes contributed by several classes. Classes are visited
 	// strongest-first, so the first value recorded wins; only a clash inside the
 	// same tier is an error (see tieredValues).
@@ -1481,20 +1525,35 @@ func (iface *Interface) SetLabels(cfg *Config, labels []string, moduleLabels []s
 	for _, name := range moduleLabels {
 		iface.ParsedLabels.setClassTier(name, ClassTierModule)
 	}
+	if err := iface.resolveClasses(cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+
+// resolveClasses turns the class labels into class definitions. It runs both from
+// SetLabels and at the start of SetClasses, because labels can still be added in
+// between: AddClassLabels for relational classes, and modules through the
+// ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
+func (iface *Interface) resolveClasses(cfg *Config) error {
+	iface.ParsedLabels.Classes = []ObjectClass{}
 	for _, cls := range iface.ClassLabels() {
-		ic, ok := cfg.InterfaceClassByName(cls)
+		def, ok := cfg.InterfaceClassByName(cls)
 		if !ok {
 			if cfg.GlobalSettings.IgnoreUndefinedClass {
 				continue
 			}
 			return fmt.Errorf("invalid interfaceclass name %s", cls)
 		}
-		iface.ParsedLabels.Classes = append(iface.ParsedLabels.Classes, ic)
+		iface.ParsedLabels.Classes = append(iface.ParsedLabels.Classes, def)
 	}
 	return nil
 }
-
 func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
+	if err := iface.resolveClasses(cfg); err != nil {
+		return err
+	}
 	// Track conflicting values
 	// Resolve attributes contributed by several classes (see tieredValues).
 	values := newTieredValues()
@@ -1552,12 +1611,11 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 	}
 
-	// rebuild ParsedLabels.Classes based on current classLabels to include classes added by AddClassLabels
-	iface.ParsedLabels.Classes = []ObjectClass{}
-	for _, clsName := range iface.ClassLabels() {
-		if ic, ok := cfg.InterfaceClassByName(clsName); ok {
-			iface.ParsedLabels.Classes = append(iface.ParsedLabels.Classes, ic)
-		}
+	// Re-resolve: the loop above can add interface classes through the relational
+	// class labels of the connection. resolveClasses reports undefined classes
+	// instead of silently skipping them, which the previous inline rebuild did.
+	if err := iface.resolveClasses(cfg); err != nil {
+		return err
 	}
 	
 	// check interfaceclass flags
@@ -1870,20 +1928,35 @@ func (conn *Connection) SetLabels(cfg *Config, labels []string, moduleLabels []s
 	for _, name := range moduleLabels {
 		conn.ParsedLabels.setClassTier(name, ClassTierModule)
 	}
+	if err := conn.resolveClasses(cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+
+// resolveClasses turns the class labels into class definitions. It runs both from
+// SetLabels and at the start of SetClasses, because labels can still be added in
+// between: AddClassLabels for relational classes, and modules through the
+// ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
+func (conn *Connection) resolveClasses(cfg *Config) error {
+	conn.ParsedLabels.Classes = []ObjectClass{}
 	for _, cls := range conn.ClassLabels() {
-		cc, ok := cfg.ConnectionClassByName(cls)
+		def, ok := cfg.ConnectionClassByName(cls)
 		if !ok {
 			if cfg.GlobalSettings.IgnoreUndefinedClass {
 				continue
 			}
 			return fmt.Errorf("invalid connectionclass name %s", cls)
 		}
-		conn.ParsedLabels.Classes = append(conn.ParsedLabels.Classes, cc)
+		conn.ParsedLabels.Classes = append(conn.ParsedLabels.Classes, def)
 	}
 	return nil
 }
-
 func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
+	if err := conn.resolveClasses(cfg); err != nil {
+		return err
+	}
 	// Resolve attributes contributed by several classes (see tieredValues).
 	values := newTieredValues()
 	single := newTieredValues()
@@ -2542,20 +2615,35 @@ func (g *Group) SetLabels(cfg *Config, labels []string, moduleLabels []string) e
 	for _, name := range moduleLabels {
 		g.ParsedLabels.setClassTier(name, ClassTierModule)
 	}
+	if err := g.resolveClasses(cfg); err != nil {
+		return err
+	}
+	return nil
+}
+
+
+// resolveClasses turns the class labels into class definitions. It runs both from
+// SetLabels and at the start of SetClasses, because labels can still be added in
+// between: AddClassLabels for relational classes, and modules through the
+// ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
+func (g *Group) resolveClasses(cfg *Config) error {
+	g.ParsedLabels.Classes = []ObjectClass{}
 	for _, cls := range g.ClassLabels() {
-		gc, ok := cfg.GroupClassByName(cls)
+		def, ok := cfg.GroupClassByName(cls)
 		if !ok {
 			if cfg.GlobalSettings.IgnoreUndefinedClass {
 				continue
 			}
 			return fmt.Errorf("invalid groupclass name %s", cls)
 		}
-		g.ParsedLabels.Classes = append(g.ParsedLabels.Classes, gc)
+		g.ParsedLabels.Classes = append(g.ParsedLabels.Classes, def)
 	}
 	return nil
 }
-
 func (g *Group) SetClasses(cfg *Config, nm *NetworkModel) error {
+	if err := g.resolveClasses(cfg); err != nil {
+		return err
+	}
 	// Resolve attributes contributed by several classes (see tieredValues).
 	values := newTieredValues()
 

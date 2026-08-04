@@ -62,6 +62,13 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 		return nil, err
 	}
 
+	// Let modules classify or reshape the topology before class labels are
+	// resolved. Labels added after checkClasses would never become classes.
+	err = classifyModuleObjects(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
 	err = checkClasses(cfg, nm)
 	if err != nil {
 		return nil, err
@@ -184,7 +191,7 @@ func buildSkeleton(cfg *types.Config, d *Diagram) (*types.NetworkModel, error) {
 	nm.Groups = make([]*types.Group, 0, len(d.graph.SubGraphs.SubGraphs))
 	for _, s := range d.SortedSubGraphs() {
 		group := nm.NewGroup(s.Name)
-		if err := group.SetLabels(cfg, getSubGraphLabels(s), []string{}); err != nil {
+		if err := group.SetLabels(cfg, getSubGraphLabels(s), getModuleGroupClassLabels(cfg)); err != nil {
 			return nil, err
 		}
 	}

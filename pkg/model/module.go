@@ -37,6 +37,30 @@ func LoadModules(cfg *types.Config) error {
 	return nil
 }
 
+// classifyModuleObjects runs the ObjectClassifier hook of every module that
+// implements it. It sits between buildSkeleton and checkClasses so that labels
+// added here are still resolved into classes.
+func classifyModuleObjects(cfg *types.Config, nm *types.NetworkModel) error {
+	for _, mod := range cfg.LoadedModules {
+		classifier, ok := mod.(types.ObjectClassifier)
+		if !ok {
+			continue
+		}
+		if err := classifier.ClassifyObjects(cfg, nm); err != nil {
+			return fmt.Errorf("module %T: %w", mod, err)
+		}
+	}
+	return nil
+}
+
+func getModuleGroupClassLabels(cfg *types.Config) []string {
+	ret := []string{}
+	for _, mod := range cfg.LoadedModules {
+		ret = append(ret, mod.GetModuleGroupClassLabels()...)
+	}
+	return ret
+}
+
 func getModuleNodeClassLabels(cfg *types.Config) []string {
 	ret := []string{}
 	for _, mod := range cfg.LoadedModules {
