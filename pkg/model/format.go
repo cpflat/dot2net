@@ -53,7 +53,17 @@ func initConfigAggregator() *ConfigAggregator {
 func (ca *ConfigAggregator) addSorterChildren(sorter types.NameSpacer, ns types.NameSpacer, group string) error {
 	// list up candidate children objects that generate grouped configs for the sorter
 	k := belongKey{namespacer: ns, group: group}
-	ca.belong[k] = append(ca.belong[k], sorterKey{sorter: sorter, group: group})
+	sk := sorterKey{sorter: sorter, group: group}
+	// The object graph is not a tree: a node is a child of both the network
+	// model and of every group it belongs to, so the same object can be reached
+	// several times from one sorter. Registering it twice would make the sorter
+	// emit its config blocks twice, so stop at the first arrival.
+	for _, registered := range ca.belong[k] {
+		if registered == sk {
+			return nil
+		}
+	}
+	ca.belong[k] = append(ca.belong[k], sk)
 
 	classes, err := ns.ChildClasses()
 	if err != nil {
@@ -490,6 +500,60 @@ func collectConfigBlocks(ns types.NameSpacer, blockRefs []string) ([]string, err
 	return blocks, nil
 }
 
+// setEmptyAggregationParams pre-declares the aggregation parameters that
+// objects of depClass could contribute to ns, leaving them empty. Real configs
+// overwrite them later: setConfigParamForNameSpace treats an empty previous
+// value as absent.
+//
+// Only the class types whose parameter name is just header+configName are
+// covered. Segments, neighbors and members name the layer or the member class
+// in the parameter too, and with no object of that class present there is no
+// layer to name, so nothing can be pre-declared for them.
+func setEmptyAggregationParams(cfg *types.Config, ns types.NameSpacer, depClass string, verbose bool) error {
+	var header string
+	var templates [][]*types.ConfigTemplate
+	switch depClass {
+	case types.ClassTypeNode:
+		header = types.ChildNodesConfigHeader
+		for _, c := range cfg.NodeClasses {
+			templates = append(templates, c.ConfigTemplates)
+		}
+	case types.ClassTypeInterface:
+		header = types.ChildInterfacesConfigHeader
+		for _, c := range cfg.InterfaceClasses {
+			templates = append(templates, c.ConfigTemplates)
+		}
+	case types.ClassTypeConnection:
+		header = types.ChildConnectionsConfigHeader
+		for _, c := range cfg.ConnectionClasses {
+			templates = append(templates, c.ConfigTemplates)
+		}
+	case types.ClassTypeGroup:
+		header = types.ChildGroupsConfigHeader
+		for _, c := range cfg.GroupClasses {
+			templates = append(templates, c.ConfigTemplates)
+		}
+	default:
+		return nil
+	}
+
+	for _, cts := range templates {
+		for _, ct := range cts {
+			if ct.Name == "" {
+				continue
+			}
+			name := header + ct.Name
+			if ns.HasRelativeParam(name) {
+				continue
+			}
+			if err := setConfigParamForNameSpace(ns, name, EmptyOutput, verbose); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // integrateConfigsFromDependencies integrates config blocks from dependent objects
 func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, ns types.NameSpacer, verbose bool) error {
 	// Process each dependency class
@@ -500,7 +564,20 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 
 	for _, depClass := range depClasses {
 		deps, err := ns.Depends(depClass)
-		if err != nil || len(deps) == 0 {
+		if err != nil {
+			continue
+		}
+
+		// A named template of the dependency class contributes an aggregation
+		// parameter even when no object produced anything for it, so that a
+		// template referring to it still renders. Without this, a group with a
+		// single node has no {{ .connections_... }} at all and fails to
+		// template, while its neighbour group with two nodes succeeds.
+		// Undefined names are left absent so that a typo is still an error.
+		if err := setEmptyAggregationParams(cfg, ns, depClass, verbose); err != nil {
+			return err
+		}
+		if len(deps) == 0 {
 			continue
 		}
 
@@ -840,60 +917,82 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 		return err
 	}
 
+	// dirname is the directory the file is written into, relative to the output
+	// root; empty means the output root itself.
+	var dirname, filename string
 	switch obj := ns.(type) {
 	case *types.NetworkModel:
 		if filedef.Scope != "" && filedef.Scope != types.ClassTypeNetwork {
 			return fmt.Errorf("network %s has file template, but the file scope is not network", filedef.Scope)
 		}
 
+		// Network-scope files belong to no host, so they stay at the output
+		// root even when groups split the output directory.
 		// For network scope, object name is empty (use Name directly)
-		filename := filedef.GetFileName("")
-		path := "./" + filename
-		err := os.WriteFile(path, []byte(conf), 0644)
-		if err != nil {
-			return err
+		filename = filedef.GetFileName("")
+	case *types.Group:
+		if filedef.Scope != types.ClassTypeGroup {
+			return fmt.Errorf("group has a template for file %s, but its scope is %q, not group", filedef.Name, filedef.Scope)
 		}
-		if verbose {
-			fmt.Fprintf(os.Stderr, " output file %s\n", path)
+
+		filename = filedef.GetFileName(obj.Name)
+		if filedef.GetOutputLocation() != "root" {
+			// A group-scope file goes into the group's own directory by
+			// default, the same way a node-scope file goes into the node's.
+			// When the group is also the output directory of its member nodes
+			// (GlobalSettings.OutputGroupClass), this is the very directory
+			// their files land under, so the host packs as one directory.
+			dirname = obj.Name
 		}
 	case *types.Node:
 		if filedef.Scope != "" && filedef.Scope != types.ClassTypeNode {
 			return fmt.Errorf("node %s has file template, but the file scope is not node", filedef.Scope)
 		}
 
-		filename := filedef.GetFileName(obj.Name)
-		outputLocation := filedef.GetOutputLocation()
-
-		var path string
-		if outputLocation == "root" {
-			// Output to root directory
-			path = "./" + filename
-		} else {
-			// Output to node subdirectory (default)
-			dirname := obj.Name
-			f, err := os.Stat(dirname)
-			if os.IsNotExist(err) {
-				err = os.Mkdir(dirname, 0755)
-				if err != nil {
-					return err
-				}
-			} else if !f.IsDir() {
-				return fmt.Errorf("creating directory %s fails because something already exists", dirname)
-			}
-			path = filepath.Join(dirname, filename)
-		}
-
-		err = os.WriteFile(path, []byte(conf), 0644)
+		filename = filedef.GetFileName(obj.Name)
+		groupDir, err := obj.OutputDir(cfg)
 		if err != nil {
 			return err
 		}
-		if verbose {
-			fmt.Fprintf(os.Stderr, " output file %s\n", path)
+		dirname = groupDir
+		if filedef.GetOutputLocation() != "root" {
+			// Output to node subdirectory (default)
+			dirname = filepath.Join(dirname, obj.Name)
 		}
 	default:
-		return fmt.Errorf("network and node can create files, %T given", ns)
+		return fmt.Errorf("network, group and node can create files, %T given", ns)
+	}
+
+	path, err := prepareOutputPath(dirname, filename)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(conf), 0644); err != nil {
+		return err
+	}
+	if verbose {
+		fmt.Fprintf(os.Stderr, " output file %s\n", path)
 	}
 	return nil
+}
+
+// prepareOutputPath creates dirname (relative to the current directory, which
+// is the output root) if needed and returns the path to write filename to.
+func prepareOutputPath(dirname, filename string) (string, error) {
+	if dirname == "" {
+		return "./" + filename, nil
+	}
+	f, err := os.Stat(dirname)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(dirname, 0755); err != nil {
+			return "", err
+		}
+	} else if err != nil {
+		return "", err
+	} else if !f.IsDir() {
+		return "", fmt.Errorf("creating directory %s fails because something already exists", dirname)
+	}
+	return filepath.Join(dirname, filename), nil
 }
 
 func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.ConfigTemplate, verbose bool) (string, bool) {
@@ -1263,19 +1362,32 @@ func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 			if contains(nm.FilesToGenerate(cfg), fileDef.Name) {
 				files = append(files, filename)
 			}
+		case types.ClassTypeGroup:
+			outputLocation := fileDef.GetOutputLocation()
+			for _, group := range nm.Groups {
+				if !group.IsVirtual() && contains(group.FilesToGenerate(cfg), fileDef.Name) {
+					dirname := ""
+					if outputLocation != "root" {
+						dirname = group.Name
+					}
+					files = append(files, filepath.Join(dirname, fileDef.GetFileName(group.Name)))
+				}
+			}
 		case types.ClassTypeNode, "":
 			// Node-scope files - Scope="" defaults to node scope
 			outputLocation := fileDef.GetOutputLocation()
 			for _, node := range nm.Nodes {
 				if !node.IsVirtual() && contains(node.FilesToGenerate(cfg), fileDef.Name) {
 					filename := fileDef.GetFileName(node.Name)
-					if outputLocation == "root" {
-						// Output to root directory
-						files = append(files, filename)
-					} else {
-						// Output to node subdirectory (default)
-						files = append(files, node.Name+"/"+filename)
+					dirname, err := node.OutputDir(cfg)
+					if err != nil {
+						return nil, err
 					}
+					if outputLocation != "root" {
+						// Output to node subdirectory (default)
+						dirname = filepath.Join(dirname, node.Name)
+					}
+					files = append(files, filepath.Join(dirname, filename))
 				}
 			}
 		}

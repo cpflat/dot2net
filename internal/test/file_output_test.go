@@ -182,6 +182,140 @@ networkclass:
 				"topology.yaml",
 			},
 		},
+		{
+			// A group-scope file lands in the group's directory by default,
+			// the same way a node-scope file lands in the node's. This holds
+			// whether or not output_group_class (unset here) makes the node
+			// files join it.
+			name: "group scope file",
+			dot: `graph {
+				subgraph cluster_h1 { label="worker"; r1 [class="router"] }
+				subgraph cluster_h2 { label="worker"; r2 [class="router"] }
+				r1 -- r2
+			}`,
+			yaml: `
+file:
+  - name: host.yaml
+    scope: group
+  - name: config.txt
+    scope: node
+
+nodeclass:
+  - name: router
+    config:
+      - file: config.txt
+        template:
+          - "hostname={{ .name }}"
+
+groupclass:
+  - name: worker
+    config:
+      - file: host.yaml
+        template:
+          - "host: {{ .name }}"
+`,
+			expectedFiles: []string{
+				"cluster_h1/host.yaml",
+				"cluster_h2/host.yaml",
+				"r1/config.txt",
+				"r2/config.txt",
+			},
+		},
+		{
+			// output: root escapes the group directory, so the filename has to
+			// carry the group name to stay unique.
+			name: "group scope file at the output root",
+			dot: `graph {
+				subgraph cluster_h1 { label="worker"; r1 [class="router"] }
+				subgraph cluster_h2 { label="worker"; r2 [class="router"] }
+				r1 -- r2
+			}`,
+			yaml: `
+file:
+  - name: host
+    name_suffix: ".yaml"
+    scope: group
+    output: root
+
+nodeclass:
+  - name: router
+
+groupclass:
+  - name: worker
+    config:
+      - file: host
+        template:
+          - "host: {{ .name }}"
+`,
+			expectedFiles: []string{
+				"cluster_h1.yaml",
+				"cluster_h2.yaml",
+			},
+		},
+		{
+			// The layout REQ-2 asks for: everything belonging to a host lives
+			// under that host's directory, so the directory can be archived as
+			// a unit.
+			name: "output group class puts node files under the group directory",
+			dot: `graph {
+				subgraph cluster_h1 { label="worker"; r1 [class="router"]; r2 [class="router"] }
+				subgraph cluster_h2 { label="worker"; r3 [class="router"] }
+				r1 -- r2
+				r2 -- r3
+			}`,
+			yaml: `
+global:
+  output_group_class: worker
+
+file:
+  - name: host.yaml
+    scope: group
+  - name: config.txt
+    scope: node
+  - name: startup
+    name_suffix: ".startup"
+    scope: node
+    output: root
+  - name: topology.yaml
+    scope: network
+
+nodeclass:
+  - name: router
+    config:
+      - file: config.txt
+        template:
+          - "hostname={{ .name }}"
+      - file: startup
+        template:
+          - "#!/bin/bash"
+
+groupclass:
+  - name: worker
+    config:
+      - file: host.yaml
+        template:
+          - "host: {{ .name }}"
+
+networkclass:
+  - name: _default
+    config:
+      - file: topology.yaml
+        template:
+          - "name: test_network"
+`,
+			expectedFiles: []string{
+				// network scope belongs to no host, so it stays at the true root
+				"topology.yaml",
+				"cluster_h1/host.yaml",
+				"cluster_h1/r1.startup",
+				"cluster_h1/r2.startup",
+				"cluster_h1/r1/config.txt",
+				"cluster_h1/r2/config.txt",
+				"cluster_h2/host.yaml",
+				"cluster_h2/r3.startup",
+				"cluster_h2/r3/config.txt",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -455,5 +589,153 @@ nodeclass:
 		if got != expected {
 			t.Errorf("file mismatch at index %d:\n  got:      %s\n  expected: %s", i, got, expected)
 		}
+	}
+}
+
+// buildInDir writes the inputs into a fresh temporary directory, generates the
+// config files there, and returns the directory. Errors from the build are
+// returned rather than reported so that callers can assert on them.
+func buildInDir(t *testing.T, dot, yaml string) (string, error) {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	dotFile := filepath.Join(tmpDir, "input.dot")
+	yamlFile := filepath.Join(tmpDir, "input.yaml")
+	if err := os.WriteFile(dotFile, []byte(dot), 0644); err != nil {
+		t.Fatalf("failed to write dot file: %v", err)
+	}
+	if err := os.WriteFile(yamlFile, []byte(yaml), 0644); err != nil {
+		t.Fatalf("failed to write yaml file: %v", err)
+	}
+
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("failed to change directory: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Errorf("failed to restore working directory: %v", err)
+		}
+	})
+
+	cfg, err := types.LoadConfig(yamlFile)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	d, err := model.DiagramFromDotFile(dotFile)
+	if err != nil {
+		t.Fatalf("failed to parse dot file: %v", err)
+	}
+	nm, err := model.BuildNetworkModel(cfg, d, false)
+	if err != nil {
+		return tmpDir, err
+	}
+	return tmpDir, model.BuildConfigFiles(cfg, nm, false)
+}
+
+const groupScopeDot = `graph {
+	subgraph cluster_h1 { label="worker"; r1 [class="router"]; r2 [class="router"] }
+	subgraph cluster_h2 { label="worker"; r3 [class="router"] }
+	r1 -- r2
+	r2 -- r3
+}`
+
+// TestGroupScopeAggregation checks that a group-scope file sees only the
+// objects of its own group: its member nodes, and the connections with both
+// endpoints inside it. The r2--r3 connection crosses the group boundary and
+// must appear in neither host file.
+func TestGroupScopeAggregation(t *testing.T) {
+	const yaml = `
+file:
+  - name: host.yaml
+    scope: group
+
+nodeclass:
+  - name: router
+    config:
+      - name: node_entry
+        template:
+          - "  - {{ .name }}"
+
+connectionclass:
+  - name: _default
+    config:
+      - name: link_entry
+        template:
+          - "  - {{ .name }}"
+
+class_policy:
+  connection:
+    default: [_default]
+
+groupclass:
+  - name: worker
+    config:
+      - file: host.yaml
+        template:
+          - "nodes:"
+          - "{{ .nodes_node_entry }}"
+          - "links:"
+          - "{{ .connections_link_entry }}"
+`
+
+	tmpDir, err := buildInDir(t, groupScopeDot, yaml)
+	if err != nil {
+		t.Fatalf("failed to build config files: %v", err)
+	}
+
+	expected := map[string]string{
+		"cluster_h1/host.yaml": "nodes:\n  - r1\n  - r2\nlinks:\n  - conn0",
+		"cluster_h2/host.yaml": "nodes:\n  - r3\nlinks:\n",
+	}
+	for name, want := range expected {
+		got, err := os.ReadFile(filepath.Join(tmpDir, name))
+		if err != nil {
+			t.Errorf("failed to read %s: %v", name, err)
+			continue
+		}
+		if string(got) != want {
+			t.Errorf("%s mismatch:\n  got:      %q\n  expected: %q", name, string(got), want)
+		}
+	}
+}
+
+// TestOutputGroupClassAmbiguity checks that a node in two groups of the output
+// directory class is rejected instead of having one of them picked silently.
+func TestOutputGroupClassAmbiguity(t *testing.T) {
+	const dot = `graph {
+		subgraph cluster_h1 { label="worker"; r1 [class="router"] }
+		subgraph cluster_h2 { label="worker"; r1 }
+		r1 -- r2
+		r2 [class="router"]
+	}`
+	const yaml = `
+global:
+  output_group_class: worker
+
+file:
+  - name: config.txt
+    scope: node
+
+nodeclass:
+  - name: router
+    config:
+      - file: config.txt
+        template:
+          - "hostname={{ .name }}"
+
+groupclass:
+  - name: worker
+`
+
+	_, err := buildInDir(t, dot, yaml)
+	if err == nil {
+		t.Fatal("expected an error for a node in two output-directory groups, got none")
+	}
+	if !strings.Contains(err.Error(), "belongs to more than one worker group") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }

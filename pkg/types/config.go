@@ -386,6 +386,21 @@ type GlobalSettings struct {
 	// silently skipped (useful when e.g. a subgraph label is meant for display
 	// rather than as a group class).
 	IgnoreUndefinedClass bool `yaml:"ignore_undefined_class" mapstructure:"ignore_undefined_class"`
+	// OutputGroupClass names the group class that splits the output directory.
+	// When set, every group carrying that class gets a subdirectory, and all
+	// files belonging to it - its own group-scope files and the files of its
+	// member nodes - are written below that subdirectory:
+	//
+	//	clabhost1/topo.yaml, clabhost1/r1/frr.conf, clabhost1/r2/frr.conf
+	//
+	// This is a single global axis rather than a per-file setting on purpose:
+	// packaging a host means archiving its directory, so every file of a node
+	// has to land under the same directory. Nodes are commonly in several
+	// groups at once (an AS and a host, say), and only this class decides the
+	// directory; a node in two groups of this class is an error.
+	//
+	// Empty (default) keeps the flat layout: node directories at the top level.
+	OutputGroupClass string `yaml:"output_group_class" mapstructure:"output_group_class"`
 }
 
 type FileDefinition struct {
@@ -406,19 +421,29 @@ type FileDefinition struct {
 	// Scope specifies the scope of file creation.
 	// Available values:
 	//   - "network": File is created at network level (root directory)
+	//   - "group": File is created for each group (group_name/file_name)
 	//   - "node": File is created for each node (node_name/file_name)
 	//   - "" (empty): Defaults to "node" scope for backward compatibility
 	// Examples:
 	//   - Scope = "network": Creates "spec.yaml", "topo.yaml" at root
+	//   - Scope = "group": Creates "clabhost1/topo.yaml", "clabhost2/topo.yaml"
 	//   - Scope = "node" or "": Creates "r1/frr.conf", "r2/frr.conf", etc.
 	Scope string `yaml:"scope" mapstructure:"scope"`
 	// Output specifies where the file is placed in the output directory.
 	// Available values:
 	//   - "root": File is placed at root directory
+	//   - "group": File is placed in group subdirectory (group_name/file_name)
 	//   - "node": File is placed in node subdirectory (node_name/file_name)
-	//   - "" (empty): Defaults based on Scope (network->root, node->node)
+	//   - "" (empty): Defaults based on Scope (network->root, group->group, node->node)
 	// This is useful for Kathara-style startup files that need to be at root
 	// but are generated per-node (e.g., r1.startup, r2.startup).
+	//
+	// For a node-scope file, "root" is relative to the directory of the node's
+	// group when GlobalSettings.OutputGroupClass is in effect, not to the top
+	// level: a host's files must all stay inside the host's directory so that
+	// it can be archived as a unit. Only network-scope files, and files
+	// explicitly given "root" at group scope, sit at the true top level - and
+	// the latter then need NamePrefix/NameSuffix to stay distinct per group.
 	Output string `yaml:"output" mapstructure:"output"`
 }
 
@@ -450,15 +475,20 @@ func (fd *FileDefinition) GetFileName(objectName string) string {
 // If Output is specified, it returns Output.
 // If Output is empty, it returns the default based on Scope:
 //   - "network" -> "root"
+//   - "group" -> "group"
 //   - "node" or "" -> "node"
 func (fd *FileDefinition) GetOutputLocation() string {
 	if fd.Output != "" {
 		return fd.Output
 	}
-	if fd.Scope == ClassTypeNetwork {
+	switch fd.Scope {
+	case ClassTypeNetwork:
 		return "root"
+	case ClassTypeGroup:
+		return ClassTypeGroup
+	default:
+		return ClassTypeNode
 	}
-	return "node"
 }
 
 // FormatStyle defines how to format configuration blocks

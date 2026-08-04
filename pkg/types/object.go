@@ -2585,9 +2585,10 @@ type Group struct {
 // Interfaces implemented by Group. ObjectInstance is omitted: it is embedded in
 // NameSpacer, so asserting NameSpacer already covers it.
 var (
-	_ NameSpacer = (*Group)(nil)
-	_ LabelOwner = (*Group)(nil)
-	_ ValueOwner = (*Group)(nil)
+	_ NameSpacer    = (*Group)(nil)
+	_ LabelOwner    = (*Group)(nil)
+	_ ValueOwner    = (*Group)(nil)
+	_ FileGenerator = (*Group)(nil)
 )
 
 func newGroup(name string) *Group {
@@ -2678,25 +2679,19 @@ func (g *Group) StringForMessage() string {
 	return fmt.Sprintf("group:%s", g.Name)
 }
 
+// ChildClasses lets a group aggregate the config blocks of the objects it
+// contains, the same way the network model does. This is what makes a
+// group-scope file such as a per-host topo.yaml expressible: the template
+// refers to {{ .nodes_... }} and {{ .connections_... }} and gets only the
+// members of that group.
+//
+// Note that a node reached through a group is also a child of the network
+// model, so the same object is registered under two parents on purpose.
 func (g *Group) ChildClasses() ([]string, error) {
-	return []string{}, nil
+	return []string{ClassTypeNode, ClassTypeConnection}, nil
 }
 
 func (g *Group) Childs(c string) ([]NameSpacer, error) {
-	return nil, nil
-}
-
-func (g *Group) DependClasses() ([]string, error) {
-	classes, err := g.ChildClasses()
-	if err != nil {
-		return nil, err
-	}
-	// Group depends on its nodes
-	classes = append(classes, ClassTypeNode)
-	return classes, nil
-}
-
-func (g *Group) Depends(c string) ([]NameSpacer, error) {
 	switch c {
 	case ClassTypeNode:
 		var nodes []NameSpacer
@@ -2704,9 +2699,50 @@ func (g *Group) Depends(c string) ([]NameSpacer, error) {
 			nodes = append(nodes, n)
 		}
 		return nodes, nil
+	case ClassTypeConnection:
+		return g.internalConnections(), nil
 	default:
-		return g.Childs(c)
+		return nil, fmt.Errorf("invalid class type %s for group.Childs()", c)
 	}
+}
+
+// internalConnections returns the connections with both endpoints inside the
+// group. A connection that leaves the group is deliberately excluded: it
+// belongs to no single group, and rendering it into a per-group file would
+// name an endpoint the file cannot reach.
+func (g *Group) internalConnections() []NameSpacer {
+	members := make(map[*Node]bool, len(g.Nodes))
+	for _, n := range g.Nodes {
+		members[n] = true
+	}
+
+	var connections []NameSpacer
+	seen := map[*Connection]bool{}
+	for _, n := range g.Nodes {
+		for _, iface := range n.Interfaces {
+			conn := iface.Connection
+			if conn == nil || seen[conn] {
+				continue
+			}
+			if conn.Src == nil || conn.Dst == nil {
+				continue
+			}
+			if !members[conn.Src.Node] || !members[conn.Dst.Node] {
+				continue
+			}
+			seen[conn] = true
+			connections = append(connections, conn)
+		}
+	}
+	return connections
+}
+
+func (g *Group) DependClasses() ([]string, error) {
+	return g.ChildClasses()
+}
+
+func (g *Group) Depends(c string) ([]NameSpacer, error) {
+	return g.Childs(c)
 }
 
 func (g *Group) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
@@ -2724,6 +2760,55 @@ func (g *Group) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplate {
 		cts = append(cts, gc.ConfigTemplates...)
 	}
 	return cts
+}
+
+// OutputDir returns the directory that this node's files are written into,
+// relative to the output root: the directory of the group that carries
+// GlobalSettings.OutputGroupClass, or empty when the setting is unused or the
+// node belongs to no such group.
+//
+// Belonging to two such groups is an error rather than a choice: the class is
+// meant to name a placement unit (a host), and a node sits on exactly one.
+func (n *Node) OutputDir(cfg *Config) (string, error) {
+	className := cfg.GlobalSettings.OutputGroupClass
+	if className == "" {
+		return "", nil
+	}
+	dir := ""
+	for _, group := range n.Groups {
+		if !group.HasClass(className) {
+			continue
+		}
+		if dir != "" {
+			return "", fmt.Errorf(
+				"node %s belongs to more than one %s group (%s and %s), so its output directory is ambiguous",
+				n.Name, className, dir, group.Name,
+			)
+		}
+		dir = group.Name
+	}
+	return dir, nil
+}
+
+// FilesToGenerate returns a list of file names that the group will generate based on its classes.
+// It examines GroupClass ConfigTemplates.
+func (g *Group) FilesToGenerate(cfg *Config) []string {
+	fileSet := make(map[string]bool)
+	for _, cls := range g.GetClasses() {
+		gc := cls.(*GroupClass)
+		for _, ct := range gc.ConfigTemplates {
+			if ct.File != "" {
+				fileSet[ct.File] = true
+			}
+		}
+	}
+
+	files := make([]string, 0, len(fileSet))
+	for file := range fileSet {
+		files = append(files, file)
+	}
+	sort.Strings(files)
+	return files
 }
 
 func (g *Group) ClassDefinition(cfg *Config, cls string) (interface{}, error) {

@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Group-scope file output**: a `groupclass` can now own a `file:` template, and
+  `file` definitions accept `scope: group`. The file is written into the group's
+  own directory (`cluster_h1/host.yaml`), mirroring how node-scope files land in
+  the node's directory; `output: root` puts it at the output root instead, where
+  `name_prefix` / `name_suffix` are needed to keep the groups apart.
+- **Group child aggregation**: group-scope templates can reference
+  `{{ .nodes_<name> }}` and `{{ .connections_<name> }}` and receive only the
+  group's own members. A connection is included only when both of its endpoints
+  are inside the group, so a link leaving the group appears in no group file.
+- **`global.output_group_class`**: names the group class that splits the output
+  directory. Every node of such a group has its files written below that group's
+  directory, so a host packs as a single directory:
+  `clabhost1/{topo.yaml, r1/frr.conf, r2/frr.conf}`. Network-scope files belong
+  to no group and stay at the output root. A node in two groups of that class is
+  reported as an error rather than silently assigned to one. Unset (the default)
+  keeps the previous flat layout.
+
+### Fixed
+
+- **Missing aggregation parameters**: a named child template now contributes its
+  `{{ .nodes_... }}` / `{{ .connections_... }}` parameter as an empty value even
+  when no child object produced output, instead of the parameter being absent
+  and the referring template failing. A name that matches no defined template is
+  still an error, so typos are still caught.
+- **`Group.Nodes` was never populated**, leaving groups with no children and no
+  ordering constraint against their nodes. Group membership is now recorded in
+  both directions.
+
 ## [0.7.3] - 2026-07-30
 
 ### Changed

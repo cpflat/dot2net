@@ -212,6 +212,7 @@ func buildSkeleton(cfg *types.Config, d *Diagram) (*types.NetworkModel, error) {
 					return nil, fmt.Errorf("invalid group name %s", name)
 				}
 				node.Groups = append(node.Groups, group)
+				group.Nodes = append(group.Nodes, node)
 			}
 		}
 	}
