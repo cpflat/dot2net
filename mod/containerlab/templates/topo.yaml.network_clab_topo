@@ -4,4 +4,4 @@ topology:
 {{ .nodes_clab_topo }}
 
   links:
-{{ ._clab_link_endpoints }}
+{{ .connections_clab_link }}

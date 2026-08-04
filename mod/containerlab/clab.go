@@ -4,7 +4,6 @@ import (
 	"embed"
 	"fmt"
 	"path"
-	"strings"
 
 	"github.com/cpflat/dot2net/pkg/types"
 )
@@ -15,14 +14,17 @@ const ClabNetworkNameParamName = "_clab_networkName"
 const ClabImageParamName = "image"
 const ClabKindParamName = "kind"
 const ClabBindMountsParamName = "_clab_bindMounts"
-const ClabEndpointsParamName = "_clab_link_endpoints"
+const ClabSrcEndpointParamName = "_clab_src_endpoint"
+const ClabDstEndpointParamName = "_clab_dst_endpoint"
 
 const ClabYamlFormatName = "_clabYaml"
 const ClabCmdFormatName = "clabCmd"
+const ClabLinkFormatName = "_clabLink"
 
 const NetworkClassName = "_clabNetwork"
 const NodeClassName = "_clabNode"
 const InterfaceClassName = "_clabInterface"
+const ConnectionClassName = "_clabConnection"
 
 //go:embed templates/*
 var templates embed.FS
@@ -56,6 +58,15 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		Name:                ClabCmdFormatName,
 		FormatLinePrefix:    "      - ",
 		MergeBlockSeparator: "\n",
+	}
+	cfg.AddFormatStyle(formatStyle)
+
+	// Links are joined without a separator: each connection block already ends with
+	// a newline, so the default merge separator would insert a blank line between
+	// entries.
+	formatStyle = &types.FormatStyle{
+		Name:                ClabLinkFormatName,
+		MergeBlockSeparator: types.EmptySeparator,
 	}
 	cfg.AddFormatStyle(formatStyle)
 
@@ -131,6 +142,24 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	cfg.AddNodeClass(nodeClass)
 	m.AddModuleNodeClassLabel(NodeClassName)
 
+	// add connection class emitting one "links:" entry per connection.
+	// The endpoint names come from GenerateParameters; rendering lives in the
+	// template so that the list can be aggregated by whichever object owns the
+	// output file (see the network class below).
+	ct5 := &types.ConfigTemplate{Name: "clab_link", NamespaceFormat: ClabLinkFormatName}
+	bytes, err = templates.ReadFile("templates/topo.yaml.connection_clab_link")
+	if err != nil {
+		return err
+	}
+	ct5.Template = []string{string(bytes)}
+
+	connectionClass := &types.ConnectionClass{
+		Name:            ConnectionClassName,
+		ConfigTemplates: []*types.ConfigTemplate{ct5},
+	}
+	cfg.AddConnectionClass(connectionClass)
+	m.AddModuleConnectionClassLabel(ConnectionClassName)
+
 	// add param_rule for bind mounts using Value class
 	bindsParamRule := &types.ParameterRule{
 		Name:      "clab_binds",
@@ -153,23 +182,15 @@ func (m *ClabModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 	// set network name
 	nm.AddParam(ClabNetworkNameParamName, cfg.Name)
 
-	// generate connection endpoint descriptions
-	endpoints := []string{}
+	// Supply the endpoint names of every connection. The "links:" list itself is
+	// rendered by the connection config template, not assembled here: a single
+	// network-wide string could not be split per output file, which host-scoped
+	// topologies need. Connections to virtual nodes are dropped by the template
+	// condition, so they are not special-cased here.
 	for _, conn := range nm.Connections {
-		// skip connections involving virtual nodes
-		if conn.Src.Node.IsVirtual() || conn.Dst.Node.IsVirtual() {
-			continue
-		}
-		endpoint := fmt.Sprintf("[%s:%s, %s:%s]", conn.Src.Node.Name, conn.Src.Name, conn.Dst.Node.Name, conn.Dst.Name)
-		endpoints = append(endpoints, endpoint)
+		conn.AddParam(ClabSrcEndpointParamName, fmt.Sprintf("%s:%s", conn.Src.Node.Name, conn.Src.Name))
+		conn.AddParam(ClabDstEndpointParamName, fmt.Sprintf("%s:%s", conn.Dst.Node.Name, conn.Dst.Name))
 	}
-	// Avoid emitting a dangling "  - endpoints: " line (invalid YAML) when there
-	// are no non-virtual connections.
-	endpointsStr := ""
-	if len(endpoints) > 0 {
-		endpointsStr = "  - endpoints: " + strings.Join(endpoints, "\n  - endpoints: ") + "\n"
-	}
-	nm.AddParam(ClabEndpointsParamName, endpointsStr)
 
 	// Note: bind mounts are now generated through Value class mechanism
 	// (param_rule "clab_binds" with generator "clab.filemounts")

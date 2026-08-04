@@ -46,6 +46,13 @@ topology:
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1
+      - ip link add name br101 type bridge stp_state 0
+      - ip addr add 10.10.0.2/24 dev br101
+      - ip link set dev br101 up
+      - ip link add vxlan101 type vxlan id 101 dstport 4789 local 10.255.0.2 nolearning
+      - ip link set dev vxlan101 master br101
+      - ip link set up dev vxlan101
+      - ip link set dev net0 master br101
     pe2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
@@ -56,6 +63,26 @@ topology:
       - pe2/daemons:/etc/frr/daemons
       - pe2/vtysh.conf:/etc/frr/vtysh.conf
       - pe2/frr.log:/var/log/frr.log
+      exec:
+      - chown frr:frr /var/log/frr.log
+      - sysctl -w net.ipv4.ip_forward=1
+      - ip link add name br101 type bridge stp_state 0
+      - ip addr add 10.10.0.3/24 dev br101
+      - ip link set dev br101 up
+      - ip link add vxlan101 type vxlan id 101 dstport 4789 local 10.255.0.3 nolearning
+      - ip link set dev vxlan101 master br101
+      - ip link set up dev vxlan101
+      - ip link set dev net1 master br101
+    pe3:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - pe3/zebra.conf:/etc/frr/zebra.conf
+      - pe3/bgpd.conf:/etc/frr/bgpd.conf
+      - pe3/ospfd.conf:/etc/frr/ospfd.conf
+      - pe3/daemons:/etc/frr/daemons
+      - pe3/vtysh.conf:/etc/frr/vtysh.conf
+      - pe3/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1
@@ -79,6 +106,8 @@ topology:
       - ip link set dev net0 master br0
       - ip link set dev net1 promisc on
       - ip link set dev net1 master br0
+      - ip link set dev net2 promisc on
+      - ip link set dev net2 master br0
     s3:
       kind: linux
       image: nicolaka/netshoot
@@ -105,8 +134,8 @@ topology:
   - endpoints: [host2:net0, s4:net0]
   - endpoints: [p1:net0, s2:net0]
   - endpoints: [p1:net1, s3:net0]
-  - endpoints: [pe1:br101, pe2:br101]
   - endpoints: [pe1:net0, s1:net1]
   - endpoints: [pe1:net1, s2:net1]
   - endpoints: [pe2:net0, s3:net1]
   - endpoints: [pe2:net1, s4:net1]
+  - endpoints: [pe3:net0, s2:net2]

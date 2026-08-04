@@ -12,7 +12,8 @@ import (
 )
 
 const EmptyOutput string = "#EMPTY#"
-const EmptySeparator string = "#NONE#"
+// EmptySeparator moved to pkg/types so that modules can use it too.
+const EmptySeparator = types.EmptySeparator
 const NChars int = 32
 
 type ConfigAggregator struct {
@@ -946,6 +947,12 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 		if !configTemplate.NodeClassCheck(o.Node) {
 			return "parent node class condition", false
 		}
+		// A wiring template needs the connection to be an actual link. The template
+		// is interface-scoped (TiNET lists interfaces per node) but describes the
+		// connection, so the connection's own virtuality has to be checked here.
+		if configTemplate.RequiredLink && o.Connection != nil && o.Connection.IsVirtual() {
+			return "connection is not an actual link", false
+		}
 		// check if connection involves virtual nodes
 		if o.Connection != nil {
 			if o.Connection.Src != nil && o.Connection.Src.Node != nil && o.Connection.Src.Node.IsVirtual() {
@@ -954,6 +961,16 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 			if o.Connection.Dst != nil && o.Connection.Dst.Node != nil && o.Connection.Dst.Node.IsVirtual() {
 				return "connection to virtual node", false
 			}
+		}
+	case *types.Connection:
+		// check if connection involves virtual nodes.
+		// Same rule as the *types.Interface case above: a connection to an object
+		// that is not materialised must not appear in generated output.
+		if o.Src != nil && o.Src.Node != nil && o.Src.Node.IsVirtual() {
+			return "connection from virtual node", false
+		}
+		if o.Dst != nil && o.Dst.Node != nil && o.Dst.Node.IsVirtual() {
+			return "connection to virtual node", false
 		}
 	case *types.Neighbor:
 		// check if self node class of neighbor object match

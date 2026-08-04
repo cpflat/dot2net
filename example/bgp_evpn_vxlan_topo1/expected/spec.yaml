@@ -19,13 +19,17 @@ nodes:
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: s3#net1}, {name: net1, type: direct, args: s4#net1}]
     mounts: [pe2/zebra.conf:/etc/frr/zebra.conf, pe2/bgpd.conf:/etc/frr/bgpd.conf, pe2/ospfd.conf:/etc/frr/ospfd.conf, pe2/daemons:/etc/frr/daemons, pe2/vtysh.conf:/etc/frr/vtysh.conf, pe2/frr.log:/var/log/frr.log]
+  - name: pe3
+    image: quay.io/frrouting/frr:8.5.0
+    interfaces: [{name: net0, type: direct, args: s2#net2}]
+    mounts: [pe3/zebra.conf:/etc/frr/zebra.conf, pe3/bgpd.conf:/etc/frr/bgpd.conf, pe3/ospfd.conf:/etc/frr/ospfd.conf, pe3/daemons:/etc/frr/daemons, pe3/vtysh.conf:/etc/frr/vtysh.conf, pe3/frr.log:/var/log/frr.log]
   - name: s1
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: host1#net0}, {name: net1, type: direct, args: pe1#net0}]
     mounts: []
   - name: s2
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: p1#net0}, {name: net1, type: direct, args: pe1#net1}]
+    interfaces: [{name: net0, type: direct, args: p1#net0}, {name: net1, type: direct, args: pe1#net1}, {name: net2, type: direct, args: pe3#net0}]
     mounts: []
   - name: s3
     image: nicolaka/netshoot
@@ -51,7 +55,25 @@ node_configs:
     cmds:
       - cmd: chown frr:frr /var/log/frr.log
       - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: ip link add name br101 type bridge stp_state 0
+      - cmd: ip addr add 10.10.0.2/24 dev br101
+      - cmd: ip link set dev br101 up
+      - cmd: ip link add vxlan101 type vxlan id 101 dstport 4789 local 10.255.0.2 nolearning
+      - cmd: ip link set dev vxlan101 master br101
+      - cmd: ip link set up dev vxlan101
+      - cmd: ip link set dev net0 master br101
   - name: pe2
+    cmds:
+      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: ip link add name br101 type bridge stp_state 0
+      - cmd: ip addr add 10.10.0.3/24 dev br101
+      - cmd: ip link set dev br101 up
+      - cmd: ip link add vxlan101 type vxlan id 101 dstport 4789 local 10.255.0.3 nolearning
+      - cmd: ip link set dev vxlan101 master br101
+      - cmd: ip link set up dev vxlan101
+      - cmd: ip link set dev net1 master br101
+  - name: pe3
     cmds:
       - cmd: chown frr:frr /var/log/frr.log
       - cmd: sysctl -w net.ipv4.ip_forward=1
@@ -71,6 +93,8 @@ node_configs:
       - cmd: ip link set dev net0 master br0
       - cmd: ip link set dev net1 promisc on
       - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev net2 promisc on
+      - cmd: ip link set dev net2 master br0
   - name: s3
     cmds:
       - cmd: ip link add br0 type bridge

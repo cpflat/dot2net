@@ -84,6 +84,11 @@ type ClassPolicy struct {
 	Group      ClassPolicyEntry `yaml:"group" mapstructure:"group"`
 	Segment    ClassPolicyEntry `yaml:"segment" mapstructure:"segment"`
 }
+// EmptySeparator is the explicit "no separator" value for FormatStyle separators.
+// An empty string means "not specified" and falls back to the default, so a
+// separator that really is empty has to be spelled out.
+const EmptySeparator string = "#NONE#"
+
 const PlaceLabelPrefix string = "@"
 const ValueLabelSeparator string = "="
 const RelationalClassLabelSeparator string = "#"
@@ -859,6 +864,15 @@ type ConfigTemplate struct {
 	// RequiredParams specifies parameters that must exist for this template to generate output
 	// If any of the specified parameters are missing, the entire block is skipped
 	RequiredParams []string `yaml:"required_params,flow" mapstructure:"required_params,flow"`
+	// RequiredLink marks a template whose output tells the *platform* to create an
+	// actual link (containerlab "links:", TiNET "interfaces:"). Such a template must
+	// not be emitted for a connection that is only a modelling device - one that puts
+	// interfaces in the same segment without a wire existing, e.g. two bridges joined
+	// by a VXLAN overlay. Configuration executed *on the device* is unaffected: the
+	// interfaces themselves are real and still need their commands.
+	//
+	// Set by modules on their own wiring templates; users normally never write it.
+	RequiredLink bool `yaml:"required_link" mapstructure:"required_link"`
 
 	// This option is valid only on InterfaceClass or ConnectionClass
 	// If specified, add config only for included output (e.g., tinet only, clab only, etc)

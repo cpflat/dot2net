@@ -116,6 +116,14 @@ nodeclass:
         template:
           - "{{ .interfaces_addresses }}"
 
+connectionclass:
+  - name: c
+    layers: [customer]
+  - name: p
+    layers: [provider]
+  - name: v
+    virtual: true
+
 interfaceclass:
   - name: all
     config:

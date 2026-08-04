@@ -117,7 +117,11 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	m.AddModuleNodeClassLabel(NodeClassName)
 
 	// add interface class
-	ct1 = &types.ConfigTemplate{Name: "tn_spec", Format: TinetYamlFormatName}
+	// RequiredLink: this template tells TiNET to create a veth pair. It must not be
+	// emitted for a connection that models a shared segment without an actual wire
+	// (e.g. bridges joined by a VXLAN overlay), or TiNET would create an interface
+	// whose name collides with the device the node config creates itself.
+	ct1 = &types.ConfigTemplate{Name: "tn_spec", Format: TinetYamlFormatName, RequiredLink: true}
 	bytes, err = templates.ReadFile("templates/spec.yaml.interface_spec")
 	if err != nil {
 		return err

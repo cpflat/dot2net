@@ -1,0 +1,1 @@
+  - endpoints: [{{ ._clab_src_endpoint }}, {{ ._clab_dst_endpoint }}]

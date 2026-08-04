@@ -1575,11 +1575,9 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 		nm.connectionClassMemberMap.addClassMember(cc.Name, iface)
 
 		// check virtual
-		//iface.Virtual = iface.Virtual || cc.Virtual
-		if cc.Virtual {
-			iface.SetVirtual(true)
-			iface.Connection.SetVirtual(true)
-		}
+		// NOTE: a virtual connectionclass no longer marks the interface virtual.
+		// "virtual" applies to the object it is attached to: a connection that is
+		// not a real link can still have real interfaces at its ends.
 
 		// check ippolicy flags
 		for _, p := range cc.IPPolicy {
@@ -1632,7 +1630,6 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 		// check virtual
 		if ic.Virtual {
 			iface.SetVirtual(true)
-			iface.Connection.SetVirtual(true)
 		}
 		//iface.Virtual = iface.Virtual || ic.Virtual
 
