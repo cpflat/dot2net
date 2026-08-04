@@ -616,10 +616,14 @@ type NetworkModel struct {
 
 	nodeMap                  map[string]*Node
 	groupMap                 map[string]*Group
+	// Class member maps back the "classmembers" (MemberClass) feature: a class can
+	// pull in every object belonging to another class. MemberClass.GetSpecifiedClasses
+	// only accepts node, interface and connection classes, so there are exactly three
+	// maps here. Group and segment classes have none on purpose - adding one would be
+	// dead weight until MemberClass learns to reference them.
 	nodeClassMemberMap       classMemberMap
 	interfaceClassMemberMap  classMemberMap
 	connectionClassMemberMap classMemberMap
-	segmentClassMemberMap    classMemberMap
 }
 
 // Interfaces implemented by NetworkModel. ObjectInstance is omitted: it is embedded in
@@ -641,7 +645,6 @@ func NewNetworkModel() *NetworkModel {
 		nodeClassMemberMap:       classMemberMap{mapper: map[string][]NameSpacer{}},
 		interfaceClassMemberMap:  classMemberMap{mapper: map[string][]NameSpacer{}},
 		connectionClassMemberMap: classMemberMap{mapper: map[string][]NameSpacer{}},
-		segmentClassMemberMap:    classMemberMap{mapper: map[string][]NameSpacer{}},
 	}
 	return nm
 }
@@ -722,10 +725,6 @@ func (nm *NetworkModel) InterfaceClassMembers(cls string) []NameSpacer {
 
 func (nm *NetworkModel) ConnectionClassMembers(cls string) []NameSpacer {
 	return nm.connectionClassMemberMap.getClassMembers(cls)
-}
-
-func (nm *NetworkModel) SegmentClassMembers(cls string) []NameSpacer {
-	return nm.segmentClassMemberMap.getClassMembers(cls)
 }
 
 func (nm *NetworkModel) ChildClasses() ([]string, error) {
