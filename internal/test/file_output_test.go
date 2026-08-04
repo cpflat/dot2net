@@ -739,3 +739,68 @@ groupclass:
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+// TestSegmentClassValues checks that the values of a segment class reach the
+// segment's namespace, the same way they do for the other class types. Segment
+// classes are attached through relational labels on the edges, and a hub node
+// collapses its edges into one segment.
+func TestSegmentClassValues(t *testing.T) {
+	const dot = `digraph {
+		r1 [xlabel="router"]; r2 [xlabel="router"]; r3 [xlabel="router"];
+		hub1 [xlabel="hub"];
+		r1 -> hub1 [dir="none", label="segment#shared"];
+		r2 -> hub1 [dir="none", label="segment#shared"];
+		r3 -> hub1 [dir="none", label="segment#shared"];
+	}`
+	const yaml = `
+file:
+  - name: seg.txt
+    scope: network
+
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+
+nodeclass:
+  - name: router
+    interface_policy: [ip]
+  - name: hub
+
+segmentclass:
+  - name: shared
+    layer: ip
+    values:
+      kind: ovs-bridge
+      mtu: "9000"
+    config:
+      - name: seg_entry
+        template:
+          - "{{ .name }} kind={{ .kind }} mtu={{ .mtu }}"
+
+networkclass:
+  - name: _default
+    config:
+      - file: seg.txt
+        template:
+          - "{{ .segments_seg_entry }}"
+`
+
+	tmpDir, err := buildInDir(t, dot, yaml)
+	if err != nil {
+		t.Fatalf("failed to build config files: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(tmpDir, "seg.txt"))
+	if err != nil {
+		t.Fatalf("failed to read seg.txt: %v", err)
+	}
+	// The hub is layer-unaware, so the three edges collapse into one segment.
+	const want = "seg0 kind=ovs-bridge mtu=9000"
+	if string(got) != want {
+		t.Errorf("seg.txt mismatch:\n  got:      %q\n  expected: %q", string(got), want)
+	}
+}

@@ -2356,10 +2356,18 @@ func (seg *NetworkSegment) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 	// Resolve attributes contributed by several classes (see tieredValues).
 	single := newTieredValues()
+	values := newTieredValues()
 
 	for _, cls := range seg.GetClasses() {
 		sc := cls.(*SegmentClass)
 		tier := seg.ClassTier(sc.Name)
+
+		// Check for value conflicts
+		for key, value := range sc.Values {
+			if other, ok := values.set(key, value, tier); !ok {
+				return classConflictError("segment", seg.Name, "values for '"+key+"'", other, value)
+			}
+		}
 
 		// Check for prefix conflicts (only if both are non-empty and different)
 		if sc.Prefix != "" {
@@ -2377,6 +2385,15 @@ func (seg *NetworkSegment) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// Apply the winning single-valued attributes (see Node.SetClasses).
 	if prefix, ok := single.get("prefix"); ok {
 		seg.NamePrefix = prefix
+	}
+	// Unlike the other class types, the given values are applied here rather than
+	// in setGivenParameters: segments do not exist yet when that runs (they are
+	// built later, during IP assignment). Computed parameters are assigned after
+	// this point, so the same "do not overwrite" guard applies.
+	for key, value := range values.values {
+		if !seg.HasParam(key) {
+			seg.AddParam(key, value)
+		}
 	}
 	return nil
 }

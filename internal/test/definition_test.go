@@ -102,6 +102,38 @@ digraph {
 			errorMsg:    "different values for 'mtu'",
 		},
 		{
+			// Segment classes are attached through relational labels on the
+			// edges, so a segment can carry several of them and needs the same
+			// conflict check as the other class types.
+			name: "SegmentClass_Values_Conflict",
+			configYAML: `
+name: conflict_test
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+segmentclass:
+  - name: seg1
+    layer: ip
+    values:
+      kind: "bridge"
+  - name: seg2
+    layer: ip
+    values:
+      kind: "ovs-bridge"
+`,
+			dotContent: `
+digraph {
+  n1 -- n2 [label="segment#seg1; segment#seg2"];
+}
+`,
+			expectError: true,
+			errorMsg:    "different values for 'kind'",
+		},
+		{
 			name: "InterfaceClass_Prefix_Conflict",
 			configYAML: `
 name: conflict_test

@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reported as an error rather than silently assigned to one. Unset (the default)
   keeps the previous flat layout.
 
+- **`values:` on segment classes**: `segmentclass` accepts a `values` map like the
+  other class types, so a segment can carry static attributes
+  (`values: {kind: ovs-bridge}`). Conflicting values from two classes of the same
+  tier are rejected, as they are for the other class types.
+
 ### Fixed
 
 - **Missing aggregation parameters**: a named child template now contributes its

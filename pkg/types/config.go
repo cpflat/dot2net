@@ -784,9 +784,16 @@ func (gc *GroupClass) GetGivenValues() map[string]string {
 type SegmentClass struct {
 	Name            string            `yaml:"name" mapstructure:"name"`
 	Layer           string            `yaml:"layer" mapstructure:"layer"`
+	Values          map[string]string `yaml:"values" mapstructure:"values"`
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 	Prefix          string            `yaml:"prefix" mapstructure:"prefix"` // prefix of segment auto-naming
+
+	LabelOwnerClass
+}
+
+func (sc *SegmentClass) GetGivenValues() map[string]string {
+	return sc.Values
 }
 
 type NeighborClass struct {
