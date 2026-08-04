@@ -99,7 +99,7 @@ digraph {
 }
 `,
 			expectError: true,
-			errorMsg:    "conflicting values for 'mtu' in interface class",
+			errorMsg:    "different values for 'mtu'",
 		},
 		{
 			name: "InterfaceClass_Prefix_Conflict",
@@ -117,7 +117,7 @@ digraph {
 }
 `,
 			expectError: true,
-			errorMsg:    "conflicting prefix values in interface classes",
+			errorMsg:    "different prefix",
 		},
 
 		// Valid Cases - should succeed

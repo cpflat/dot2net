@@ -237,15 +237,24 @@ func (cfg *Config) getValidClasses(given []string, hasAll bool, hasDefault bool)
 	}
 	classes := make([]string, 0, cnt)
 
-	if hasAll {
-		classes = append(classes, ClassAll)
-	}
+	// Strongest first: user-written classes, then the base ("all") class. Module
+	// labels are appended after this by SetLabels, which makes them the weakest.
+	// Resolution walks this slice and keeps the first value it sees, so the order
+	// here *is* the precedence order (see ClassTier* in object.go).
 	if len(classLabels) == 0 {
 		if hasDefault {
 			classes = append(classes, ClassDefault)
+			pl.setClassTier(ClassDefault, ClassTierUser)
 		}
 	} else {
 		classes = append(classes, classLabels...)
+		for _, name := range classLabels {
+			pl.setClassTier(name, ClassTierUser)
+		}
+	}
+	if hasAll {
+		classes = append(classes, ClassAll)
+		pl.setClassTier(ClassAll, ClassTierBase)
 	}
 
 	pl.classLabels = classes

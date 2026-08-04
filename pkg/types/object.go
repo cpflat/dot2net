@@ -248,6 +248,24 @@ type RelationalClassLabel struct {
 	Name      string
 }
 
+// Class tiers determine which class wins when several classes give different
+// values for the same attribute. Larger is stronger.
+//
+// Weakest to strongest: module-provided -> base -> user-written. Modules are the
+// weakest on purpose: they supply defaults, and anything the user writes must win
+// over them. A module that has to *force* a value (for example the Kathara module
+// pinning the interface prefix to "eth", because Kathara derives interface names
+// from lab.conf indices) must not win silently - it should check the value and
+// report a module-specific error instead.
+//
+// DOT value labels are not part of this scale; they are applied before any class
+// value and therefore beat all of them (see setGivenParameters).
+const (
+	ClassTierModule = iota // classes injected by modules
+	ClassTierBase          // the "base" (formerly "all") class
+	ClassTierUser          // classes named by the user, and the "default" class
+)
+
 type ParsedLabels struct {
 	classLabels     []string
 	rClassLabels    []RelationalClassLabel
@@ -255,7 +273,11 @@ type ParsedLabels struct {
 	valueLabels     map[string]string
 	metaValueLabels map[string]string
 	Classes         []ObjectClass
-	virtual         bool // virtual object flag
+	// classTiers maps a class name to its tier. Keyed by name rather than kept
+	// parallel to Classes because Classes is rebuilt in several places and skips
+	// entries that cannot be resolved, which would desynchronise a parallel slice.
+	classTiers map[string]int
+	virtual    bool // virtual object flag
 }
 
 func newParsedLabels() *ParsedLabels {
@@ -265,7 +287,29 @@ func newParsedLabels() *ParsedLabels {
 		placeLabels:     []string{},
 		valueLabels:     map[string]string{},
 		metaValueLabels: map[string]string{},
+		classTiers:      map[string]int{},
 	}
+}
+
+// ClassTier returns the tier of the named class. Unknown classes are treated as
+// user-written, which is the safe default: an unexpected class then conflicts
+// with other user classes instead of silently overriding them.
+func (l *ParsedLabels) ClassTier(name string) int {
+	if l.classTiers == nil {
+		return ClassTierUser
+	}
+	if tier, ok := l.classTiers[name]; ok {
+		return tier
+	}
+	return ClassTierUser
+}
+
+// setClassTier records the tier of a class label.
+func (l *ParsedLabels) setClassTier(name string, tier int) {
+	if l.classTiers == nil {
+		l.classTiers = map[string]int{}
+	}
+	l.classTiers[name] = tier
 }
 
 func (l *ParsedLabels) ClassLabels() []string {
@@ -290,6 +334,75 @@ func (l *ParsedLabels) MetaValueLabels() map[string]string {
 
 func (l *ParsedLabels) AddClassLabels(labels ...string) {
 	l.classLabels = append(l.classLabels, labels...)
+	// Labels added after SetLabels originate from the user's input (relational
+	// class labels of a connection, segment classes, ...), so they share the user
+	// tier. setClassTier is a no-op for names that already have a tier.
+	for _, name := range labels {
+		if _, ok := l.classTiers[name]; !ok {
+			l.setClassTier(name, ClassTierUser)
+		}
+	}
+}
+
+// tieredValues resolves attribute values contributed by several classes.
+//
+// Callers must visit classes strongest-first (the order produced by
+// getValidClasses plus module labels appended last). Under that order the first
+// value recorded for a key is the winner; a weaker class trying to set the same
+// key is ignored, while a class in the same tier setting a different value is a
+// conflict the user has to resolve, because the order inside one tier comes from
+// the order of labels in the DOT file and is not meaningful.
+type tieredValues struct {
+	values map[string]string
+	tiers  map[string]int
+}
+
+func newTieredValues() *tieredValues {
+	return &tieredValues{values: map[string]string{}, tiers: map[string]int{}}
+}
+
+// set records value for key. It reports the conflicting value and false when a
+// class in the same tier already set a different value.
+func (t *tieredValues) set(key, value string, tier int) (string, bool) {
+	prev, seen := t.values[key]
+	if !seen {
+		t.values[key] = value
+		t.tiers[key] = tier
+		return "", true
+	}
+	if t.tiers[key] > tier {
+		return "", true // a stronger class already won
+	}
+	if prev != value {
+		return prev, false
+	}
+	return "", true
+}
+
+// get returns the winning value for key, if any.
+func (t *tieredValues) get(key string) (string, bool) {
+	v, ok := t.values[key]
+	return v, ok
+}
+
+// conflictName identifies an interface in error messages. SetClasses runs before
+// interface names are assigned, so the name is often still empty at this point.
+func (iface *Interface) conflictName() string {
+	if iface.Name == "" {
+		return iface.Node.Name + ".<unnamed>"
+	}
+	return iface.Node.Name + "." + iface.Name
+}
+
+// classConflictError reports two classes of the same tier disagreeing on an
+// attribute. Only same-tier clashes reach this point: a stronger class silently
+// overrides a weaker one by design.
+func classConflictError(objType, objName, attr, existing, conflicting string) error {
+	return fmt.Errorf(
+		"configuration conflict detected on %s '%s': classes of the same precedence define different %s ('%s' vs '%s'). "+
+			"Classes named in the DOT label have no order between them, so this cannot be resolved automatically. "+
+			"Either give them the same value, leave one empty, or move the differing value to a more specific class",
+		objType, objName, attr, existing, conflicting)
 }
 
 func (l *ParsedLabels) HasClass(name string) bool {
@@ -929,6 +1042,11 @@ func (n *Node) SortKey() string {
 func (n *Node) SetLabels(cfg *Config, labels []string, moduleLabels []string) error {
 	n.ParsedLabels = cfg.GetValidNodeClasses(labels)
 	n.ParsedLabels.classLabels = append(n.ParsedLabels.classLabels, moduleLabels...)
+	// Module-provided classes are the weakest tier (see ClassTier* above):
+	// they supply defaults and anything the user writes overrides them.
+	for _, name := range moduleLabels {
+		n.ParsedLabels.setClassTier(name, ClassTierModule)
+	}
 	for _, cls := range n.ClassLabels() {
 		nc, ok := cfg.NodeClassByName(cls)
 		if !ok {
@@ -943,10 +1061,11 @@ func (n *Node) SetLabels(cfg *Config, labels []string, moduleLabels []string) er
 }
 
 func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
-	// Track conflicting values
-	seenValues := make(map[string]string)
-	seenPrefix := ""
-	seenMgmtInterface := ""
+	// Resolve attributes contributed by several classes. Classes are visited
+	// strongest-first, so the first value recorded wins; only a clash inside the
+	// same tier is an error (see tieredValues).
+	values := newTieredValues()
+	single := newTieredValues()
 
 	// set defaults for nodes without class
 	n.NamePrefix = DefaultNodePrefix
@@ -1003,40 +1122,42 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 			n.AddMemberClass(nc.MemberClasses[i])
 		}
 
+		tier := n.ClassTier(nc.Name)
+
 		// Check for value conflicts
 		for key, value := range nc.Values {
-			if existingValue, exists := seenValues[key]; exists && existingValue != value {
-				return fmt.Errorf("configuration conflict detected on node '%s': multiple classes define different values for '%s' ('%s' vs '%s'). Please ensure all classes define the same value for this parameter, or leave one class with an empty value", n.Name, key, existingValue, value)
+			if other, ok := values.set(key, value, tier); !ok {
+				return classConflictError("node", n.Name, "values for '"+key+"'", other, value)
 			}
-			seenValues[key] = value
 		}
 
 		// Check for prefix conflicts (only if both are non-empty and different)
 		if nc.Prefix != "" {
-			if seenPrefix != "" && seenPrefix != nc.Prefix {
-				return fmt.Errorf("configuration conflict detected on node '%s': multiple classes define different prefix values ('%s' vs '%s'). Please ensure all classes define the same prefix, or leave one class with an empty prefix", n.Name, seenPrefix, nc.Prefix)
+			if other, ok := single.set("prefix", nc.Prefix, tier); !ok {
+				return classConflictError("node", n.Name, "prefix", other, nc.Prefix)
 			}
-			if seenPrefix == "" {
-				seenPrefix = nc.Prefix
-			}
-			n.NamePrefix = nc.Prefix
 		}
 
 		// Check for mgmt interface conflicts (only if both are non-empty and different)
 		if nc.MgmtInterface != "" {
-			if seenMgmtInterface != "" && seenMgmtInterface != nc.MgmtInterface {
-				return fmt.Errorf("configuration conflict detected on node '%s': multiple classes define different management interface classes ('%s' vs '%s'). Please ensure all classes define the same management interface class, or leave one class with an empty value", n.Name, seenMgmtInterface, nc.MgmtInterface)
-			}
-			if seenMgmtInterface == "" {
-				seenMgmtInterface = nc.MgmtInterface
-			}
-			if mgmtnc, ok := cfg.InterfaceClassByName(nc.MgmtInterface); ok {
-				n.mgmtInterfaceClass = mgmtnc
-			} else {
-				return fmt.Errorf("invalid mgmt interface class name %s", nc.MgmtInterface)
+			if other, ok := single.set("mgmt_interfaceclass", nc.MgmtInterface, tier); !ok {
+				return classConflictError("node", n.Name, "management interface class", other, nc.MgmtInterface)
 			}
 		}
 
+	}
+
+	// Apply the winning single-valued attributes. Assigning after the loop (rather
+	// than on every class) is what makes the tier order authoritative.
+	if prefix, ok := single.get("prefix"); ok {
+		n.NamePrefix = prefix
+	}
+	if name, ok := single.get("mgmt_interfaceclass"); ok {
+		mgmtnc, found := cfg.InterfaceClassByName(name)
+		if !found {
+			return fmt.Errorf("invalid mgmt interface class name %s", name)
+		}
+		n.mgmtInterfaceClass = mgmtnc
 	}
 
 	return nil
@@ -1321,6 +1442,11 @@ func (iface *Interface) SortKey() string {
 func (iface *Interface) SetLabels(cfg *Config, labels []string, moduleLabels []string) error {
 	iface.ParsedLabels = cfg.GetValidInterfaceClasses(labels)
 	iface.ParsedLabels.classLabels = append(iface.ParsedLabels.classLabels, moduleLabels...)
+	// Module-provided classes are the weakest tier (see ClassTier* above):
+	// they supply defaults and anything the user writes overrides them.
+	for _, name := range moduleLabels {
+		iface.ParsedLabels.setClassTier(name, ClassTierModule)
+	}
 	for _, cls := range iface.ClassLabels() {
 		ic, ok := cfg.InterfaceClassByName(cls)
 		if !ok {
@@ -1336,8 +1462,9 @@ func (iface *Interface) SetLabels(cfg *Config, labels []string, moduleLabels []s
 
 func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// Track conflicting values
-	seenValues := make(map[string]string)
-	seenPrefix := ""
+	// Resolve attributes contributed by several classes (see tieredValues).
+	values := newTieredValues()
+	single := newTieredValues()
 
 	// set virtual flag to interfaces of virtual nodes as default
 	iface.SetVirtual(iface.Node.IsVirtual())
@@ -1457,23 +1584,26 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 		}
 
 		// Check for value conflicts
+		tier := iface.ClassTier(ic.Name)
 		for key, value := range ic.Values {
-			if existingValue, exists := seenValues[key]; exists && existingValue != value {
-				return fmt.Errorf("conflicting values for '%s' in interface class: '%s' vs '%s'", key, existingValue, value)
+			if other, ok := values.set(key, value, tier); !ok {
+				return classConflictError("interface", iface.conflictName(),
+					"values for '"+key+"'", other, value)
 			}
-			seenValues[key] = value
 		}
 
 		// Check for prefix conflicts (only if both are non-empty and different)
 		if ic.Prefix != "" {
-			if seenPrefix != "" && seenPrefix != ic.Prefix {
-				return fmt.Errorf("conflicting prefix values in interface classes: '%s' vs '%s'", seenPrefix, ic.Prefix)
+			if other, ok := single.set("prefix", ic.Prefix, tier); !ok {
+				return classConflictError("interface", iface.conflictName(),
+					"prefix", other, ic.Prefix)
 			}
-			if seenPrefix == "" {
-				seenPrefix = ic.Prefix
-			}
-			iface.NamePrefix = ic.Prefix
 		}
+	}
+
+	// Apply the winning single-valued attributes (see Node.SetClasses).
+	if prefix, ok := single.get("prefix"); ok {
+		iface.NamePrefix = prefix
 	}
 
 	return nil
@@ -1701,6 +1831,11 @@ func (conn *Connection) SortKey() string {
 func (conn *Connection) SetLabels(cfg *Config, labels []string, moduleLabels []string) error {
 	conn.ParsedLabels = cfg.GetValidConnectionClasses(labels)
 	conn.ParsedLabels.classLabels = append(conn.ParsedLabels.classLabels, moduleLabels...)
+	// Module-provided classes are the weakest tier (see ClassTier* above):
+	// they supply defaults and anything the user writes overrides them.
+	for _, name := range moduleLabels {
+		conn.ParsedLabels.setClassTier(name, ClassTierModule)
+	}
 	for _, cls := range conn.ClassLabels() {
 		cc, ok := cfg.ConnectionClassByName(cls)
 		if !ok {
@@ -1715,6 +1850,10 @@ func (conn *Connection) SetLabels(cfg *Config, labels []string, moduleLabels []s
 }
 
 func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
+	// Resolve attributes contributed by several classes (see tieredValues).
+	values := newTieredValues()
+	single := newTieredValues()
+
 	defaultConnectionLayer := cfg.DefaultConnectionLayer()
 	for _, layer := range defaultConnectionLayer {
 		conn.Layers.Add(layer)
@@ -1762,7 +1901,27 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 		for i := range cc.MemberClasses {
 			conn.AddMemberClass(cc.MemberClasses[i])
 		}
+
+		// Check for value conflicts
+		tier := conn.ClassTier(cc.Name)
+		for key, value := range cc.Values {
+			if other, ok := values.set(key, value, tier); !ok {
+				return classConflictError("connection", conn.Name, "values for '"+key+"'", other, value)
+			}
+		}
+
+		// Check for prefix conflicts (only if both are non-empty and different)
+		if cc.Prefix != "" {
+			if other, ok := single.set("prefix", cc.Prefix, tier); !ok {
+				return classConflictError("connection", conn.Name, "prefix", other, cc.Prefix)
+			}
+		}
 	}
+
+	// The winning prefix is not stored on the Connection: assignConnectionNames
+	// resolves it by taking the first non-empty prefix from GetClasses(), which is
+	// ordered strongest-first and therefore already matches the tier rules. The
+	// check above exists to reject same-tier conflicts before that happens.
 
 	return nil
 }
@@ -2089,20 +2248,31 @@ func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, lay
 
 func (seg *NetworkSegment) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// set defaults for segments without class
-	seg.NamePrefix = "seg"  // default prefix
+	seg.NamePrefix = DefaultSegmentPrefix
+
+	// Resolve attributes contributed by several classes (see tieredValues).
+	single := newTieredValues()
 
 	for _, cls := range seg.GetClasses() {
 		sc := cls.(*SegmentClass)
+		tier := seg.ClassTier(sc.Name)
 
-		// set name prefix from SegmentClass
+		// Check for prefix conflicts (only if both are non-empty and different)
 		if sc.Prefix != "" {
-			seg.NamePrefix = sc.Prefix
+			if other, ok := single.set("prefix", sc.Prefix, tier); !ok {
+				return classConflictError("segment", seg.Name, "prefix", other, sc.Prefix)
+			}
 		}
 
 		// check parameter flags
 		for _, num := range sc.Parameters {
 			seg.setParamFlag(num)
 		}
+	}
+
+	// Apply the winning single-valued attributes (see Node.SetClasses).
+	if prefix, ok := single.get("prefix"); ok {
+		seg.NamePrefix = prefix
 	}
 	return nil
 }
@@ -2333,6 +2503,11 @@ func (g *Group) SortKey() string {
 func (g *Group) SetLabels(cfg *Config, labels []string, moduleLabels []string) error {
 	g.ParsedLabels = cfg.GetValidGroupClasses(labels)
 	g.ParsedLabels.classLabels = append(g.ParsedLabels.classLabels, moduleLabels...)
+	// Module-provided classes are the weakest tier (see ClassTier* above):
+	// they supply defaults and anything the user writes overrides them.
+	for _, name := range moduleLabels {
+		g.ParsedLabels.setClassTier(name, ClassTierModule)
+	}
 	for _, cls := range g.ClassLabels() {
 		gc, ok := cfg.GroupClassByName(cls)
 		if !ok {
@@ -2347,6 +2522,9 @@ func (g *Group) SetLabels(cfg *Config, labels []string, moduleLabels []string) e
 }
 
 func (g *Group) SetClasses(cfg *Config, nm *NetworkModel) error {
+	// Resolve attributes contributed by several classes (see tieredValues).
+	values := newTieredValues()
+
 	for _, cls := range g.GetClasses() {
 		gc := cls.(*GroupClass)
 		//	for _, cls := range g.classLabels {
@@ -2364,6 +2542,14 @@ func (g *Group) SetClasses(cfg *Config, nm *NetworkModel) error {
 		// check numbered
 		for _, num := range gc.Parameters {
 			g.setParamFlag(num)
+		}
+
+		// Check for value conflicts
+		tier := g.ClassTier(gc.Name)
+		for key, value := range gc.Values {
+			if other, ok := values.set(key, value, tier); !ok {
+				return classConflictError("group", g.Name, "values for '"+key+"'", other, value)
+			}
 		}
 	}
 	return nil
