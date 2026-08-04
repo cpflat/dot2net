@@ -15,6 +15,24 @@ const DefaultSegmentPrefix string = "seg"
 
 // abstracted module
 
+// Module is the minimum every module must provide: injecting its classes,
+// templates, formats and file definitions into the configuration, plus the class
+// label registry that StandardModule implements.
+//
+// Everything a module does beyond that is an optional interface (ParameterProvider,
+// RequirementChecker, ParameterGenerator, ...). A module implements only what it
+// actually does and declares it with a compile-time assertion at the top of its
+// file, so "what does this module provide?" is answerable by reading the module
+// rather than by reading empty method bodies:
+//
+//	// Capabilities provided by this module.
+//	var (
+//		_ types.Module            = (*ClabModule)(nil)
+//		_ types.ParameterProvider = (*ClabModule)(nil)
+//	)
+//
+// Keeping the optional parts out of Module also means a new hook can be added
+// without breaking every existing module.
 type Module interface {
 	UpdateConfig(cfg *Config) error
 	AddModuleNodeClassLabel(label string)
@@ -23,13 +41,30 @@ type Module interface {
 	GetModuleInterfaceClassLabels() []string
 	AddModuleConnectionClassLabel(label string)
 	GetModuleConnectionClassLabels() []string
-	//SetClasses(cfg *Config, nm *NetworkModel) error
+}
+
+// ParameterProvider is optionally implemented by modules that supply parameters
+// while the network model is being built. It runs after object naming and before
+// address and param_rule assignment, so it can also override values that came from
+// DOT labels.
+type ParameterProvider interface {
 	GenerateParameters(cfg *Config, nm *NetworkModel) error
+}
+
+// RequirementChecker is optionally implemented by modules that validate the model
+// before configuration files are generated (required parameters, naming rules the
+// target platform imposes, ...).
+type RequirementChecker interface {
 	CheckModuleRequirements(cfg *Config, nm *NetworkModel) error
 }
 
 // ParameterGenerator is optionally implemented by modules that can generate Value parameter lists
 // for attach mode param_rules with generator specification (e.g., "clab.filemounts")
+//
+// Note: unlike ParameterProvider and RequirementChecker, this is not a pipeline
+// hook. It is looked up *by name* from the YAML (`generator: clab.filemounts`), so
+// only the module named there is called. That difference in dispatch, not an
+// oversight, is why it is shaped differently from the hooks above.
 type ParameterGenerator interface {
 	// GenerateValueParameters generates a list of parameter sets for creating Values
 	// generatorName: the generator name after the module prefix (e.g., "filemounts" for "clab.filemounts")

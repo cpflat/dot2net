@@ -61,20 +61,31 @@ func getModuleConnectionClassLabels(cfg *types.Config) []string {
 	return ret
 }
 
+// generateModuleParameters runs the ParameterProvider hook of every module that
+// implements it. Modules without it are skipped rather than forced to carry an
+// empty method.
 func generateModuleParameters(cfg *types.Config, nm *types.NetworkModel) error {
 	for _, mod := range cfg.LoadedModules {
-		err := mod.GenerateParameters(cfg, nm)
-		if err != nil {
-			return err
+		provider, ok := mod.(types.ParameterProvider)
+		if !ok {
+			continue
+		}
+		if err := provider.GenerateParameters(cfg, nm); err != nil {
+			return fmt.Errorf("module %T: %w", mod, err)
 		}
 	}
 	return nil
 }
 
+// checkModuleRequirements runs the RequirementChecker hook of every module that
+// implements it.
 func checkModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
 	for _, mod := range cfg.LoadedModules {
-		err := mod.CheckModuleRequirements(cfg, nm)
-		if err != nil {
+		checker, ok := mod.(types.RequirementChecker)
+		if !ok {
+			continue
+		}
+		if err := checker.CheckModuleRequirements(cfg, nm); err != nil {
 			return fmt.Errorf("module %T: %w", mod, err)
 		}
 	}

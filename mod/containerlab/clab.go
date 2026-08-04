@@ -31,6 +31,14 @@ type ClabModule struct {
 	*types.StandardModule
 }
 
+// Capabilities provided by this module.
+var (
+	_ types.Module             = (*ClabModule)(nil)
+	_ types.ParameterProvider  = (*ClabModule)(nil)
+	_ types.RequirementChecker = (*ClabModule)(nil)
+	_ types.ParameterGenerator = (*ClabModule)(nil)
+)
+
 func NewModule() types.Module {
 	return &ClabModule{
 		StandardModule: types.NewStandardModule(),

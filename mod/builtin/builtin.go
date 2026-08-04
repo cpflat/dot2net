@@ -8,6 +8,9 @@ type BuiltinModule struct {
 	*types.StandardModule
 }
 
+// Capabilities provided by this module.
+var _ types.Module = (*BuiltinModule)(nil)
+
 func NewModule() types.Module {
 	return &BuiltinModule{
 		StandardModule: types.NewStandardModule(),
@@ -29,13 +32,5 @@ func (m *BuiltinModule) UpdateConfig(cfg *types.Config) error {
 	}
 	cfg.AddFormatStyle(formatStyle)
 
-	return nil
-}
-
-func (m *BuiltinModule) GenerateParameters(cfg *types.Config, nm *types.NetworkModel) error {
-	return nil
-}
-
-func (m *BuiltinModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
 	return nil
 }

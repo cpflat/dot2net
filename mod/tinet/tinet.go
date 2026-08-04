@@ -30,6 +30,14 @@ type TinetModule struct {
 	*types.StandardModule
 }
 
+// Capabilities provided by this module.
+var (
+	_ types.Module             = (*TinetModule)(nil)
+	_ types.ParameterProvider  = (*TinetModule)(nil)
+	_ types.RequirementChecker = (*TinetModule)(nil)
+	_ types.ParameterGenerator = (*TinetModule)(nil)
+)
+
 func NewModule() types.Module {
 	return &TinetModule{
 		StandardModule: types.NewStandardModule(),

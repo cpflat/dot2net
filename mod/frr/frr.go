@@ -10,6 +10,10 @@ type FRRModule struct {
 	*types.StandardModule
 }
 
+// Capabilities provided by this module. FRR only registers a FormatStyle, so it
+// implements nothing beyond the required Module interface.
+var _ types.Module = (*FRRModule)(nil)
+
 func NewModule() types.Module {
 	return &FRRModule{
 		StandardModule: types.NewStandardModule(),
@@ -24,13 +28,5 @@ func (m *FRRModule) UpdateConfig(cfg *types.Config) error {
 		FormatBlockSuffix:   "\"",
 	}
 	cfg.AddFormatStyle(formatStyle)
-	return nil
-}
-
-func (m FRRModule) GenerateParameters(cfg *types.Config, nm *types.NetworkModel) error {
-	return nil
-}
-
-func (m FRRModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
 	return nil
 }
