@@ -15,6 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `xlabel` is also the way to give a cluster a decorative title without it being
   taken as a group class (`label` still doubles as both). Node `label` remains
   excluded on purpose: it collides with the record-shape node syntax.
+- **Switch nodes (containerlab)**: `class_policy.node.switch` names the node
+  classes that stand for a shared L2 domain the platform realizes itself. Such a
+  node is emitted with its `kind` alone — no image, no bind mounts, no commands —
+  and is exempt from the image requirement. This is what lets a hub of N members
+  replace N² point-to-point links.
+
+  The reserved word lives in `class_policy` rather than in the class names, so a
+  class may still be called `switch` and mean an ordinary container, as eight of
+  the bundled examples already do. dot2net never reads or writes the `kind`
+  value itself: whether it is `bridge`, `ovs-bridge` or something containerlab
+  adds later is passed through from the user untouched, so a new kind needs no
+  change here.
 - **`LabelOwner.AddModuleClassLabels`**: lets a module attach a class label at the
   module tier. A module classifying objects through the `ObjectClassifier` hook
   had only `AddClassLabels`, which files labels as user-written — so a module's

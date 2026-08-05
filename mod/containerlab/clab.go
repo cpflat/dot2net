@@ -22,6 +22,7 @@ const ClabLinkFormatName = "_clabLink"
 
 const NetworkClassName = "_clabNetwork"
 const NodeClassName = "_clabNode"
+const SwitchNodeClassName = "_clabSwitchNode"
 const InterfaceClassName = "_clabInterface"
 const ConnectionClassName = "_clabConnection"
 
@@ -35,6 +36,7 @@ type ClabModule struct {
 // Capabilities provided by this module.
 var (
 	_ types.Module             = (*ClabModule)(nil)
+	_ types.ObjectClassifier   = (*ClabModule)(nil)
 	_ types.ParameterProvider  = (*ClabModule)(nil)
 	_ types.RequirementChecker = (*ClabModule)(nil)
 	_ types.ParameterGenerator = (*ClabModule)(nil)
@@ -139,7 +141,23 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4},
 	}
 	cfg.AddNodeClass(nodeClass)
-	m.AddModuleNodeClassLabel(NodeClassName)
+	// Not AddModuleNodeClassLabel: which of the two node classes a node gets is
+	// decided per node in ClassifyObjects.
+
+	// A switch node is a shared L2 domain the platform realizes itself, so it
+	// carries no image, no bind mounts and no commands - only the kind, whose
+	// value comes from the user untouched.
+	ct6 := &types.ConfigTemplate{Name: "clab_topo"}
+	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_switch")
+	if err != nil {
+		return err
+	}
+	ct6.Template = []string{string(bytes)}
+
+	cfg.AddNodeClass(&types.NodeClass{
+		Name:            SwitchNodeClassName,
+		ConfigTemplates: []*types.ConfigTemplate{ct6},
+	})
 
 	// add connection class emitting one "links:" entry per connection.
 	// The endpoint names come from GenerateParameters; rendering lives in the
@@ -173,6 +191,20 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	cfg.AddParameterRule(bindsParamRule)
 
+	return nil
+}
+
+// ClassifyObjects gives every node one of the module's two node classes. The
+// choice cannot be made through AddModuleNodeClassLabel, which applies one class
+// to all nodes before this hook runs.
+func (m *ClabModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) error {
+	for _, node := range nm.Nodes {
+		if cfg.IsSwitchNode(node) {
+			node.AddModuleClassLabels(SwitchNodeClassName)
+		} else {
+			node.AddModuleClassLabels(NodeClassName)
+		}
+	}
 	return nil
 }
 
@@ -282,12 +314,16 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 		if node.IsVirtual() {
 			continue
 		}
-		_, err := node.GetParamValue(ClabImageParamName)
-		if err != nil {
-			return fmt.Errorf("every (non-virtual) node must have {{ .image }} parameter (none for %s)", node.Name)
+		// A switch node is not a container, so it has no image. Which kinds go
+		// without one is containerlab's business, not ours: the check keys on
+		// dot2net's own class so that a new imageless kind needs no change here.
+		if !cfg.IsSwitchNode(node) {
+			_, err := node.GetParamValue(ClabImageParamName)
+			if err != nil {
+				return fmt.Errorf("every (non-virtual) node must have {{ .image }} parameter (none for %s)", node.Name)
+			}
 		}
-		_, err = node.GetParamValue(ClabKindParamName)
-		if err != nil {
+		if _, err := node.GetParamValue(ClabKindParamName); err != nil {
 			return fmt.Errorf("every (non-virtual) node must have {{ .kind }} parameter (none for %s)", node.Name)
 		}
 	}
