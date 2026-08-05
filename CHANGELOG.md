@@ -46,6 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`clean` left the group directories behind**: it only considered the
+  immediate parent of each generated file, so with group-scope output the empty
+  `host1/` remained after its contents were removed. Every ancestor is now
+  considered, deepest first.
 - **Bind mounts pointed at the wrong path under `output_group_class`**: the
   containerlab `binds:` and TiNET `mounts:` entries were built as
   `<node>/<file>` and ignored the group directory the file is actually written

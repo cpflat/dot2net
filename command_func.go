@@ -141,7 +141,6 @@ func CmdBuild(c *cli.Context) error {
 	return nil
 }
 
-
 func CmdParams(c *cli.Context) error {
 	nd, cfg, err := loadContext(c)
 	if err != nil {
@@ -392,12 +391,23 @@ func CmdClean(c *cli.Context) error {
 	}
 
 	// Extract directories from file list
+	// Collect every ancestor of a generated file, not just its immediate parent.
+	// With group-scope output a node file sits two levels down
+	// (host1/r1/frr.conf), and the group directory would otherwise be left
+	// behind empty.
 	dirSet := make(map[string]bool)
 	for _, file := range files {
-		if dir := filepath.Dir(file); dir != "." && dir != "" {
+		for dir := filepath.Dir(file); dir != "." && dir != "" && dir != string(filepath.Separator); dir = filepath.Dir(dir) {
 			dirSet[dir] = true
 		}
 	}
+	dirs := make([]string, 0, len(dirSet))
+	for dir := range dirSet {
+		dirs = append(dirs, dir)
+	}
+	// Descending order puts a child before its parent, since a child path is the
+	// parent plus more, so the parent is already empty when its turn comes.
+	sort.Sort(sort.Reverse(sort.StringSlice(dirs)))
 
 	// Delete files that exist
 	deletedCount := 0
@@ -422,7 +432,7 @@ func CmdClean(c *cli.Context) error {
 
 	// Remove directories if they are empty after file deletion
 	dirCount := 0
-	for dir := range dirSet {
+	for _, dir := range dirs {
 		if dryRun {
 			fmt.Printf("Would remove directory (if empty): %s\n", dir)
 		} else {

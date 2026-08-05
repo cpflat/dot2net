@@ -24,6 +24,8 @@ example/*/*/
 # Generated spec/topo files
 example/*/spec.yaml
 example/*/topo.yaml
+# network-scope outputs of individual scenarios
+example/vlan_multihost/segments.txt
 
 # heinzel: task artifacts (symlink -> heinzel-records). not part of the repo
 /heinzel
