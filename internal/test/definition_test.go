@@ -512,3 +512,96 @@ digraph {
 		})
 	}
 }
+
+// TestLabelAttributes pins which DOT attributes carry class labels. The set
+// differs per object kind, and an attribute that is not read is ignored in
+// silence - example/value_class_basic used xlabel on an edge and its connection
+// class simply never applied.
+func TestLabelAttributes(t *testing.T) {
+	const yaml = `
+nodeclass:
+  - name: router
+connectionclass:
+  - name: link
+groupclass:
+  - name: site
+`
+	tests := []struct {
+		name string
+		dot  string
+		want bool // whether the class is expected to apply
+	}{
+		{name: "node xlabel", dot: `digraph { r1 [xlabel="router"]; r2; r1 -> r2 }`, want: true},
+		{name: "node class", dot: `digraph { r1 [class="router"]; r2; r1 -> r2 }`, want: true},
+		// label on a node is the record-shape syntax, so it must not be parsed
+		// as class labels.
+		{name: "node label", dot: `digraph { r1 [label="router"]; r2; r1 -> r2 }`, want: false},
+
+		{name: "edge label", dot: `digraph { r1 -> r2 [label="link"] }`, want: true},
+		{name: "edge xlabel", dot: `digraph { r1 -> r2 [xlabel="link"] }`, want: true},
+		{name: "edge class", dot: `digraph { r1 -> r2 [class="link"] }`, want: true},
+
+		{name: "subgraph label", dot: `digraph { subgraph cluster1 { label="site"; r1 }; r1 -> r2 }`, want: true},
+		{name: "subgraph xlabel", dot: `digraph { subgraph cluster1 { xlabel="site"; r1 }; r1 -> r2 }`, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nm := buildModel(t, tt.dot, yaml)
+
+			got := false
+			for _, n := range nm.Nodes {
+				got = got || containsString(n.ClassLabels(), "router")
+			}
+			for _, c := range nm.Connections {
+				got = got || containsString(c.ClassLabels(), "link")
+			}
+			for _, g := range nm.Groups {
+				got = got || containsString(g.ClassLabels(), "site")
+			}
+
+			if got != tt.want {
+				t.Errorf("class applied = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func containsString(list []string, s string) bool {
+	for _, item := range list {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
+
+// buildModel builds a network model from inline inputs, failing the test on any
+// error along the way.
+func buildModel(t *testing.T, dot, yaml string) *types.NetworkModel {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "test.yaml")
+	dotFile := filepath.Join(tmpDir, "test.dot")
+	if err := os.WriteFile(configFile, []byte(yaml), 0644); err != nil {
+		t.Fatalf("failed to write config file: %v", err)
+	}
+	if err := os.WriteFile(dotFile, []byte(dot), 0644); err != nil {
+		t.Fatalf("failed to write dot file: %v", err)
+	}
+
+	cfg, err := types.LoadConfig(configFile)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	nd, err := model.DiagramFromDotFile(dotFile)
+	if err != nil {
+		t.Fatalf("failed to load DOT diagram: %v", err)
+	}
+	nm, err := model.BuildNetworkModel(cfg, nd, false)
+	if err != nil {
+		t.Fatalf("failed to build network model: %v", err)
+	}
+	return nm
+}

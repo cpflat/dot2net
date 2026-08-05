@@ -232,6 +232,7 @@ func getEdgeLabels(e *dotlike.Edge) (labels []string, srcLabels []string, dstLab
 		switch k {
 		case
 			"label",        // visible on graphviz as central edge label
+			"xlabel",       // visible on graphviz as external label; accepted for symmetry with nodes
 			"class",        // invisible on graphviz, but it may emit warnings on dot command
 			"info", "conf": // meaningless attributes on dot
 			// -> save as connection label
@@ -257,7 +258,10 @@ func getSubGraphLabels(s *dotlike.SubGraph) (labels []string) {
 	for k, v := range s.Attrs {
 		switch k {
 		case
-			"label",        // visible on graphviz as central edge label
+			"label", // visible on graphviz as the cluster title. Doubles as the
+			// class label, which is why a purely decorative title has to be
+			// paired with global.ignore_undefined_class; xlabel is the way out.
+			"xlabel",       // visible on graphviz as external label, free of the above clash
 			"class",        // invisible on graphviz, but it may emit warnings on dot command
 			"info", "conf": // meaningless attributes on dot
 			labels = append(labels, ParseLabels(v)...)
