@@ -21,6 +21,8 @@ const SpecCmdFormatName = "tinetSpecCmd"
 const NetworkClassName = "_tinetNetwork"
 const NodeClassName = "_tinetNode"
 const InterfaceClassName = "_tinetInterface"
+const SwitchNodeClassName = "_tinetSwitch"
+const SwitchInterfaceClassName = "_tinetSwitchInterface"
 
 //go:embed templates/*
 var templates embed.FS
@@ -32,6 +34,7 @@ type TinetModule struct {
 // Capabilities provided by this module.
 var (
 	_ types.Module             = (*TinetModule)(nil)
+	_ types.ObjectClassifier   = (*TinetModule)(nil)
 	_ types.ParameterProvider  = (*TinetModule)(nil)
 	_ types.RequirementChecker = (*TinetModule)(nil)
 	_ types.ParameterGenerator = (*TinetModule)(nil)
@@ -66,8 +69,21 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	cfg.AddFileDefinition(fileDef)
 
 	// add network class
-	ct1 := &types.ConfigTemplate{File: TinetOutputFile}
-	bytes, err := templates.ReadFile("templates/spec.yaml.network")
+	// The switches: section is a separate block so that it disappears entirely
+	// when the topology has no switch node: RequiredParams is satisfied only by
+	// a parameter that is present and non-empty.
+	ctSwitches := &types.ConfigTemplate{
+		Name:           "tn_switches",
+		RequiredParams: []string{"nodes_tn_switch"},
+	}
+	bytes, err := templates.ReadFile("templates/spec.yaml.network_tn_switches")
+	if err != nil {
+		return err
+	}
+	ctSwitches.Template = []string{string(bytes)}
+
+	ct1 := &types.ConfigTemplate{File: TinetOutputFile, Depends: []string{"tn_switches"}}
+	bytes, err = templates.ReadFile("templates/spec.yaml.network")
 	if err != nil {
 		return err
 	}
@@ -75,7 +91,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 
 	networkClass := &types.NetworkClass{
 		Name:            NetworkClassName,
-		ConfigTemplates: []*types.ConfigTemplate{ct1},
+		ConfigTemplates: []*types.ConfigTemplate{ctSwitches, ct1},
 	}
 	cfg.AddNetworkClass(networkClass)
 
@@ -113,7 +129,21 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3},
 	}
 	cfg.AddNodeClass(nodeClass)
-	m.AddModuleNodeClassLabel(NodeClassName)
+	// Not AddModuleNodeClassLabel: ClassifyObjects picks between this class and
+	// the switch one per node.
+
+	// A switch is a shared L2 domain TiNET realizes as an OVS bridge of its own,
+	// so it belongs in the switches: section rather than in nodes:.
+	ctSwitch := &types.ConfigTemplate{Name: "tn_switch", Format: TinetYamlFormatName}
+	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_switch")
+	if err != nil {
+		return err
+	}
+	ctSwitch.Template = []string{string(bytes)}
+	cfg.AddNodeClass(&types.NodeClass{
+		Name:            SwitchNodeClassName,
+		ConfigTemplates: []*types.ConfigTemplate{ctSwitch},
+	})
 
 	// add interface class
 	// RequiredLink: this template tells TiNET to create a veth pair. It must not be
@@ -131,7 +161,22 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 		ConfigTemplates: []*types.ConfigTemplate{ct1},
 	}
 	cfg.AddInterfaceClass(interfaceClass)
-	m.AddModuleInterfaceClassLabel(InterfaceClassName)
+	// Not AddModuleInterfaceClassLabel: ClassifyObjects decides which of the two
+	// interface classes applies, and gives the switch's own interfaces neither.
+
+	// An interface facing a switch attaches to it by name instead of naming a
+	// peer interface. It shares the tn_spec config name so that both kinds
+	// aggregate into the same interfaces: list.
+	ctSwitchIface := &types.ConfigTemplate{Name: "tn_spec", Format: TinetYamlFormatName, RequiredLink: true}
+	bytes, err = templates.ReadFile("templates/spec.yaml.interface_switch_spec")
+	if err != nil {
+		return err
+	}
+	ctSwitchIface.Template = []string{string(bytes)}
+	cfg.AddInterfaceClass(&types.InterfaceClass{
+		Name:            SwitchInterfaceClassName,
+		ConfigTemplates: []*types.ConfigTemplate{ctSwitchIface},
+	})
 
 	// add param_rule for bind mounts using Value class
 	bindsParamRule := &types.ParameterRule{
@@ -228,6 +273,29 @@ func (m *TinetModule) generateFilemountParams(
 	return results, nil
 }
 
+// ClassifyObjects assigns the node and interface classes that depend on which
+// nodes are switches, which AddModuleNodeClassLabel cannot express: it applies
+// one class to every object before this hook runs.
+func (m TinetModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) error {
+	for _, node := range nm.Nodes {
+		if cfg.IsSwitchNode(node) {
+			node.AddModuleClassLabels(SwitchNodeClassName)
+			// A switch's own interfaces produce nothing: the attachment is
+			// declared from the other end, by name.
+			continue
+		}
+		node.AddModuleClassLabels(NodeClassName)
+		for _, iface := range node.Interfaces {
+			if iface.Opposite != nil && cfg.IsSwitchNode(iface.Opposite.Node) {
+				iface.AddModuleClassLabels(SwitchInterfaceClassName)
+			} else {
+				iface.AddModuleClassLabels(InterfaceClassName)
+			}
+		}
+	}
+	return nil
+}
+
 func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
 	// node config templates named startup
 	flag := false
@@ -244,13 +312,13 @@ func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 
 	// parameter {{ .image }}
 	for _, node := range nm.Nodes {
-		if node.IsVirtual() {
+		// A switch is realized by TiNET itself as an OVS bridge, so it has no
+		// image to run.
+		if node.IsVirtual() || cfg.IsSwitchNode(node) {
 			continue
-		} else {
-			_, err := node.GetParamValue(TinetImageParamName)
-			if err != nil {
-				return fmt.Errorf("every (non-virtual) node must have {{ .image }} parameter (none for %s)", node.Name)
-			}
+		}
+		if _, err := node.GetParamValue(TinetImageParamName); err != nil {
+			return fmt.Errorf("every (non-virtual) node must have {{ .image }} parameter (none for %s)", node.Name)
 		}
 	}
 	return nil

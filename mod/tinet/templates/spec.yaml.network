@@ -1,4 +1,4 @@
-nodes:
+{{ .self_tn_switches }}nodes:
 {{ .nodes_tn_spec }}
 
 node_configs:

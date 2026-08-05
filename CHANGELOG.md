@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `xlabel` is also the way to give a cluster a decorative title without it being
   taken as a group class (`label` still doubles as both). Node `label` remains
   excluded on purpose: it collides with the record-shape node syntax.
-- **Switch nodes (containerlab)**: `class_policy.node.switch` names the node
+- **Switch nodes**: `class_policy.node.switch` names the node
   classes that stand for a shared L2 domain the platform realizes itself. Such a
   node is emitted with its `kind` alone — no image, no bind mounts, no commands —
   and is exempt from the image requirement. This is what lets a hub of N members
@@ -27,6 +27,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   value itself: whether it is `bridge`, `ovs-bridge` or something containerlab
   adds later is passed through from the user untouched, so a new kind needs no
   change here.
+
+  TiNET realizes the same node as an OVS bridge of its own: the node moves from
+  `nodes:` to a `switches:` section, and the interfaces facing it attach by name
+  (`type: bridge, args: <switch>`) instead of naming a peer interface. The
+  section is omitted entirely when a topology has no switch. An OVS *container*
+  needs none of this — it is an ordinary node, as `example/switching` already
+  shows with a Linux bridge.
 - **`LabelOwner.AddModuleClassLabels`**: lets a module attach a class label at the
   module tier. A module classifying objects through the `ObjectClassifier` hook
   had only `AddClassLabels`, which files labels as user-written — so a module's
