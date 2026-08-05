@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 
@@ -1441,6 +1442,22 @@ func (n *Node) BuildRelativeNameSpace(globalParams map[string]map[string]string)
 
 	// base params
 	return n.setNodeBaseRelativeNameSpace(n, globalParams, "")
+}
+
+// OutputPath returns where filedef's file for this node is written, relative to
+// the output root and always slash-separated. It is the single source of truth
+// for that location: the file is written there, listed there, and referred to
+// there by the bind mounts a platform module emits, and those three drifting
+// apart is exactly how a bind ends up pointing at a file that is not there.
+func (n *Node) OutputPath(cfg *Config, filedef *FileDefinition) (string, error) {
+	dirname, err := n.OutputDir(cfg)
+	if err != nil {
+		return "", err
+	}
+	if filedef.GetOutputLocation() != "root" {
+		dirname = path.Join(dirname, n.Name)
+	}
+	return path.Join(dirname, filedef.GetFileName(n.Name)), nil
 }
 
 // FilesToGenerate returns a list of file names that the node will generate based on its classes.

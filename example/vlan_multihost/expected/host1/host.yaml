@@ -1,0 +1,6 @@
+host: host1
+nodes:
+  - r1
+  - r2
+links:
+  - conn0

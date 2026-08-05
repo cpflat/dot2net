@@ -46,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Bind mounts pointed at the wrong path under `output_group_class`**: the
+  containerlab `binds:` and TiNET `mounts:` entries were built as
+  `<node>/<file>` and ignored the group directory the file is actually written
+  into, so they named a file that does not exist. All three places that need
+  that path — writing the file, listing it, and mounting it — now go through
+  `Node.OutputPath`.
 - **Segment aggregation mixed the layers**: the parameter a parent aggregates a
   segment's config into is now `segments_<layer>_<name>` instead of
   `segments_<name>`, matching what block references (`blocks.before` /

@@ -958,16 +958,11 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 			return fmt.Errorf("node %s has file template, but the file scope is not node", filedef.Scope)
 		}
 
-		filename = filedef.GetFileName(obj.Name)
-		groupDir, err := obj.OutputDir(cfg)
+		outputPath, err := obj.OutputPath(cfg, filedef)
 		if err != nil {
 			return err
 		}
-		dirname = groupDir
-		if filedef.GetOutputLocation() != "root" {
-			// Output to node subdirectory (default)
-			dirname = filepath.Join(dirname, obj.Name)
-		}
+		dirname, filename = filepath.Split(outputPath)
 	default:
 		return fmt.Errorf("network, group and node can create files, %T given", ns)
 	}
@@ -1384,19 +1379,13 @@ func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 			}
 		case types.ClassTypeNode, "":
 			// Node-scope files - Scope="" defaults to node scope
-			outputLocation := fileDef.GetOutputLocation()
 			for _, node := range nm.Nodes {
 				if !node.IsVirtual() && contains(node.FilesToGenerate(cfg), fileDef.Name) {
-					filename := fileDef.GetFileName(node.Name)
-					dirname, err := node.OutputDir(cfg)
+					outputPath, err := node.OutputPath(cfg, fileDef)
 					if err != nil {
 						return nil, err
 					}
-					if outputLocation != "root" {
-						// Output to node subdirectory (default)
-						dirname = filepath.Join(dirname, node.Name)
-					}
-					files = append(files, filepath.Join(dirname, filename))
+					files = append(files, outputPath)
 				}
 			}
 		}

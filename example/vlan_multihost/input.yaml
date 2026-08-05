@@ -1,27 +1,44 @@
-name: ospf_simple
-
-class_policy:
-  interface:
-    base: [all]
+# Multi-host output: the routers are split across two hosts, and everything
+# belonging to a host is written below that host's directory so it can be
+# packed as a unit.
+#
+# What this scenario is here to verify:
+#   - global.output_group_class puts node files under their group's directory
+#   - a group-scope file, and a group aggregating only its own members
+#     (the r2--r3 link crosses the boundary and appears in neither host file)
+#   - segment classes attached through "segment#" relational labels, their
+#     values, and a per-segment parameter (vlan_id)
+#   - network-scope files staying at the output root, since they belong to no
+#     single host
+#   - xlabel carrying class labels on edges and subgraphs
+# The assert module pins that the classes above really are applied; without it
+# a class that stops matching just disappears from the output and the expected
+# files record its absence.
+name: vlan_multihost
 
 global:
   path: local
-  # subgraph labels (host1/2/3) are used as display labels, not group classes
-  ignore_undefined_class: true
+  # Files of a node in a "worker" group are written below that group.
+  output_group_class: worker
 
 module:
+  - assert
   - tinet
   - containerlab
 
 file:
-  - name: params.txt
-  - name: network_config.txt
+  - name: host.yaml
+    scope: group
+  - name: segments.txt
+    scope: network
   - name: frr.conf
     path: /etc/frr/frr.conf
-  - name: daemons
-    path: /etc/frr/daemons
-  - name: vtysh.conf
-    path: /etc/frr/vtysh.conf
+
+class_policy:
+  interface:
+    default: [default]
+  connection:
+    default: [link]
 
 layer:
   - name: ip
@@ -30,9 +47,6 @@ layer:
       - name: ip
         range: 10.0.0.0/16
         prefix: 24
-      - name: lo
-        type: loopback
-        range: 10.0.255.0/24
 
 param_rule:
   - name: vlan_id
@@ -40,134 +54,82 @@ param_rule:
     layer: ip
     min: 100
     max: 1001
-  - name: connection_id
-    assign: connection
-    header: conn
-    min: 1
-  - name: segment_id
-    assign: segment
-    layer: ip
-    header: seg
-    min: 1
 
 nodeclass:
-  - name: switch
-    values:
-      kind: linux
-      image: nicolaka/netshoot
-    config:
-      - name: startup
-        template:
-          - "ip link add br0 type bridge"
-          - "ip link set br0 up"
-          - "{{ .interfaces_link }}"
   - name: router
+    interface_policy: [ip]
     values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
-    interface_policy: [ip]
-    params: [lo]
+      assert_used: "true"
     config:
-      - file: daemons
-        sourcefile: ./daemons
-      - file: vtysh.conf
-        sourcefile: ./vtysh.conf
-      - file: frr.conf
-        blocks:
-          after: ["interfaces_ospf_addr"]
-        template:
-          - "ip forwarding"
-          - "!"
-          - "router ospf"
-          - " ospf router-id {{ .ip_loopback }}"
-          - "{{ .interfaces_ospf_net }}"
-          - "!"
       - name: startup
+        blocks:
+          after: ["interfaces_addr"]
         template: []
-      - file: params.txt
-        style: sort
-        sort_group: params.txt
-      - file: network_config.txt
-        style: sort
-        sort_group: network_config.txt
+      - file: frr.conf
+        template:
+          - "hostname {{ .name }}"
+      - name: node_entry
+        template:
+          - "  - {{ .name }}"
 
 interfaceclass:
-  - name: all
-    params: [connection_id]
+  - name: default
+    values:
+      assert_used: "true"
     config:
-      - name: link
-        node: switch
+      - name: addr
         template:
-          - "ip link set dev {{ .name }} promisc on"
-          - "ip link set dev {{ .name }} master br0"
-      - name: ospf_addr
-        node: router
-        template:
-          - "interface {{ .name }}"
-          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
-          - "!"
-      - name: ospf_net
-        node: router
-        template:
-          - " network {{ .ip_net }} area 0"
-      - group: network_config.txt
-        template:
-          - "interface {{ .node_name }}.{{ .name }} on connection {{ .conn_name }}"
+          - "ip addr add {{ .ip_addr }}/{{ .ip_plen }} dev {{ .name }}"
 
 connectionclass:
-  - name: normal_conn
-    prefix: "normal"
-    params: [connection_id]
+  - name: link
+    values:
+      assert_used: "true"
     config:
-      - group: network_config.txt
-        priority: -2
+      - name: link_entry
         template:
-          - "# Normal Connection: {{ .name }} (ID: {{ .connection_id }})"
-          - "connection {{ .name }} type normal"
+          - "  - {{ .name }}"
 
-  - name: vlan_conn
-    prefix: "vlan_trunk"
-    params: [connection_id, vlan_id]
+groupclass:
+  - name: worker
+    values:
+      assert_used: "true"
     config:
-      - group: network_config.txt
-        priority: -2
+      - file: host.yaml
         template:
-          - "# VLAN Connection: {{ .name }} (ID: {{ .connection_id }}, VLAN: {{ .vlan_id }})"
-          - "connection {{ .name }} type vlan_trunk vlan {{ .vlan_id }}"
+          - "host: {{ .name }}"
+          - "nodes:"
+          - "{{ .nodes_node_entry }}"
+          - "links:"
+          - "{{ .connections_link_entry }}"
 
-# BROKEN: these segment classes are never applied. A segment class is attached
-# through a "segment#<name>" relational label on an edge, and input.dot has
-# none, so neither class below reaches any segment and none of its output is
-# generated. The templates would not render even if attached: segment_name,
-# segment_interface_count and vlan_id are not parameters a segment has.
-#
-# This dates from 317ae2d (2025-09-15, "update vlan_multihost to test
-# connection/segment"), which replaced a working interfaceclass-based VLAN test
-# with this, and v0.5.0 then froze the reduced output into expected/. The golden
-# test cannot catch it: a class that never applies produces nothing, so the
-# expected files just record its absence. That is what the assert module (see
-# mod/assert) is for - add `values: {assert_used: "true"}` here once the classes
-# actually attach.
-#
-# Left in place rather than deleted because example/vlan_multihost is scheduled
-# to be reworked for multi-host support (ROADMAP TODO 28), which is where the
-# VLAN modelling has to be decided anyway.
 segmentclass:
-  - name: vlan_seg_A
+  - name: intra
     layer: ip
+    params: [vlan_id]
+    values:
+      assert_used: "true"
+      reach: intra-host
     config:
-      - group: network_config.txt
-        priority: -3
+      - name: seg_entry
         template:
-          - "# VLAN Segment A: VLAN {{ .vlan_id }} spanning {{ .segment_interface_count }} interfaces"
-          - "vlan segment {{ .segment_name }} id {{ .vlan_id }} interfaces {{ .segment_interface_count }}"
-
-  - name: vlan_seg_B
+          - "{{ .name }} vlan={{ .vlan_id }} reach={{ .reach }}"
+  - name: inter
     layer: ip
+    params: [vlan_id]
+    values:
+      assert_used: "true"
+      reach: inter-host
     config:
-      - group: network_config.txt
-        priority: -3
+      - name: seg_entry
         template:
-          - "# VLAN Segment B: VLAN {{ .vlan_id }} spanning {{ .segment_interface_count }} interfaces"
-          - "vlan segment {{ .segment_name }} id {{ .vlan_id }} interfaces {{ .segment_interface_count }}"
+          - "{{ .name }} vlan={{ .vlan_id }} reach={{ .reach }}"
 
+networkclass:
+  - name: _default
+    config:
+      - file: segments.txt
+        template:
+          - "{{ .segments_ip_seg_entry }}"

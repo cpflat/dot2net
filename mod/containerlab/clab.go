@@ -3,7 +3,6 @@ package containerlab
 import (
 	"embed"
 	"fmt"
-	"path"
 
 	"github.com/cpflat/dot2net/pkg/types"
 )
@@ -248,7 +247,10 @@ func (m *ClabModule) generateFilemountParams(
 			continue
 		}
 
-		srcPath := path.Join(node.Name, fileDef.GetFileName(node.Name))
+		srcPath, err := node.OutputPath(cfg, fileDef)
+		if err != nil {
+			return nil, err
+		}
 		dstPath := fileDef.Path
 
 		params := map[string]string{
