@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`assert` module**: an opt-in module that checks the expectations a scenario
+  states about itself. A class marked `values: {assert_used: "true"}` must be
+  applied to at least one object, or the build fails. It generates no output.
+  This closes a hole the golden tests cannot cover: a class that is declared but
+  never applied contributes nothing, so regenerating the expected files silently
+  freezes its absence — which is how `example/vlan_multihost` shipped with
+  segment classes that never attached.
 - **Group-scope file output**: a `groupclass` can now own a `file:` template, and
   `file` definitions accept `scope: group`. The file is written into the group's
   own directory (`cluster_h1/host.yaml`), mirroring how node-scope files land in

@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 
+	assert "github.com/cpflat/dot2net/mod/assert"
 	containerlab "github.com/cpflat/dot2net/mod/containerlab"
 	frr "github.com/cpflat/dot2net/mod/frr"
 	tinet "github.com/cpflat/dot2net/mod/tinet"
@@ -22,6 +23,8 @@ func LoadModules(cfg *types.Config) error {
 			m = tinet.NewModule()
 		case "containerlab":
 			m = containerlab.NewModule()
+		case "assert":
+			m = assert.NewModule()
 		default:
 			return fmt.Errorf("unknown module: %s", name)
 		}

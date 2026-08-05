@@ -135,6 +135,23 @@ connectionclass:
           - "# VLAN Connection: {{ .name }} (ID: {{ .connection_id }}, VLAN: {{ .vlan_id }})"
           - "connection {{ .name }} type vlan_trunk vlan {{ .vlan_id }}"
 
+# BROKEN: these segment classes are never applied. A segment class is attached
+# through a "segment#<name>" relational label on an edge, and input.dot has
+# none, so neither class below reaches any segment and none of its output is
+# generated. The templates would not render even if attached: segment_name,
+# segment_interface_count and vlan_id are not parameters a segment has.
+#
+# This dates from 317ae2d (2025-09-15, "update vlan_multihost to test
+# connection/segment"), which replaced a working interfaceclass-based VLAN test
+# with this, and v0.5.0 then froze the reduced output into expected/. The golden
+# test cannot catch it: a class that never applies produces nothing, so the
+# expected files just record its absence. That is what the assert module (see
+# mod/assert) is for - add `values: {assert_used: "true"}` here once the classes
+# actually attach.
+#
+# Left in place rather than deleted because example/vlan_multihost is scheduled
+# to be reworked for multi-host support (ROADMAP TODO 28), which is where the
+# VLAN modelling has to be decided anyway.
 segmentclass:
   - name: vlan_seg_A
     layer: ip
