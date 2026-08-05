@@ -46,6 +46,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`example/address_reservation`'s management layer had been disabled since
+  2025-09-11**: it wrote `management_layer:` where the key is `mgmt_layer:`, and
+  an unknown key is dropped in silence, so no management address was ever
+  assigned. The key is fixed and the address now reaches the generated config,
+  so the example verifies the feature it declares instead of merely naming it.
 - **`clean` left the group directories behind**: it only considered the
   immediate parent of each generated file, so with group-scope output the empty
   `host1/` remained after its contents were removed. Every ancestor is now

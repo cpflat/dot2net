@@ -7,6 +7,7 @@ class_policy:
     default: [default]
 
 module:
+  - assert
   - frr
   - tinet
   - containerlab
@@ -22,7 +23,9 @@ layer:
         type: loopback
         range: 10.255.0.0/24
 
-management_layer:
+# The key is mgmt_layer, not management_layer: an unknown key is dropped in
+# silence, and this section sat here doing nothing until 2026-08-05.
+mgmt_layer:
   name: mgmt
   range: 172.16.0.0/16
 
@@ -65,7 +68,7 @@ nodeclass:
         template:
           - /usr/lib/frr/frr start
         blocks:
-          after: ["self_frr_cmds", "interfaces_router_cmds"]
+          after: ["self_frr_cmds", "interfaces_mgmt_cmds", "interfaces_router_cmds"]
   - name: server
     config:
       - name: startup
@@ -73,10 +76,19 @@ nodeclass:
         template:
           - /usr/lib/frr/frr start
         blocks:
-          after: ["self_frr_cmds", "interfaces_server_cmds"]
+          after: ["self_frr_cmds", "interfaces_mgmt_cmds", "interfaces_server_cmds"]
 
 interfaceclass:
+  # The management interface is created without an edge in the topology, from
+  # the mgmt_interfaceclass of the node class. Its address has to reach the
+  # output, or nothing here is actually verified.
   - name: mgmtif
+    values:
+      assert_used: "true"
+    config:
+      - name: mgmt_cmds
+        template:
+          - "ip addr add {{ .mgmt_addr }}/{{ .mgmt_plen }} dev {{ .name }}"
   - name: default
     params: [ip, vlan, cname]
     config:
