@@ -14,6 +14,8 @@
 #   - a switch node: a shared L2 domain the platform realizes itself, emitted as
 #     a bridge by containerlab and as a switches: entry by TiNET. Contrast with
 #     example/switching, which realizes its switch as a container instead.
+#   - the bridge setup script containerlab needs, written by hand because the
+#     command belongs to the platform, not to dot2net (see platform_sw below)
 # The assert module pins that the classes above really are applied; without it
 # a class that stops matching just disappears from the output and the expected
 # files record its absence.
@@ -33,6 +35,8 @@ file:
   - name: host.yaml
     scope: group
   - name: segments.txt
+    scope: network
+  - name: setup-bridges.sh
     scope: network
   - name: frr.conf
     path: /etc/frr/frr.conf
@@ -86,6 +90,19 @@ nodeclass:
     values:
       kind: ovs-bridge
       assert_used: "true"
+    config:
+      # containerlab requires the bridge to exist before deploy: its
+      # CheckDeploymentConditions runs before any stage, so no hook inside the
+      # lab can create it. TiNET and Kathara create theirs themselves and
+      # ignore this.
+      #
+      # The command is written here rather than generated, for the same reason
+      # dot2net does not invent the kind: which command creates which kind of
+      # bridge is the platform's business, and so is whether it needs sudo or a
+      # particular OVS database.
+      - name: bridge_setup
+        template:
+          - "ovs-vsctl --may-exist add-br {{ .name }}"
 
 interfaceclass:
   - name: default
@@ -149,3 +166,7 @@ networkclass:
       - file: segments.txt
         template:
           - "{{ .segments_ip_seg_entry }}"
+      - file: setup-bridges.sh
+        template:
+          - "#!/bin/sh"
+          - "{{ .nodes_bridge_setup }}"
