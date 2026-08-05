@@ -14,6 +14,7 @@ package assert
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -89,7 +90,9 @@ func assertedClasses(cfg *types.Config) ([]classRef, error) {
 	}
 
 	// Network classes are applied to the network model unconditionally, so the
-	// assertion could never fail and would give false confidence.
+	// assertion could never fail. Warn rather than fail: the declaration is
+	// harmless in itself, and refusing to build over it would be out of
+	// proportion. It still deserves saying, so that nobody reads it as coverage.
 	for _, c := range cfg.NetworkClasses {
 		ref := classRef{classType: types.ClassTypeNetwork, name: c.Name}
 		asserted, err := isAsserted(c.Values, ref)
@@ -97,7 +100,7 @@ func assertedClasses(cfg *types.Config) ([]classRef, error) {
 			return nil, err
 		}
 		if asserted {
-			return nil, fmt.Errorf("%s: %s is meaningless here because every network class is always applied", ref, UsedValueKey)
+			fmt.Fprintf(os.Stderr, "warning: %s: %s has no effect because every network class is always applied\n", ref, UsedValueKey)
 		}
 	}
 

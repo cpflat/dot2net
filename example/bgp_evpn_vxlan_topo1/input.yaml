@@ -173,9 +173,3 @@ interfaceclass:
           - "interface {{ .name }}"
           - " ip address {{ .customer_addr }}/{{ .customer_plen }}"
           - "!"
-  - name: p
-    layers: [provider]
-  - name: c
-    layers: [customer]
-  - name: v
-    virtual: true

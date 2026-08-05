@@ -111,16 +111,15 @@ segmentclass:
 		},
 		{
 			// Every network class is applied to the network model, so the
-			// assertion could only ever pass. Accepting it would give false
-			// confidence, so it is rejected outright.
-			name: "asserting a network class is rejected",
+			// assertion could only ever pass. It warns rather than failing:
+			// the declaration is harmless, it just must not read as coverage.
+			name: "asserting a network class only warns",
 			yaml: head + plainNodes + usedSeg + `
 networkclass:
   - name: _default
     values:
       assert_used: "true"
 `,
-			errMsg: "meaningless here because every network class is always applied",
 		},
 	}
 
