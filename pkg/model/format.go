@@ -500,55 +500,83 @@ func collectConfigBlocks(ns types.NameSpacer, blockRefs []string) ([]string, err
 	return blocks, nil
 }
 
+// aggregationParamName returns the parameter under which the config named
+// configName of dep is aggregated into its parent's namespace. It is the
+// producing counterpart of buildRelativeParamName, which resolves the same
+// names when a template refers to them, so the two must stay in step.
+func aggregationParamName(dep types.NameSpacer, configName string) (string, error) {
+	switch obj := dep.(type) {
+	case *types.Node:
+		return types.ChildNodesConfigHeader + configName, nil
+	case *types.Interface:
+		return types.ChildInterfacesConfigHeader + configName, nil
+	case *types.Connection:
+		return types.ChildConnectionsConfigHeader + configName, nil
+	case *types.NetworkSegment:
+		// A segment belongs to exactly one layer, and a parent sees the segments
+		// of every layer at once, so the layer is part of the name.
+		return types.ChildSegmentsConfigHeader + obj.Layer + types.NumberSeparator + configName, nil
+	case *types.Group:
+		return types.ChildGroupsConfigHeader + configName, nil
+	case *types.Neighbor:
+		return types.ChildNeighborsConfigHeader + obj.Layer + types.NumberSeparator + configName, nil
+	case *types.Member:
+		return types.ChildMembersConfigHeader + obj.ClassType + types.NumberSeparator + obj.ClassName + types.NumberSeparator + configName, nil
+	default:
+		return "", fmt.Errorf("unsupported dependency type: %T", obj)
+	}
+}
+
 // setEmptyAggregationParams pre-declares the aggregation parameters that
 // objects of depClass could contribute to ns, leaving them empty. Real configs
 // overwrite them later: setConfigParamForNameSpace treats an empty previous
 // value as absent.
 //
-// Only the class types whose parameter name is just header+configName are
-// covered. Segments, neighbors and members name the layer or the member class
-// in the parameter too, and with no object of that class present there is no
-// layer to name, so nothing can be pre-declared for them.
+// Neighbors and members are not covered: their parameter names carry the layer
+// or the member class, and neither can be enumerated from the configuration
+// alone. Segments can, because a segment class declares the layer it belongs to.
 func setEmptyAggregationParams(cfg *types.Config, ns types.NameSpacer, depClass string, verbose bool) error {
-	var header string
-	var templates [][]*types.ConfigTemplate
+	// names collects the parameter names that objects of depClass could set.
+	var names []string
+	addNames := func(header string, cts []*types.ConfigTemplate) {
+		for _, ct := range cts {
+			if ct.Name != "" {
+				names = append(names, header+ct.Name)
+			}
+		}
+	}
+
 	switch depClass {
 	case types.ClassTypeNode:
-		header = types.ChildNodesConfigHeader
 		for _, c := range cfg.NodeClasses {
-			templates = append(templates, c.ConfigTemplates)
+			addNames(types.ChildNodesConfigHeader, c.ConfigTemplates)
 		}
 	case types.ClassTypeInterface:
-		header = types.ChildInterfacesConfigHeader
 		for _, c := range cfg.InterfaceClasses {
-			templates = append(templates, c.ConfigTemplates)
+			addNames(types.ChildInterfacesConfigHeader, c.ConfigTemplates)
 		}
 	case types.ClassTypeConnection:
-		header = types.ChildConnectionsConfigHeader
 		for _, c := range cfg.ConnectionClasses {
-			templates = append(templates, c.ConfigTemplates)
+			addNames(types.ChildConnectionsConfigHeader, c.ConfigTemplates)
 		}
 	case types.ClassTypeGroup:
-		header = types.ChildGroupsConfigHeader
 		for _, c := range cfg.GroupClasses {
-			templates = append(templates, c.ConfigTemplates)
+			addNames(types.ChildGroupsConfigHeader, c.ConfigTemplates)
+		}
+	case types.ClassTypeSegment:
+		for _, c := range cfg.SegmentClasses {
+			addNames(types.ChildSegmentsConfigHeader+c.Layer+types.NumberSeparator, c.ConfigTemplates)
 		}
 	default:
 		return nil
 	}
 
-	for _, cts := range templates {
-		for _, ct := range cts {
-			if ct.Name == "" {
-				continue
-			}
-			name := header + ct.Name
-			if ns.HasRelativeParam(name) {
-				continue
-			}
-			if err := setConfigParamForNameSpace(ns, name, EmptyOutput, verbose); err != nil {
-				return err
-			}
+	for _, name := range names {
+		if ns.HasRelativeParam(name) {
+			continue
+		}
+		if err := setConfigParamForNameSpace(ns, name, EmptyOutput, verbose); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -581,59 +609,40 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 			continue
 		}
 
-		// Collect all configs from each dependency, grouped by config name
-		configsByName := make(map[string][]string)
-		formatsByName := make(map[string][]string)
+		// Collect the configs of every dependency, grouped by the aggregation
+		// parameter they contribute to. The parameter name is derived per
+		// dependency rather than from deps[0]: segments of different layers
+		// reach the network model in a single call, and merging them into one
+		// parameter would silently mix the layers.
+		configsByParam := make(map[string][]string)
+		formatsByParam := make(map[string][]string)
 
 		for _, dep := range deps {
 			// Find all stored configs for this dependency
 			for childKey, childConfigs := range ca.childConfigs {
-				if childKey.child == dep {
-					for _, cc := range childConfigs {
-						configsByName[childKey.name] = append(configsByName[childKey.name], cc.config)
-						if len(formatsByName[childKey.name]) == 0 {
-							formatsByName[childKey.name] = cc.formats
-						}
+				if childKey.child != dep {
+					continue
+				}
+				paramName, err := aggregationParamName(dep, childKey.name)
+				if err != nil {
+					return err
+				}
+				for _, cc := range childConfigs {
+					configsByParam[paramName] = append(configsByParam[paramName], cc.config)
+					if len(formatsByParam[paramName]) == 0 {
+						formatsByParam[paramName] = cc.formats
 					}
 				}
 			}
 		}
 
-		// Now integrate each config name with appropriate prefix
-		for configName, configs := range configsByName {
+		for relativeName, configs := range configsByParam {
 			if len(configs) == 0 {
 				continue
 			}
 
-			var relativeName string
-			// Determine the relative name based on the first dependency's type
-			if len(deps) > 0 {
-				switch obj := deps[0].(type) {
-				case *types.Node:
-					relativeName = types.ChildNodesConfigHeader + configName
-				case *types.Interface:
-					relativeName = types.ChildInterfacesConfigHeader + configName
-				case *types.Connection:
-					relativeName = types.ChildConnectionsConfigHeader + configName
-				case *types.NetworkSegment:
-					relativeName = types.ChildSegmentsConfigHeader + configName
-				case *types.Group:
-					relativeName = types.ChildGroupsConfigHeader + configName
-				case *types.Neighbor:
-					relativeName = types.ChildNeighborsConfigHeader + obj.Layer + types.NumberSeparator + configName
-				case *types.Member:
-					relativeName = types.ChildMembersConfigHeader + obj.ClassType + types.NumberSeparator + obj.ClassName + types.NumberSeparator + configName
-				default:
-					return fmt.Errorf("unsupported dependency type: %T", obj)
-				}
-			}
-
-			if relativeName == "" {
-				continue
-			}
-
 			// Merge and add to namespace
-			mergedConfig, err := mergeConfigBlocks(cfg, configs, formatsByName[configName])
+			mergedConfig, err := mergeConfigBlocks(cfg, configs, formatsByParam[relativeName])
 			if err != nil {
 				return fmt.Errorf("error merging configs from %s: %w", depClass, err)
 			}

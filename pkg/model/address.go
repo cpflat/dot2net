@@ -344,6 +344,10 @@ func searchSegments(nm *types.NetworkModel, layer *types.Layer, verbose bool) ([
 		// init segment
 		//seg := &types.NetworkSegment{}
 		seg := types.NewNetworkSegment()
+		// A segment is searched per layer and belongs to that one layer. The
+		// field had been left unset, so anything reading it (debug messages, the
+		// aggregation parameter names) saw an empty layer.
+		seg.Layer = layer.Name
 
 		if verbose {
 			fmt.Printf("search start with connection %s\n", conn)

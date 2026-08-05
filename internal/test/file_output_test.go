@@ -786,7 +786,7 @@ networkclass:
     config:
       - file: seg.txt
         template:
-          - "{{ .segments_seg_entry }}"
+          - "{{ .segments_ip_seg_entry }}"
 `
 
 	tmpDir, err := buildInDir(t, dot, yaml)
@@ -800,6 +800,79 @@ networkclass:
 	}
 	// The hub is layer-unaware, so the three edges collapse into one segment.
 	const want = "seg0 kind=ovs-bridge mtu=9000"
+	if string(got) != want {
+		t.Errorf("seg.txt mismatch:\n  got:      %q\n  expected: %q", string(got), want)
+	}
+}
+
+// TestSegmentAggregationSeparatesLayers checks that segments of different
+// layers land in different aggregation parameters. The parent sees every
+// layer's segments in one call, so without the layer in the parameter name the
+// two layers merge silently.
+func TestSegmentAggregationSeparatesLayers(t *testing.T) {
+	const dot = `digraph {
+		r1 [xlabel="router"]; r2 [xlabel="router"];
+		r1 -> r2 [dir="none", label="segment#seg_a; segment#seg_b"];
+	}`
+	const yaml = `
+file:
+  - name: seg.txt
+    scope: network
+
+layer:
+  - name: la
+    default_connect: true
+    policy:
+      - name: ipa
+        range: 10.0.0.0/16
+        prefix: 24
+  - name: lb
+    default_connect: true
+    policy:
+      - name: ipb
+        range: 10.1.0.0/16
+        prefix: 24
+
+nodeclass:
+  - name: router
+    interface_policy: [ipa, ipb]
+
+segmentclass:
+  - name: seg_a
+    layer: la
+    values:
+      tag: "A"
+    config:
+      - name: entry
+        template:
+          - "{{ .tag }}"
+  - name: seg_b
+    layer: lb
+    values:
+      tag: "B"
+    config:
+      - name: entry
+        template:
+          - "{{ .tag }}"
+
+networkclass:
+  - name: _default
+    config:
+      - file: seg.txt
+        template:
+          - "la={{ .segments_la_entry }} lb={{ .segments_lb_entry }}"
+`
+
+	tmpDir, err := buildInDir(t, dot, yaml)
+	if err != nil {
+		t.Fatalf("failed to build config files: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(tmpDir, "seg.txt"))
+	if err != nil {
+		t.Fatalf("failed to read seg.txt: %v", err)
+	}
+	const want = "la=A lb=B"
 	if string(got) != want {
 		t.Errorf("seg.txt mismatch:\n  got:      %q\n  expected: %q", string(got), want)
 	}

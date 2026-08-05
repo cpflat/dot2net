@@ -33,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Segment aggregation mixed the layers**: the parameter a parent aggregates a
+  segment's config into is now `segments_<layer>_<name>` instead of
+  `segments_<name>`, matching what block references (`blocks.before` /
+  `blocks.after`) already expected and what neighbor aggregation already did.
+  A parent sees the segments of every layer in one pass, so without the layer
+  two layers using the same config name were merged silently. **This renames the
+  parameter**, but no example or module referenced it.
+- **`NetworkSegment.Layer` was never assigned**, so it read as empty everywhere
+  (debug messages, and now the aggregation parameter name).
 - **Missing aggregation parameters**: a named child template now contributes its
   `{{ .nodes_... }}` / `{{ .connections_... }}` parameter as an empty value even
   when no child object produced output, instead of the parameter being absent
