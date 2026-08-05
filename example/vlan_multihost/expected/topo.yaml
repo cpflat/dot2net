@@ -22,8 +22,8 @@ topology:
       binds:
       - host2/r3/frr.conf:/etc/frr/frr.conf
       exec:
-      - ip addr add 10.0.1.2/24 dev net0
-      - ip addr add 10.0.2.1/24 dev net1
+      - ip addr add 10.0.2.1/24 dev net0
+      - ip addr add 10.0.1.2/24 dev net1
     r4:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
@@ -31,8 +31,11 @@ topology:
       - host2/r4/frr.conf:/etc/frr/frr.conf
       exec:
       - ip addr add 10.0.2.2/24 dev net0
+    sw_inter:
+      kind: ovs-bridge
 
   links:
   - endpoints: [r1:net0, r2:net0]
-  - endpoints: [r2:net1, r3:net0]
-  - endpoints: [r3:net1, r4:net0]
+  - endpoints: [r2:net1, sw_inter:net0]
+  - endpoints: [r3:net0, r4:net0]
+  - endpoints: [r3:net1, sw_inter:net1]

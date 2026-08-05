@@ -16,7 +16,10 @@ digraph {
 	r1->r2[dir="none", xlabel="segment#intra"];
 	r3->r4[dir="none", xlabel="segment#intra"];
 
-	// A link across the host boundary. It belongs to no single host, so it
-	// must not appear in either host file.
-	r2->r3[dir="none", xlabel="segment#inter"];
+	// The hosts meet on a shared L2 domain that the platform provides: a bridge
+	// for containerlab, a switches: entry for TiNET. sw_inter belongs to no
+	// host, so neither host file carries these links.
+	sw_inter[xlabel="platform_sw"];
+	r2->sw_inter[dir="none", xlabel="segment#inter"];
+	r3->sw_inter[dir="none", xlabel="segment#inter"];
 }

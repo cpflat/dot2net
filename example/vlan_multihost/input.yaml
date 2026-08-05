@@ -11,6 +11,9 @@
 #   - network-scope files staying at the output root, since they belong to no
 #     single host
 #   - xlabel carrying class labels on edges and subgraphs
+#   - a switch node: a shared L2 domain the platform realizes itself, emitted as
+#     a bridge by containerlab and as a switches: entry by TiNET. Contrast with
+#     example/switching, which realizes its switch as a container instead.
 # The assert module pins that the classes above really are applied; without it
 # a class that stops matching just disappears from the output and the expected
 # files record its absence.
@@ -35,6 +38,9 @@ file:
     path: /etc/frr/frr.conf
 
 class_policy:
+  node:
+    # sw_inter is provided by the platform, so no container is generated for it.
+    switch: [platform_sw]
   interface:
     default: [default]
   connection:
@@ -74,12 +80,22 @@ nodeclass:
         template:
           - "  - {{ .name }}"
 
+  # The platform provides this one, so it carries no image and no config: only
+  # the kind, whose value containerlab owns and dot2net passes through.
+  - name: platform_sw
+    values:
+      kind: ovs-bridge
+      assert_used: "true"
+
 interfaceclass:
   - name: default
     values:
       assert_used: "true"
     config:
       - name: addr
+        # Only routers get an address: the switch is layer-unaware, which is
+        # also what lets searchSegments look through it.
+        node: router
         template:
           - "ip addr add {{ .ip_addr }}/{{ .ip_plen }} dev {{ .name }}"
 
