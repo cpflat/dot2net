@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `xlabel` is also the way to give a cluster a decorative title without it being
   taken as a group class (`label` still doubles as both). Node `label` remains
   excluded on purpose: it collides with the record-shape node syntax.
+- **`LabelOwner.AddModuleClassLabels`**: lets a module attach a class label at the
+  module tier. A module classifying objects through the `ObjectClassifier` hook
+  had only `AddClassLabels`, which files labels as user-written — so a module's
+  class would collide with the user's instead of losing to it, contrary to the
+  rule that module-provided classes are the weakest.
 - **`assert` module**: an opt-in module that checks the expectations a scenario
   states about itself. A class marked `values: {assert_used: "true"}` must be
   applied to at least one object, or the build fails. It generates no output.

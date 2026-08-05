@@ -296,6 +296,7 @@ type LabelOwner interface {
 	MetaValueLabels() map[string]string
 	SetLabels(cfg *Config, labels []string, moduleLabels []string) error
 	AddClassLabels(labels ...string)
+	AddModuleClassLabels(labels ...string)
 
 	HasClass(string) bool
 	GetClasses() []ObjectClass
@@ -397,14 +398,29 @@ func (l *ParsedLabels) MetaValueLabels() map[string]string {
 	return l.metaValueLabels
 }
 
+// AddClassLabels adds labels that originate from the user's input (relational
+// class labels of a connection, segment classes, ...), so they share the user
+// tier.
 func (l *ParsedLabels) AddClassLabels(labels ...string) {
+	l.addClassLabels(ClassTierUser, labels...)
+}
+
+// AddModuleClassLabels adds labels on behalf of a module, at the module tier.
+// A module classifying objects after SetLabels - through the ObjectClassifier
+// hook - has to come in here rather than through AddClassLabels: modules supply
+// defaults and must lose to anything the user wrote, and filing their labels as
+// user-written would turn that into a same-tier conflict instead.
+func (l *ParsedLabels) AddModuleClassLabels(labels ...string) {
+	l.addClassLabels(ClassTierModule, labels...)
+}
+
+func (l *ParsedLabels) addClassLabels(tier int, labels ...string) {
 	l.classLabels = append(l.classLabels, labels...)
-	// Labels added after SetLabels originate from the user's input (relational
-	// class labels of a connection, segment classes, ...), so they share the user
-	// tier. setClassTier is a no-op for names that already have a tier.
+	// setClassTier is skipped for names that already have a tier: a label the
+	// user also wrote keeps the tier it was first recorded with.
 	for _, name := range labels {
 		if _, ok := l.classTiers[name]; !ok {
-			l.setClassTier(name, ClassTierUser)
+			l.setClassTier(name, tier)
 		}
 	}
 }

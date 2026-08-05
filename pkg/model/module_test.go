@@ -159,3 +159,75 @@ groupclass:
 		}
 	}
 }
+
+// moduleTierProbe classifies through AddModuleClassLabels, which is what a
+// module has to use so that its classes stay at the weakest tier.
+type moduleTierProbe struct {
+	*types.StandardModule
+	className string
+}
+
+var (
+	_ types.Module           = (*moduleTierProbe)(nil)
+	_ types.ObjectClassifier = (*moduleTierProbe)(nil)
+)
+
+func (m *moduleTierProbe) UpdateConfig(cfg *types.Config) error { return nil }
+
+func (m *moduleTierProbe) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) error {
+	for _, conn := range nm.Connections {
+		conn.AddModuleClassLabels(m.className)
+	}
+	return nil
+}
+
+// TestModuleClassifierLosesToUserClass checks that a class a module attaches
+// through the ObjectClassifier hook is filed at the module tier, so a value the
+// user set wins over it. Going through AddClassLabels would record it as
+// user-written, turning the same setup into a same-tier conflict instead.
+func TestModuleClassifierLosesToUserClass(t *testing.T) {
+	cfgPath, dotPath := writeTempInput(t, `
+name: module_tier_probe
+connectionclass:
+  - name: user_written
+    values:
+      mtu: "1500"
+  - name: module_default
+    values:
+      mtu: "9000"
+`, `graph { r1 -- r2 [label="user_written"]; }`)
+
+	cfg, err := types.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	d, err := DiagramFromDotFile(dotPath)
+	if err != nil {
+		t.Fatalf("DiagramFromDotFile: %v", err)
+	}
+	nm, err := buildSkeleton(cfg, d)
+	if err != nil {
+		t.Fatalf("buildSkeleton: %v", err)
+	}
+
+	cfg.LoadedModules = []types.Module{
+		&moduleTierProbe{StandardModule: types.NewStandardModule(), className: "module_default"},
+	}
+	if err := classifyModuleObjects(cfg, nm); err != nil {
+		t.Fatalf("classifyModuleObjects: %v", err)
+	}
+
+	// Both classes set mtu. The module's is weaker, so this must not conflict.
+	if err := checkClasses(cfg, nm); err != nil {
+		t.Fatalf("the module class should lose to the user class, got: %v", err)
+	}
+
+	if err := setGivenParameters(nm); err != nil {
+		t.Fatalf("setGivenParameters: %v", err)
+	}
+	for _, conn := range nm.Connections {
+		if got := conn.GetParams()["mtu"]; got != "1500" {
+			t.Errorf("connection %s: mtu = %q, want the user-written 1500", conn.String(), got)
+		}
+	}
+}
