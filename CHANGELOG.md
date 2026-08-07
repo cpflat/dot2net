@@ -36,26 +36,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A used class keeps the tier of wherever it was defined rather than the tier of
   the class that named it, so a module's defaults still lose to the user's own
   values instead of clashing with them.
-- **Switch nodes**: a node class marked `switch: true` stands for a shared L2
-  domain the platform realizes itself. Such a
-  node is emitted with its `kind` alone — no image, no bind mounts, no commands —
-  and is exempt from the image requirement. This is what lets a hub of N members
-  replace N² point-to-point links.
+- **`deploy` on node classes**: names what the platform puts in place for a node
+  — `container` (a container of its own), `platform` (a facility the platform
+  provides itself) or `none` (nothing is deployed; the node carries parameters
+  only). Unknown values are rejected.
 
-  It sits beside `virtual` because it answers the same kind of question — what
-  the platform does with an object of this class — and a reader looking at the
-  class finds it there. Only the field name is reserved, so a class may still be
-  *called* `switch` and mean an ordinary container, as eight of the bundled
-  examples do. dot2net never reads or writes the `kind` value itself: whether it is `bridge`, `ovs-bridge` or something containerlab
-  adds later is passed through from the user untouched, so a new kind needs no
-  change here.
+  A `platform` node is emitted with its `kind` alone — no image, no bind mounts,
+  no commands — and is exempt from the image requirement. This is what lets a hub
+  of N members replace N² point-to-point links. dot2net never reads or writes the
+  `kind` value itself: whether it is `bridge`, `ovs-bridge` or something
+  containerlab adds later is passed through from the user untouched, so a new
+  kind needs no change here. TiNET realizes the same node as an OVS bridge of its
+  own: the node moves from `nodes:` to a `switches:` section, and the interfaces
+  facing it attach by name (`type: bridge, args: <switch>`) instead of naming a
+  peer interface. The section is omitted entirely when a topology has no switch.
+  An OVS *container* needs none of this — it is an ordinary node, as
+  `example/switching` already shows with a Linux bridge.
 
-  TiNET realizes the same node as an OVS bridge of its own: the node moves from
-  `nodes:` to a `switches:` section, and the interfaces facing it attach by name
-  (`type: bridge, args: <switch>`) instead of naming a peer interface. The
-  section is omitted entirely when a topology has no switch. An OVS *container*
-  needs none of this — it is an ordinary node, as `example/switching` already
-  shows with a Linux bridge.
+  Omitting `deploy` is not a claim that the node is a container: it leaves the
+  choice to the other classes, and only a node no class speaks for falls back to
+  `container`. That is why a class that says nothing never collides with one that
+  asks for `platform`. Claims are weighed by class tier, so a default stated by
+  the base class of `class_policy` is overridden by a class the user named on the
+  node — which is how a scenario sets its own default without a dedicated global
+  setting.
+
+  `virtual: true` is the shorthand for `deploy: none` and keeps working. Writing
+  both `virtual: true` and a contradicting `deploy` in one class is an error.
+  `virtual: false` still claims nothing, since a boolean cannot tell "false" from
+  "unset"; `deploy: container` is how to say it out loud and override another
+  class. Only the field name is reserved, so a class may still be *called*
+  `switch` and mean an ordinary container, as eight of the bundled examples do.
 - **`LabelOwner.AddModuleClassLabels`**: lets a module attach a class label at the
   module tier. A module classifying objects through the `ObjectClassifier` hook
   had only `AddClassLabels`, which files labels as user-written — so a module's
