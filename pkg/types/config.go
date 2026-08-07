@@ -74,15 +74,6 @@ const ClassDefault string = "default" // all empty objects
 type ClassPolicyEntry struct {
 	Base    []string `yaml:"base,flow" mapstructure:"base,flow"`
 	Default []string `yaml:"default,flow" mapstructure:"default,flow"`
-	// Switch names the node classes standing for a shared L2 domain that the
-	// platform realizes itself, rather than a container to deploy. Meaningful
-	// for node classes only.
-	//
-	// The reserved word sits in this key space rather than in the class names,
-	// so that a class may still be called "switch" and mean whatever the
-	// scenario wants: eight of the bundled examples already use that name for
-	// an ordinary container running a bridge.
-	Switch []string `yaml:"switch,flow" mapstructure:"switch,flow"`
 }
 
 // ClassPolicy replaces the legacy magic class names "all" and "default".
@@ -315,15 +306,12 @@ func (cfg *Config) GetValidNodeClasses(given []string) *ParsedLabels {
 	return cfg.getValidClasses(given, p.Base, p.Default)
 }
 
-// IsSwitchNode reports whether the node stands for a shared L2 domain that the
-// platform realizes itself, as declared by class_policy.node.switch.
-//
-// What that realization looks like is entirely up to the platform module - a
-// bridge node for containerlab, a switches: entry for TiNET, a collision domain
-// for Kathara - and dot2net itself only knows that the node is not a container.
+// IsSwitchNode reports whether any of the node's classes marks it as a shared
+// L2 domain the platform realizes itself (see NodeClass.Switch). Booleans
+// combine by OR across classes, as virtual does.
 func (cfg *Config) IsSwitchNode(n *Node) bool {
-	for _, name := range cfg.resolvedClassPolicy[ClassTypeNode].Switch {
-		if n.HasClass(name) {
+	for _, name := range n.ClassLabels() {
+		if nc, ok := cfg.NodeClassByName(name); ok && nc.Switch {
 			return true
 		}
 	}
@@ -788,8 +776,18 @@ type NodeClass struct {
 	// it in through Use, so that a module's defaults still lose to the user.
 	ModuleProvided bool `yaml:"-" mapstructure:"-"`
 	// A virtual node have parameters, but no object nor configuration. It is considered only on parameter assignment.
-	Name              string            `yaml:"name" mapstructure:"name"`
-	Virtual           bool              `yaml:"virtual" mapstructure:"virtual"`
+	Name    string `yaml:"name" mapstructure:"name"`
+	Virtual bool   `yaml:"virtual" mapstructure:"virtual"`
+	// Switch marks a node standing for a shared L2 domain that the platform
+	// realizes itself, rather than a container to deploy. It sits beside virtual
+	// because it answers the same kind of question - what the platform does with
+	// an object of this class - and belongs where a reader looking at the class
+	// will find it.
+	//
+	// What the realization looks like is up to each platform module: a bridge
+	// node for containerlab, a switches: entry for TiNET, a collision domain for
+	// Kathara. dot2net itself only knows the node is not a container.
+	Switch            bool              `yaml:"switch" mapstructure:"switch"`
 	IPPolicy          []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Parameters        []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	Values            map[string]string `yaml:"values" mapstructure:"values"`
@@ -1340,15 +1338,7 @@ func (cfg *Config) resolveClassPolicy() error {
 			legacy[ClassDefault] = append(legacy[ClassDefault], t.classType)
 		}
 
-		// Switch marks a shared L2 domain, which is a property of a node; on any
-		// other class type it would silently do nothing.
-		if len(t.entry.Switch) > 0 && t.classType != ClassTypeNode {
-			return fmt.Errorf("class_policy for %s has a switch entry, which is only meaningful for node classes", t.classType)
-		}
-		resolved.Switch = t.entry.Switch
-
 		names := append(append([]string{}, resolved.Base...), resolved.Default...)
-		names = append(names, resolved.Switch...)
 		for _, name := range names {
 			if !t.exists(name) {
 				return fmt.Errorf("class_policy for %s refers to undefined %sclass %q", t.classType, t.classType, name)

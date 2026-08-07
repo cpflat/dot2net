@@ -43,9 +43,6 @@ file:
     path: /etc/frr/frr.conf
 
 class_policy:
-  node:
-    # sw_inter is provided by the platform, so no container is generated for it.
-    switch: [platform_sw]
   interface:
     default: [default]
   connection:
@@ -85,9 +82,11 @@ nodeclass:
         template:
           - "  - {{ .name }}"
 
-  # The platform provides this one, so it carries no image and no config: only
-  # the kind, whose value containerlab owns and dot2net passes through.
+  # The platform provides this one, so no container is generated for it: it
+  # carries no image and no config, only the kind, whose value containerlab
+  # owns and dot2net passes through.
   - name: platform_sw
+    switch: true
     values:
       kind: ovs-bridge
       assert_used: "true"

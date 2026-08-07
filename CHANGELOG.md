@@ -36,16 +36,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   A used class keeps the tier of wherever it was defined rather than the tier of
   the class that named it, so a module's defaults still lose to the user's own
   values instead of clashing with them.
-- **Switch nodes**: `class_policy.node.switch` names the node
-  classes that stand for a shared L2 domain the platform realizes itself. Such a
+- **Switch nodes**: a node class marked `switch: true` stands for a shared L2
+  domain the platform realizes itself. Such a
   node is emitted with its `kind` alone — no image, no bind mounts, no commands —
   and is exempt from the image requirement. This is what lets a hub of N members
   replace N² point-to-point links.
 
-  The reserved word lives in `class_policy` rather than in the class names, so a
-  class may still be called `switch` and mean an ordinary container, as eight of
-  the bundled examples already do. dot2net never reads or writes the `kind`
-  value itself: whether it is `bridge`, `ovs-bridge` or something containerlab
+  It sits beside `virtual` because it answers the same kind of question — what
+  the platform does with an object of this class — and a reader looking at the
+  class finds it there. Only the field name is reserved, so a class may still be
+  *called* `switch` and mean an ordinary container, as eight of the bundled
+  examples do. dot2net never reads or writes the `kind` value itself: whether it is `bridge`, `ovs-bridge` or something containerlab
   adds later is passed through from the user untouched, so a new kind needs no
   change here.
 

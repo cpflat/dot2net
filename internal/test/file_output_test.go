@@ -893,8 +893,6 @@ func TestClabBridgeSetupClasses(t *testing.T) {
 module: [containerlab]
 
 class_policy:
-  node:
-    switch: [my_sw]
   interface:
     default: [default]
 
@@ -918,6 +916,7 @@ nodeclass:
       - name: startup
         template: []
   - name: my_sw
+    switch: true
     values: {kind: ovs-bridge}
 ` + use + `
 interfaceclass:
