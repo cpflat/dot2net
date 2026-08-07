@@ -781,9 +781,8 @@ connectionclass:
 }
 
 // TestPolicyTierResolution pins that a policy follows the same precedence as
-// any other class attribute. Policies were applied as each class was visited,
-// and classes are visited strongest first, so the last write won and the
-// weakest class silently took the layer.
+// any other class attribute. Policies used to be applied as each class was
+// visited, so the last write won and the weakest class silently took the layer.
 func TestPolicyTierResolution(t *testing.T) {
 	const yaml = `
 class_policy:

@@ -790,6 +790,10 @@ type ObjectClass interface{}
 
 type LabelOwnerClass interface {
 	GetGivenValues() map[string]string
+	// ClassName is what lets a caller look the class's tier up on the object.
+	// GetClasses hands back the classes in label order, which is not the order
+	// of precedence once use: has appended classes to the end.
+	ClassName() string
 }
 
 // ComposableClass is implemented by the class types that can pull in other
@@ -823,6 +827,8 @@ type NetworkClass struct {
 
 	LabelOwnerClass
 }
+
+func (nc *NetworkClass) ClassName() string { return nc.Name }
 
 func (nc *NetworkClass) GetGivenValues() map[string]string {
 	return nc.Values
@@ -868,6 +874,8 @@ type NodeClass struct {
 	LabelOwnerClass
 }
 
+func (nc *NodeClass) ClassName() string { return nc.Name }
+
 func (nc *NodeClass) GetGivenValues() map[string]string {
 	return nc.Values
 }
@@ -895,6 +903,8 @@ type InterfaceClass struct {
 
 	LabelOwnerClass
 }
+
+func (ic *InterfaceClass) ClassName() string { return ic.Name }
 
 func (ic *InterfaceClass) GetGivenValues() map[string]string {
 	return ic.Values
@@ -924,6 +934,8 @@ type ConnectionClass struct {
 	LabelOwnerClass
 }
 
+func (cc *ConnectionClass) ClassName() string { return cc.Name }
+
 func (cc *ConnectionClass) GetGivenValues() map[string]string {
 	return cc.Values
 }
@@ -945,6 +957,8 @@ type GroupClass struct {
 
 	LabelOwnerClass
 }
+
+func (gc *GroupClass) ClassName() string { return gc.Name }
 
 func (gc *GroupClass) GetGivenValues() map[string]string {
 	return gc.Values
@@ -968,6 +982,8 @@ type SegmentClass struct {
 
 	LabelOwnerClass
 }
+
+func (sc *SegmentClass) ClassName() string { return sc.Name }
 
 func (sc *SegmentClass) GetGivenValues() map[string]string {
 	return sc.Values

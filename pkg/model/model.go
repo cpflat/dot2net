@@ -455,19 +455,7 @@ func assignConnectionNames(nm *types.NetworkModel) error {
 
 	for _, conn := range nm.Connections {
 		if conn.Name == "" {
-			// Get prefix from ConnectionClass. GetClasses() returns the classes
-			// in deterministic label order, so "first non-empty prefix wins" is
-			// stable across runs. The type assertion is guarded so a class of an
-			// unexpected type is skipped rather than causing a panic.
-			prefix := types.DefaultConnectionPrefix
-			for _, cls := range conn.GetClasses() {
-				cc, ok := cls.(*types.ConnectionClass)
-				if ok && cc.Prefix != "" {
-					prefix = cc.Prefix
-					break
-				}
-			}
-			prefixMap[prefix] = append(prefixMap[prefix], conn)
+			prefixMap[conn.NamePrefix] = append(prefixMap[conn.NamePrefix], conn)
 		} else {
 			existingNames[conn.Name] = struct{}{}
 		}
@@ -513,19 +501,10 @@ func assignSegmentNames(nm *types.NetworkModel) error {
 
 	for _, segment := range allSegments {
 		if segment.Name == "" {
-			// Get prefix from SegmentClass. GetClasses() returns the classes in
-			// deterministic label order, so "first non-empty prefix wins" is
-			// stable. The type assertion is guarded to skip unexpected types
-			// instead of panicking.
-			prefix := types.DefaultSegmentPrefix
-			for _, cls := range segment.GetClasses() {
-				sc, ok := cls.(*types.SegmentClass)
-				if ok && sc.Prefix != "" {
-					prefix = sc.Prefix
-					break
-				}
-			}
-			prefixMap[prefix] = append(prefixMap[prefix], segment)
+			// SetClasses has already resolved the prefix by tier; redoing it here
+			// from GetClasses would put the classes back in label order, which is
+			// not the order of precedence (see tieredValues).
+			prefixMap[segment.NamePrefix] = append(prefixMap[segment.NamePrefix], segment)
 		} else {
 			existingNames[segment.Name] = struct{}{}
 		}
@@ -599,18 +578,33 @@ func setGivenParameters(nm *types.NetworkModel) error {
 			}
 		}
 
-		// set values in config
+		// Set values from the classes. The strongest class to give a key wins,
+		// which has to be resolved before anything is written: addParam keeps the
+		// first value it is handed, and GetClasses is in label order, where a
+		// class reached through use: comes after the base class regardless of
+		// where it was defined. Two classes of the same tier giving different
+		// values were already rejected by SetClasses, so ties keep either one.
+		type givenValue struct {
+			value string
+			tier  int
+		}
+		given := map[string]givenValue{}
 		for _, cls := range lo.GetClasses() {
-			if loClass, ok := cls.(types.LabelOwnerClass); ok {
-				values := loClass.GetGivenValues()
-				for k, v := range values {
-					err := addParam(lo, k, v)
-					if err != nil {
-						return err
-					}
-				}
-			} else {
+			loClass, ok := cls.(types.LabelOwnerClass)
+			if !ok {
 				return fmt.Errorf("unexpected class type %T for setGivenParameters", cls)
+			}
+			tier := lo.ClassTier(loClass.ClassName())
+			for k, v := range loClass.GetGivenValues() {
+				if prev, seen := given[k]; seen && prev.tier >= tier {
+					continue
+				}
+				given[k] = givenValue{value: v, tier: tier}
+			}
+		}
+		for k, gv := range given {
+			if err := addParam(lo, k, gv.value); err != nil {
+				return err
 			}
 		}
 	}

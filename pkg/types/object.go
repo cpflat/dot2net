@@ -300,6 +300,7 @@ type LabelOwner interface {
 
 	HasClass(string) bool
 	GetClasses() []ObjectClass
+	ClassTier(string) int
 
 	SetVirtual(bool)
 	IsVirtual() bool
@@ -427,12 +428,16 @@ func (l *ParsedLabels) addClassLabels(tier int, labels ...string) {
 
 // tieredValues resolves attribute values contributed by several classes.
 //
-// Callers must visit classes strongest-first (the order produced by
-// getValidClasses plus module labels appended last). Under that order the first
-// value recorded for a key is the winner; a weaker class trying to set the same
-// key is ignored, while a class in the same tier setting a different value is a
-// conflict the user has to resolve, because the order inside one tier comes from
-// the order of labels in the DOT file and is not meaningful.
+// The strongest class to set a key wins, whatever order the classes are visited
+// in; only two classes of the same tier setting different values are a conflict
+// the user has to resolve, because the order inside one tier comes from the
+// order of labels in the DOT file and is not meaningful.
+//
+// Resolution must not depend on visit order, because ClassLabels does not list
+// classes strongest-first: expandUsedClasses appends the classes reached through
+// use: after everything else, keeping the tier they were defined at. A base
+// class visited before a used user class would otherwise either win outright or,
+// worse, be reported as a same-tier conflict with it.
 type tieredValues struct {
 	values map[string]string
 	tiers  map[string]int
@@ -446,15 +451,14 @@ func newTieredValues() *tieredValues {
 // class in the same tier already set a different value.
 func (t *tieredValues) set(key, value string, tier int) (string, bool) {
 	prev, seen := t.values[key]
-	if !seen {
+	switch {
+	case !seen, t.tiers[key] < tier:
 		t.values[key] = value
 		t.tiers[key] = tier
 		return "", true
-	}
-	if t.tiers[key] > tier {
-		return "", true // a stronger class already won
-	}
-	if prev != value {
+	case t.tiers[key] > tier:
+		return "", true // a stronger class has already spoken
+	case prev != value:
 		return prev, false
 	}
 	return "", true
@@ -1258,9 +1262,9 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 	if err := n.resolveClasses(cfg); err != nil {
 		return err
 	}
-	// Resolve attributes contributed by several classes. Classes are visited
-	// strongest-first, so the first value recorded wins; only a clash inside the
-	// same tier is an error (see tieredValues).
+	// Resolve attributes contributed by several classes: the strongest class to
+	// set a key wins, and only a clash inside one tier is an error (see
+	// tieredValues).
 	values := newTieredValues()
 	single := newTieredValues()
 	nodePolicies := newTieredValues()
@@ -2064,10 +2068,11 @@ func (iface *Interface) AddNeighbor(neighbor *Interface, layer string) {
 }
 
 type Connection struct {
-	Name   string
-	Src    *Interface
-	Dst    *Interface
-	Layers mapset.Set[string]
+	Name       string
+	NamePrefix string
+	Src        *Interface
+	Dst        *Interface
+	Layers     mapset.Set[string]
 
 	*ParsedLabels
 	*NameSpace
@@ -2154,6 +2159,8 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 	single := newTieredValues()
 	policies := newTieredValues()
 
+	conn.NamePrefix = DefaultConnectionPrefix
+
 	defaultConnectionLayer := cfg.DefaultConnectionLayer()
 	for _, layer := range defaultConnectionLayer {
 		conn.Layers.Add(layer)
@@ -2228,10 +2235,12 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 	applyPolicies(policies, cfg, conn.setPolicy)
 
-	// The winning prefix is not stored on the Connection: assignConnectionNames
-	// resolves it by taking the first non-empty prefix from GetClasses(), which is
-	// ordered strongest-first and therefore already matches the tier rules. The
-	// check above exists to reject same-tier conflicts before that happens.
+	// Apply the winning prefix, as the other object types do. assignConnectionNames
+	// used to redo this by taking the first non-empty prefix out of GetClasses(),
+	// which is not the tier order once use: has appended classes to the end.
+	if prefix, ok := single.get("prefix"); ok {
+		conn.NamePrefix = prefix
+	}
 
 	return nil
 }
