@@ -605,3 +605,140 @@ func buildModel(t *testing.T, dot, yaml string) *types.NetworkModel {
 	}
 	return nm
 }
+
+// TestUseClassComposition covers use:, which attaches another class of the same
+// type to whatever carries this one. It exists so that a module can offer a
+// ready-made class and a scenario can opt into it without naming that class in
+// the topology, which would tie the DOT to one platform.
+func TestUseClassComposition(t *testing.T) {
+	tests := []struct {
+		name       string
+		yaml       string
+		dot        string
+		wantClass  string // class expected on node n1, "" to skip
+		wantErrMsg string
+	}{
+		{
+			name: "a used class is attached",
+			yaml: `
+nodeclass:
+  - name: base_sw
+    values:
+      role: switch
+  - name: my_sw
+    use: [base_sw]
+`,
+			dot:       `digraph { n1 [class="my_sw"]; n2; n1 -> n2 }`,
+			wantClass: "base_sw",
+		},
+		{
+			name: "use is transitive",
+			yaml: `
+nodeclass:
+  - name: deep
+  - name: mid
+    use: [deep]
+  - name: my_sw
+    use: [mid]
+`,
+			dot:       `digraph { n1 [class="my_sw"]; n2; n1 -> n2 }`,
+			wantClass: "deep",
+		},
+		{
+			// A cycle must terminate rather than hang; the visited set is what
+			// makes that so.
+			name: "a cycle in use terminates",
+			yaml: `
+nodeclass:
+  - name: a
+    use: [b]
+  - name: b
+    use: [a]
+`,
+			dot:       `digraph { n1 [class="a"]; n2; n1 -> n2 }`,
+			wantClass: "b",
+		},
+		{
+			name: "using an undefined class is an error",
+			yaml: `
+nodeclass:
+  - name: my_sw
+    use: [nonexistent]
+`,
+			dot:        `digraph { n1 [class="my_sw"]; n2; n1 -> n2 }`,
+			wantErrMsg: "nodeclass my_sw uses undefined nodeclass nonexistent",
+		},
+		{
+			// Two user classes are the same tier, so a clash between them is an
+			// error just as it is when both are listed directly.
+			name: "same-tier values still clash",
+			yaml: `
+nodeclass:
+  - name: base_sw
+    values:
+      mtu: "1500"
+  - name: my_sw
+    use: [base_sw]
+    values:
+      mtu: "9000"
+`,
+			dot:        `digraph { n1 [class="my_sw"]; n2; n1 -> n2 }`,
+			wantErrMsg: "different values for 'mtu'",
+		},
+		{
+			name: "use works on connection classes too",
+			yaml: `
+connectionclass:
+  - name: base_link
+  - name: my_link
+    use: [base_link]
+`,
+			dot: `digraph { n1 -> n2 [label="my_link"] }`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.wantErrMsg != "" {
+				tmpDir := t.TempDir()
+				cfgPath := filepath.Join(tmpDir, "test.yaml")
+				dotPath := filepath.Join(tmpDir, "test.dot")
+				if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(dotPath, []byte(tt.dot), 0644); err != nil {
+					t.Fatal(err)
+				}
+				cfg, err := types.LoadConfig(cfgPath)
+				if err != nil {
+					t.Fatalf("LoadConfig: %v", err)
+				}
+				nd, err := model.DiagramFromDotFile(dotPath)
+				if err != nil {
+					t.Fatalf("DiagramFromDotFile: %v", err)
+				}
+				_, err = model.BuildNetworkModel(cfg, nd, false)
+				if err == nil {
+					t.Fatalf("expected an error containing %q, got none", tt.wantErrMsg)
+				}
+				if !strings.Contains(err.Error(), tt.wantErrMsg) {
+					t.Errorf("unexpected error:\n  got:      %v\n  expected to contain: %s", err, tt.wantErrMsg)
+				}
+				return
+			}
+
+			nm := buildModel(t, tt.dot, tt.yaml)
+			if tt.wantClass == "" {
+				return
+			}
+			for _, n := range nm.Nodes {
+				if n.Name != "n1" {
+					continue
+				}
+				if !containsString(n.ClassLabels(), tt.wantClass) {
+					t.Errorf("node n1 classes = %v, want to contain %q", n.ClassLabels(), tt.wantClass)
+				}
+			}
+		})
+	}
+}

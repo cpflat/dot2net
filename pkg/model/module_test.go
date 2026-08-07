@@ -231,3 +231,76 @@ connectionclass:
 		}
 	}
 }
+
+// useProbe registers a class the way a module does, so that its origin is
+// recorded. The class sets a value that a user's class also sets.
+type useProbe struct {
+	*types.StandardModule
+}
+
+var _ types.Module = (*useProbe)(nil)
+
+func (m *useProbe) UpdateConfig(cfg *types.Config) error {
+	cfg.AddNodeClass(&types.NodeClass{
+		Name:   "modDefault",
+		Values: map[string]string{"mtu": "9000"},
+	})
+	return nil
+}
+
+// TestUsedModuleClassKeepsModuleTier is the property that makes use: safe to
+// offer: a class a module registered stays the weakest tier even when a user's
+// class pulls it in, so the user's own value wins instead of clashing. Were the
+// tier taken from the class that named it, this would be a same-tier conflict
+// and the build would fail.
+func TestUsedModuleClassKeepsModuleTier(t *testing.T) {
+	cfgPath, dotPath := writeTempInput(t, `
+name: use_tier_probe
+nodeclass:
+  - name: my_sw
+    use: [modDefault]
+    values:
+      mtu: "1500"
+`, `graph { r1 [class="my_sw"]; r2; r1 -- r2 }`)
+
+	cfg, err := types.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	// Registering through the config is what records the module origin, exactly
+	// as LoadModules does.
+	if err := cfg.LoadModuleConfig(&useProbe{StandardModule: types.NewStandardModule()}); err != nil {
+		t.Fatalf("LoadModuleConfig: %v", err)
+	}
+
+	d, err := DiagramFromDotFile(dotPath)
+	if err != nil {
+		t.Fatalf("DiagramFromDotFile: %v", err)
+	}
+	nm, err := buildSkeleton(cfg, d)
+	if err != nil {
+		t.Fatalf("buildSkeleton: %v", err)
+	}
+	if err := checkClasses(cfg, nm); err != nil {
+		t.Fatalf("the module class should lose to the user class, got: %v", err)
+	}
+	if err := setGivenParameters(nm); err != nil {
+		t.Fatalf("setGivenParameters: %v", err)
+	}
+
+	for _, n := range nm.Nodes {
+		if n.Name != "r1" {
+			continue
+		}
+		if !n.HasClass("modDefault") {
+			t.Fatalf("node r1: the used class was not attached (classes: %v)", n.ClassLabels())
+		}
+		if tier := n.ClassTier("modDefault"); tier != types.ClassTierModule {
+			t.Errorf("node r1: used class tier = %d, want %d (module-provided classes stay weakest)",
+				tier, types.ClassTierModule)
+		}
+		if got := n.GetParams()["mtu"]; got != "1500" {
+			t.Errorf("node r1: mtu = %q, want the user-written 1500", got)
+		}
+	}
+}

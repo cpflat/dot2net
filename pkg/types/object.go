@@ -695,8 +695,8 @@ type NetworkModel struct {
 	NetworkSegments map[string][]*NetworkSegment
 	//Files           *ConfigFiles
 
-	nodeMap                  map[string]*Node
-	groupMap                 map[string]*Group
+	nodeMap  map[string]*Node
+	groupMap map[string]*Group
 	// Class member maps back the "classmembers" (MemberClass) feature: a class can
 	// pull in every object belonging to another class. MemberClass.GetSpecifiedClasses
 	// only accepts node, interface and connection classes, so there are exactly three
@@ -1105,12 +1105,12 @@ var (
 
 func newNode(name string) *Node {
 	node := &Node{
-		Name:            name,
-		NameSpace:       newNameSpace(),
+		Name:             name,
+		NameSpace:        newNameSpace(),
 		layerAwareObject: newLayerAwareObject(),
-		interfaceMap:    map[string]*Interface{},
-		memberReference: newMemberReference(),
-		valueReference:  newValueReference(),
+		interfaceMap:     map[string]*Interface{},
+		memberReference:  newMemberReference(),
+		valueReference:   newValueReference(),
 	}
 	return node
 }
@@ -1133,12 +1133,68 @@ func (n *Node) SetLabels(cfg *Config, labels []string, moduleLabels []string) er
 	return nil
 }
 
-
 // resolveClasses turns the class labels into class definitions. It runs both from
 // SetLabels and at the start of SetClasses, because labels can still be added in
 // between: AddClassLabels for relational classes, and modules through the
 // ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
+// expandUsedClasses attaches the classes that the already-attached ones name in
+// their use: list, transitively. A used class is attached exactly as if it had
+// been listed alongside, so composition follows the ordinary multi-class rules:
+// nothing is merged or overridden here.
+//
+// The tier comes from where a class was defined, not from the class that named
+// it. A module's class stays the weakest even when a user's class pulls it in,
+// which is what lets the user's own values win over the module's defaults.
+func expandUsedClasses(l *ParsedLabels, classType string, byName func(string) (ComposableClass, bool), ignoreUndefined bool) error {
+	attached := map[string]bool{}
+	for _, name := range l.ClassLabels() {
+		attached[name] = true
+	}
+	// Breadth-first over the labels attached so far; attached[] doubles as the
+	// visited set, so a cycle in use: terminates instead of looping.
+	queue := append([]string{}, l.ClassLabels()...)
+	for len(queue) > 0 {
+		def, ok := byName(queue[0])
+		namedBy := queue[0]
+		queue = queue[1:]
+		if !ok {
+			// An undefined label is reported by the caller's own resolution.
+			continue
+		}
+		for _, used := range def.UsedClasses() {
+			if attached[used] {
+				continue
+			}
+			usedDef, ok := byName(used)
+			if !ok {
+				if ignoreUndefined {
+					continue
+				}
+				return fmt.Errorf("%sclass %s uses undefined %sclass %s", classType, namedBy, classType, used)
+			}
+			attached[used] = true
+			if usedDef.IsModuleProvided() {
+				l.AddModuleClassLabels(used)
+			} else {
+				l.AddClassLabels(used)
+			}
+			queue = append(queue, used)
+		}
+	}
+	return nil
+}
+
 func (n *Node) resolveClasses(cfg *Config) error {
+	if err := expandUsedClasses(n.ParsedLabels, ClassTypeNode, func(name string) (ComposableClass, bool) {
+		def, ok := cfg.NodeClassByName(name)
+		return def, ok
+	}, cfg.GlobalSettings.IgnoreUndefinedClass); err != nil {
+		return err
+	}
+	return n.resolveClassDefinitions(cfg)
+}
+
+func (n *Node) resolveClassDefinitions(cfg *Config) error {
 	n.ParsedLabels.Classes = []ObjectClass{}
 	for _, cls := range n.ClassLabels() {
 		def, ok := cfg.NodeClassByName(cls)
@@ -1533,13 +1589,13 @@ var (
 
 func newInterface(node *Node, name string) *Interface {
 	iface := &Interface{
-		Name:            name,
-		Node:            node,
-		Neighbors:       map[string][]*Neighbor{},
-		NameSpace:       newNameSpace(),
+		Name:             name,
+		Node:             node,
+		Neighbors:        map[string][]*Neighbor{},
+		NameSpace:        newNameSpace(),
 		layerAwareObject: newLayerAwareObject(),
-		memberReference: newMemberReference(),
-		valueReference:  newValueReference(),
+		memberReference:  newMemberReference(),
+		valueReference:   newValueReference(),
 		// hasNeighborClass: map[string]bool{},
 		neighborClassMap: map[string][]*NeighborClass{},
 	}
@@ -1564,12 +1620,21 @@ func (iface *Interface) SetLabels(cfg *Config, labels []string, moduleLabels []s
 	return nil
 }
 
-
 // resolveClasses turns the class labels into class definitions. It runs both from
 // SetLabels and at the start of SetClasses, because labels can still be added in
 // between: AddClassLabels for relational classes, and modules through the
 // ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
 func (iface *Interface) resolveClasses(cfg *Config) error {
+	if err := expandUsedClasses(iface.ParsedLabels, ClassTypeInterface, func(name string) (ComposableClass, bool) {
+		def, ok := cfg.InterfaceClassByName(name)
+		return def, ok
+	}, cfg.GlobalSettings.IgnoreUndefinedClass); err != nil {
+		return err
+	}
+	return iface.resolveClassDefinitions(cfg)
+}
+
+func (iface *Interface) resolveClassDefinitions(cfg *Config) error {
 	iface.ParsedLabels.Classes = []ObjectClass{}
 	for _, cls := range iface.ClassLabels() {
 		def, ok := cfg.InterfaceClassByName(cls)
@@ -1633,12 +1698,10 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 			}
 		}
 
-
 		// check MemberClasses
 		for i := range cc.MemberClasses {
 			iface.AddMemberClass(cc.MemberClasses[i])
 		}
-
 
 	}
 
@@ -1648,7 +1711,7 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 	if err := iface.resolveClasses(cfg); err != nil {
 		return err
 	}
-	
+
 	// check interfaceclass flags
 	for _, cls := range iface.GetClasses() {
 		ic := cls.(*InterfaceClass)
@@ -1934,13 +1997,13 @@ var (
 
 func newConnection(src *Interface, dst *Interface) *Connection {
 	conn := &Connection{
-		Src:             src,
-		Dst:             dst,
-		Layers:          mapset.NewSet[string](),
-		ParsedLabels:    newParsedLabels(),
-		NameSpace:       newNameSpace(),
-		memberReference: newMemberReference(),
-		valueReference:  newValueReference(),
+		Src:              src,
+		Dst:              dst,
+		Layers:           mapset.NewSet[string](),
+		ParsedLabels:     newParsedLabels(),
+		NameSpace:        newNameSpace(),
+		memberReference:  newMemberReference(),
+		valueReference:   newValueReference(),
 		layerAwareObject: newLayerAwareObject(),
 	}
 	return conn
@@ -1964,12 +2027,21 @@ func (conn *Connection) SetLabels(cfg *Config, labels []string, moduleLabels []s
 	return nil
 }
 
-
 // resolveClasses turns the class labels into class definitions. It runs both from
 // SetLabels and at the start of SetClasses, because labels can still be added in
 // between: AddClassLabels for relational classes, and modules through the
 // ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
 func (conn *Connection) resolveClasses(cfg *Config) error {
+	if err := expandUsedClasses(conn.ParsedLabels, ClassTypeConnection, func(name string) (ComposableClass, bool) {
+		def, ok := cfg.ConnectionClassByName(name)
+		return def, ok
+	}, cfg.GlobalSettings.IgnoreUndefinedClass); err != nil {
+		return err
+	}
+	return conn.resolveClassDefinitions(cfg)
+}
+
+func (conn *Connection) resolveClassDefinitions(cfg *Config) error {
 	conn.ParsedLabels.Classes = []ObjectClass{}
 	for _, cls := range conn.ClassLabels() {
 		def, ok := cfg.ConnectionClassByName(cls)
@@ -1999,15 +2071,15 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// check connectionclass flags to connections and their interfaces
 	for _, cls := range conn.GetClasses() {
 		cc := cls.(*ConnectionClass)
-		
+
 		// register connection to connectionClassMemberMap (same pattern as Node/Interface)
 		nm.connectionClassMemberMap.addClassMember(cc.Name, conn)
-		
+
 		// check virtual (same pattern as Node/Interface)
 		if cc.Virtual {
 			conn.SetVirtual(true)
 		}
-		
+
 		// check ippolicy flags (same pattern as Node/Interface)
 		for _, p := range cc.IPPolicy {
 			policy, ok := cfg.policyMap[p]
@@ -2017,7 +2089,7 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 				return fmt.Errorf("invalid policy name %s in connectionclass %s", p, cc.Name)
 			}
 		}
-		
+
 		// check parameter flags (same pattern as Node/Interface)
 		for _, num := range cc.Parameters {
 			policy, ok := cfg.policyMap[num]
@@ -2028,12 +2100,12 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 				conn.setParamFlag(num)
 			}
 		}
-		
+
 		// connected layer
 		for _, layer := range cc.Layers {
 			conn.Layers.Add(layer)
 		}
-		
+
 		// check MemberClasses
 		for i := range cc.MemberClasses {
 			conn.AddMemberClass(cc.MemberClasses[i])
@@ -2181,11 +2253,11 @@ func (conn *Connection) GetPossibleConfigTemplates(cfg *Config) []*ConfigTemplat
 // }
 
 type NetworkSegment struct {
-	Name        string    // Auto-assigned name
+	Name        string // Auto-assigned name
 	Layer       string
 	Interfaces  []*Interface
 	Connections []*Connection
-	NamePrefix  string    // Prefix for auto-naming
+	NamePrefix  string // Prefix for auto-naming
 
 	*NameSpace
 	*ParsedLabels
@@ -2317,7 +2389,7 @@ func (seg *NetworkSegment) GetConfigTemplates(cfg *Config) []*ConfigTemplate {
 }
 
 func (seg *NetworkSegment) SetLabels(cfg *Config, labels []string, moduleLabels []string) error {
-	// Segment labels are set indirectly via SetSegmentLabelsFromRelationalLabels  
+	// Segment labels are set indirectly via SetSegmentLabelsFromRelationalLabels
 	return fmt.Errorf("segment labels should be set via SetSegmentLabelsFromRelationalLabels, not SetLabels")
 }
 
@@ -2326,7 +2398,7 @@ func (seg *NetworkSegment) SetLabels(cfg *Config, labels []string, moduleLabels 
 func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, layer *Layer) error {
 	// fmt.Printf("DEBUG: SetSegmentLabelsFromRelationalLabels called for segment with %d connections, %d interfaces\n", len(seg.Connections), len(seg.Interfaces))
 	scNames := mapset.NewSet[string]()
-	
+
 	// Check connections for relational class labels
 	for _, conn := range seg.Connections {
 		// fmt.Printf("DEBUG: Checking connection %s, relational labels: %v\n", conn.Name, conn.RelationalClassLabels())
@@ -2351,7 +2423,7 @@ func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, lay
 			}
 		}
 	}
-	
+
 	// Check interfaces for relational class labels
 	for _, iface := range seg.Interfaces {
 		for _, rlabel := range iface.RelationalClassLabels() {
@@ -2368,14 +2440,22 @@ func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, lay
 			}
 		}
 	}
-	
+
 	// fmt.Printf("DEBUG: Found segment class names: %v\n", scNames.ToSlice())
 	for _, name := range scNames.ToSlice() {
-		// fmt.Printf("DEBUG: Adding class label '%s' to segment\n", name)
 		seg.ParsedLabels.AddClassLabels(name)
-		// Add the corresponding class object to ParsedLabels.Classes
-		sc, ok := cfg.SegmentClassByName(name)
-		if ok {
+	}
+	// Segment classes arrive through relational labels rather than SetLabels, so
+	// the use: expansion has to happen on this path too.
+	if err := expandUsedClasses(seg.ParsedLabels, ClassTypeSegment, func(name string) (ComposableClass, bool) {
+		def, ok := cfg.SegmentClassByName(name)
+		return def, ok
+	}, cfg.GlobalSettings.IgnoreUndefinedClass); err != nil {
+		return err
+	}
+	seg.ParsedLabels.Classes = []ObjectClass{}
+	for _, name := range seg.ClassLabels() {
+		if sc, ok := cfg.SegmentClassByName(name); ok {
 			seg.ParsedLabels.Classes = append(seg.ParsedLabels.Classes, sc)
 		}
 	}
@@ -2669,12 +2749,21 @@ func (g *Group) SetLabels(cfg *Config, labels []string, moduleLabels []string) e
 	return nil
 }
 
-
 // resolveClasses turns the class labels into class definitions. It runs both from
 // SetLabels and at the start of SetClasses, because labels can still be added in
 // between: AddClassLabels for relational classes, and modules through the
 // ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
 func (g *Group) resolveClasses(cfg *Config) error {
+	if err := expandUsedClasses(g.ParsedLabels, ClassTypeGroup, func(name string) (ComposableClass, bool) {
+		def, ok := cfg.GroupClassByName(name)
+		return def, ok
+	}, cfg.GlobalSettings.IgnoreUndefinedClass); err != nil {
+		return err
+	}
+	return g.resolveClassDefinitions(cfg)
+}
+
+func (g *Group) resolveClassDefinitions(cfg *Config) error {
 	g.ParsedLabels.Classes = []ObjectClass{}
 	for _, cls := range g.ClassLabels() {
 		def, ok := cfg.GroupClassByName(cls)

@@ -93,6 +93,7 @@ type ClassPolicy struct {
 	Group      ClassPolicyEntry `yaml:"group" mapstructure:"group"`
 	Segment    ClassPolicyEntry `yaml:"segment" mapstructure:"segment"`
 }
+
 // EmptySeparator is the explicit "no separator" value for FormatStyle separators.
 // An empty string means "not specified" and falls back to the default, so a
 // separator that really is empty has to be spelled out.
@@ -149,6 +150,10 @@ type Config struct {
 	ConnectionClasses []*ConnectionClass `yaml:"connectionclass,flow" mapstructure:"connections,flow"`
 	GroupClasses      []*GroupClass      `yaml:"groupclass,flow" mapstructure:"group,flow"`
 	SegmentClasses    []*SegmentClass    `yaml:"segmentclass,flow" mapstructure:"segments,flow"`
+
+	// registeringModule is true while a module's UpdateConfig runs, so that the
+	// classes it adds are recorded as module-provided.
+	registeringModule bool
 
 	fileDefinitionMap map[string]*FileDefinition
 	formatStyleMap    map[string]*FormatStyle
@@ -359,17 +364,29 @@ func (cfg *Config) AddNetworkClass(nc *NetworkClass) {
 	cfg.NetworkClasses = append(cfg.NetworkClasses, nc)
 }
 
+// LoadModuleConfig runs a module's registration, recording that whatever it
+// adds came from a module. Knowing the origin is what lets a class keep the
+// weakest tier when a user's class pulls it in through use:.
+func (cfg *Config) LoadModuleConfig(m Module) error {
+	cfg.registeringModule = true
+	defer func() { cfg.registeringModule = false }()
+	return m.UpdateConfig(cfg)
+}
+
 func (cfg *Config) AddNodeClass(nc *NodeClass) {
+	nc.ModuleProvided = cfg.registeringModule
 	cfg.NodeClasses = append(cfg.NodeClasses, nc)
 	cfg.nodeClassMap[nc.Name] = nc
 }
 
 func (cfg *Config) AddInterfaceClass(nc *InterfaceClass) {
+	nc.ModuleProvided = cfg.registeringModule
 	cfg.InterfaceClasses = append(cfg.InterfaceClasses, nc)
 	cfg.interfaceClassMap[nc.Name] = nc
 }
 
 func (cfg *Config) AddConnectionClass(nc *ConnectionClass) {
+	nc.ModuleProvided = cfg.registeringModule
 	cfg.ConnectionClasses = append(cfg.ConnectionClasses, nc)
 	cfg.connectionClassMap[nc.Name] = nc
 }
@@ -484,7 +501,9 @@ func (fd *FileDefinition) GetFormats() []string {
 
 // GetFileName returns the output filename for this file definition.
 // If NamePrefix or NameSuffix is specified, it generates filename as:
-//   {NamePrefix}{objectName}{NameSuffix}
+//
+//	{NamePrefix}{objectName}{NameSuffix}
+//
 // Otherwise, it returns Name directly.
 // This allows Name to be used as an identifier for referencing,
 // while NamePrefix/NameSuffix control the actual output filename.
@@ -716,6 +735,28 @@ type LabelOwnerClass interface {
 	GetGivenValues() map[string]string
 }
 
+// ComposableClass is implemented by the class types that can pull in other
+// classes of the same type through their use: list.
+type ComposableClass interface {
+	UsedClasses() []string
+	IsModuleProvided() bool
+}
+
+func (nc *NodeClass) UsedClasses() []string  { return nc.Use }
+func (nc *NodeClass) IsModuleProvided() bool { return nc.ModuleProvided }
+
+func (ic *InterfaceClass) UsedClasses() []string  { return ic.Use }
+func (ic *InterfaceClass) IsModuleProvided() bool { return ic.ModuleProvided }
+
+func (cc *ConnectionClass) UsedClasses() []string  { return cc.Use }
+func (cc *ConnectionClass) IsModuleProvided() bool { return cc.ModuleProvided }
+
+func (gc *GroupClass) UsedClasses() []string  { return gc.Use }
+func (gc *GroupClass) IsModuleProvided() bool { return gc.ModuleProvided }
+
+func (sc *SegmentClass) UsedClasses() []string  { return sc.Use }
+func (sc *SegmentClass) IsModuleProvided() bool { return sc.ModuleProvided }
+
 // object classes
 
 type NetworkClass struct {
@@ -731,9 +772,17 @@ func (nc *NetworkClass) GetGivenValues() map[string]string {
 }
 
 type NodeClass struct {
+	// Use names other classes of the same type that an object carrying this
+	// class also carries. It only attaches labels: no field is merged or
+	// overridden, so composition follows the ordinary multi-class rules.
+	Use []string `yaml:"use,flow" mapstructure:"use,flow"`
+	// ModuleProvided marks a class registered by a module rather than written
+	// by the user. It decides the tier a class keeps when another class pulls
+	// it in through Use, so that a module's defaults still lose to the user.
+	ModuleProvided bool `yaml:"-" mapstructure:"-"`
 	// A virtual node have parameters, but no object nor configuration. It is considered only on parameter assignment.
-	Name    string `yaml:"name" mapstructure:"name"`
-	Virtual bool   `yaml:"virtual" mapstructure:"virtual"`
+	Name              string            `yaml:"name" mapstructure:"name"`
+	Virtual           bool              `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy          []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Parameters        []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	Values            map[string]string `yaml:"values" mapstructure:"values"`
@@ -752,8 +801,16 @@ func (nc *NodeClass) GetGivenValues() map[string]string {
 }
 
 type InterfaceClass struct {
-	Name    string `yaml:"name" mapstructure:"name"`
-	Virtual bool   `yaml:"virtual" mapstructure:"virtual"`
+	// Use names other classes of the same type that an object carrying this
+	// class also carries. It only attaches labels: no field is merged or
+	// overridden, so composition follows the ordinary multi-class rules.
+	Use []string `yaml:"use,flow" mapstructure:"use,flow"`
+	// ModuleProvided marks a class registered by a module rather than written
+	// by the user. It decides the tier a class keeps when another class pulls
+	// it in through Use, so that a module's defaults still lose to the user.
+	ModuleProvided  bool              `yaml:"-" mapstructure:"-"`
+	Name            string            `yaml:"name" mapstructure:"name"`
+	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Layers          []string          `yaml:"layers,flow" mapstructure:"layers,flow"` // Interface connection is limited to specified layers
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
@@ -772,6 +829,14 @@ func (ic *InterfaceClass) GetGivenValues() map[string]string {
 }
 
 type ConnectionClass struct {
+	// Use names other classes of the same type that an object carrying this
+	// class also carries. It only attaches labels: no field is merged or
+	// overridden, so composition follows the ordinary multi-class rules.
+	Use []string `yaml:"use,flow" mapstructure:"use,flow"`
+	// ModuleProvided marks a class registered by a module rather than written
+	// by the user. It decides the tier a class keeps when another class pulls
+	// it in through Use, so that a module's defaults still lose to the user.
+	ModuleProvided  bool              `yaml:"-" mapstructure:"-"`
 	Name            string            `yaml:"name" mapstructure:"name"`
 	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
@@ -780,7 +845,7 @@ type ConnectionClass struct {
 	Values          map[string]string `yaml:"values" mapstructure:"values"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 	MemberClasses   []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`
-	
+
 	// Connection naming
 	Prefix string `yaml:"prefix" mapstructure:"prefix"` // prefix of connection auto-naming
 
@@ -792,6 +857,14 @@ func (cc *ConnectionClass) GetGivenValues() map[string]string {
 }
 
 type GroupClass struct {
+	// Use names other classes of the same type that an object carrying this
+	// class also carries. It only attaches labels: no field is merged or
+	// overridden, so composition follows the ordinary multi-class rules.
+	Use []string `yaml:"use,flow" mapstructure:"use,flow"`
+	// ModuleProvided marks a class registered by a module rather than written
+	// by the user. It decides the tier a class keeps when another class pulls
+	// it in through Use, so that a module's defaults still lose to the user.
+	ModuleProvided  bool              `yaml:"-" mapstructure:"-"`
 	Name            string            `yaml:"name" mapstructure:"name"`
 	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
@@ -806,6 +879,14 @@ func (gc *GroupClass) GetGivenValues() map[string]string {
 }
 
 type SegmentClass struct {
+	// Use names other classes of the same type that an object carrying this
+	// class also carries. It only attaches labels: no field is merged or
+	// overridden, so composition follows the ordinary multi-class rules.
+	Use []string `yaml:"use,flow" mapstructure:"use,flow"`
+	// ModuleProvided marks a class registered by a module rather than written
+	// by the user. It decides the tier a class keeps when another class pulls
+	// it in through Use, so that a module's defaults still lose to the user.
+	ModuleProvided  bool              `yaml:"-" mapstructure:"-"`
 	Name            string            `yaml:"name" mapstructure:"name"`
 	Layer           string            `yaml:"layer" mapstructure:"layer"`
 	Values          map[string]string `yaml:"values" mapstructure:"values"`

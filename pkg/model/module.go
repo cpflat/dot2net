@@ -29,8 +29,9 @@ func LoadModules(cfg *types.Config) error {
 			return fmt.Errorf("unknown module: %s", name)
 		}
 
-		err := m.UpdateConfig(cfg)
-		if err != nil {
+		// Through the config, so that the classes a module registers are marked
+		// as module-provided (they must keep the weakest tier).
+		if err := cfg.LoadModuleConfig(m); err != nil {
 			return err
 		}
 		modules = append(modules, m)

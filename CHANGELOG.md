@@ -15,6 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `xlabel` is also the way to give a cluster a decorative title without it being
   taken as a group class (`label` still doubles as both). Node `label` remains
   excluded on purpose: it collides with the record-shape node syntax.
+- **`use:` on class definitions**: a class may name other classes of the same
+  type that an object carrying it also carries. It attaches labels only — no
+  field is merged or overridden — so composition follows the ordinary
+  multi-class rules. Cycles terminate; naming an undefined class is an error.
+
+  This is what lets a module offer a ready-made class that a scenario opts into,
+  without naming that class in the topology: putting it in the DOT would tie the
+  file to one platform, since the class exists only while that module is loaded.
+  A used class keeps the tier of wherever it was defined rather than the tier of
+  the class that named it, so a module's defaults still lose to the user's own
+  values instead of clashing with them.
 - **Switch nodes**: `class_policy.node.switch` names the node
   classes that stand for a shared L2 domain the platform realizes itself. Such a
   node is emitted with its `kind` alone — no image, no bind mounts, no commands —
