@@ -23,6 +23,26 @@ const ClabLinkFormatName = "_clabLink"
 const NetworkClassName = "_clabNetwork"
 const NodeClassName = "_clabNode"
 const SwitchNodeClassName = "_clabSwitchNode"
+
+// Ready-made classes a scenario opts into with use:. containerlab refuses to
+// deploy when a bridge node's bridge does not exist, and its deployment check
+// runs before any stage, so nothing inside the lab can create it. These spell
+// out the usual command for each kind of bridge.
+//
+// They are not applied automatically. Which command creates a bridge is not
+// decided by the kind - the same ovs-bridge may be provisioned by Ansible, need
+// sudo, or live in another OVS database - so the choice belongs to the
+// scenario. A scenario that provisions its bridges some other way names neither
+// class and writes its own clab_bridge_setup template, or none at all.
+//
+// The names carry no underscore because they are meant to be written by users.
+const OvsBridgeSetupClassName = "clabOvsBridgeSetup"
+const LinuxBridgeSetupClassName = "clabLinuxBridgeSetup"
+
+// BridgeSetupConfigName is the config template name both classes above define,
+// and the one a scenario overrides or supplies itself. Aggregate it with
+// {{ .nodes_clab_bridge_setup }}.
+const BridgeSetupConfigName = "clab_bridge_setup"
 const InterfaceClassName = "_clabInterface"
 const ConnectionClassName = "_clabConnection"
 
@@ -158,6 +178,22 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		Name:            SwitchNodeClassName,
 		ConfigTemplates: []*types.ConfigTemplate{ct6},
 	})
+
+	for _, setup := range []struct{ className, file string }{
+		{OvsBridgeSetupClassName, "templates/setup.node_clab_ovs_bridge"},
+		{LinuxBridgeSetupClassName, "templates/setup.node_clab_linux_bridge"},
+	} {
+		bytes, err = templates.ReadFile(setup.file)
+		if err != nil {
+			return err
+		}
+		cfg.AddNodeClass(&types.NodeClass{
+			Name: setup.className,
+			ConfigTemplates: []*types.ConfigTemplate{
+				{Name: BridgeSetupConfigName, Template: []string{string(bytes)}},
+			},
+		})
+	}
 
 	// add connection class emitting one "links:" entry per connection.
 	// The endpoint names come from GenerateParameters; rendering lives in the

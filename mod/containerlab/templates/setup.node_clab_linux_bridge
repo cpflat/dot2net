@@ -1,0 +1,2 @@
+ip link add {{ .name }} type bridge
+ip link set {{ .name }} up

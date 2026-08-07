@@ -14,8 +14,7 @@
 #   - a switch node: a shared L2 domain the platform realizes itself, emitted as
 #     a bridge by containerlab and as a switches: entry by TiNET. Contrast with
 #     example/switching, which realizes its switch as a container instead.
-#   - the bridge setup script containerlab needs, written by hand because the
-#     command belongs to the platform, not to dot2net (see platform_sw below)
+#   - use:, which pulls a ready-made class out of a module (see platform_sw)
 # The assert module pins that the classes above really are applied; without it
 # a class that stops matching just disappears from the output and the expected
 # files record its absence.
@@ -90,19 +89,13 @@ nodeclass:
     values:
       kind: ovs-bridge
       assert_used: "true"
-    config:
-      # containerlab requires the bridge to exist before deploy: its
-      # CheckDeploymentConditions runs before any stage, so no hook inside the
-      # lab can create it. TiNET and Kathara create theirs themselves and
-      # ignore this.
-      #
-      # The command is written here rather than generated, for the same reason
-      # dot2net does not invent the kind: which command creates which kind of
-      # bridge is the platform's business, and so is whether it needs sudo or a
-      # particular OVS database.
-      - name: bridge_setup
-        template:
-          - "ovs-vsctl --may-exist add-br {{ .name }}"
+    # containerlab refuses to deploy when the bridge does not already exist, so
+    # the script below has to create it. clabOvsBridgeSetup is a ready-made
+    # class the containerlab module offers for that; a lab whose bridges are
+    # provisioned by Ansible, or need sudo, or live in another OVS database,
+    # simply drops the use: line and writes its own clab_bridge_setup template.
+    # TiNET and Kathara create their bridges themselves and ignore all of this.
+    use: [clabOvsBridgeSetup]
 
 interfaceclass:
   - name: default
@@ -169,4 +162,4 @@ networkclass:
       - file: setup-bridges.sh
         template:
           - "#!/bin/sh"
-          - "{{ .nodes_bridge_setup }}"
+          - "{{ .nodes_clab_bridge_setup }}"

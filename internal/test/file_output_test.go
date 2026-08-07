@@ -877,3 +877,101 @@ networkclass:
 		t.Errorf("seg.txt mismatch:\n  got:      %q\n  expected: %q", string(got), want)
 	}
 }
+
+// TestClabBridgeSetupClasses covers the ready-made setup classes the
+// containerlab module offers. They are opt-in: which command creates a bridge
+// is not decided by the kind, so a scenario that provisions its bridges
+// differently names neither class and writes its own template.
+func TestClabBridgeSetupClasses(t *testing.T) {
+	const dot = `digraph {
+		r1 [xlabel="router"];
+		sw [xlabel="my_sw"];
+		r1 -> sw [dir="none"];
+	}`
+	head := func(use string) string {
+		return `
+module: [containerlab]
+
+class_policy:
+  node:
+    switch: [my_sw]
+  interface:
+    default: [default]
+
+file:
+  - name: setup.sh
+    scope: network
+
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+
+nodeclass:
+  - name: router
+    interface_policy: [ip]
+    values: {kind: linux, image: alpine}
+    config:
+      - name: startup
+        template: []
+  - name: my_sw
+    values: {kind: ovs-bridge}
+` + use + `
+interfaceclass:
+  - name: default
+
+networkclass:
+  - name: _default
+    config:
+      - file: setup.sh
+        template:
+          - "{{ .nodes_clab_bridge_setup }}"
+`
+	}
+
+	tests := []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{
+			name: "the OVS class supplies its command",
+			yaml: head("    use: [clabOvsBridgeSetup]\n"),
+			want: "ovs-vsctl --may-exist add-br sw",
+		},
+		{
+			name: "the Linux bridge class supplies a different one",
+			yaml: head("    use: [clabLinuxBridgeSetup]\n"),
+			want: "ip link add sw type bridge\nip link set sw up",
+		},
+		{
+			// Opting out is the point: nothing is chosen from the kind.
+			name: "a scenario can write its own instead",
+			yaml: head(`    config:
+      - name: clab_bridge_setup
+        template:
+          - "ansible-playbook provision-bridge.yml -e name={{ .name }}"
+`),
+			want: "ansible-playbook provision-bridge.yml -e name=sw",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir, err := buildInDir(t, dot, tt.yaml)
+			if err != nil {
+				t.Fatalf("failed to build config files: %v", err)
+			}
+			got, err := os.ReadFile(filepath.Join(tmpDir, "setup.sh"))
+			if err != nil {
+				t.Fatalf("failed to read setup.sh: %v", err)
+			}
+			if string(got) != tt.want {
+				t.Errorf("setup.sh mismatch:\n  got:      %q\n  expected: %q", string(got), tt.want)
+			}
+		})
+	}
+}

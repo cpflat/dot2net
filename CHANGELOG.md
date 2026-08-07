@@ -15,6 +15,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `xlabel` is also the way to give a cluster a decorative title without it being
   taken as a group class (`label` still doubles as both). Node `label` remains
   excluded on purpose: it collides with the record-shape node syntax.
+- **Ready-made bridge setup classes (containerlab)**: `clabOvsBridgeSetup` and
+  `clabLinuxBridgeSetup` carry the command that creates the bridge containerlab
+  requires to exist before deploy. A scenario opts in with
+  `use: [clabOvsBridgeSetup]`; both define a `clab_bridge_setup` template, so
+  `{{ .nodes_clab_bridge_setup }}` collects one line per switch node.
+
+  They are never applied automatically. Which command creates a bridge is not
+  decided by the kind — the same `ovs-bridge` may be provisioned by Ansible,
+  need sudo, or live in another OVS database — so a scenario that does it
+  differently names neither class and writes its own `clab_bridge_setup`.
 - **`use:` on class definitions**: a class may name other classes of the same
   type that an object carrying it also carries. It attaches labels only — no
   field is merged or overridden — so composition follows the ordinary
