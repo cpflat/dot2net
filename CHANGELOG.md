@@ -91,6 +91,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **IP policies ignored the class tiers**: a policy was applied as each class
+  was visited, and classes are visited strongest first, so the last write won —
+  the *weakest* class silently took the layer. A base class could therefore
+  override the policy a node's own class had set. Policies now resolve like
+  values: the stronger class wins, and two classes of the same tier naming
+  different policies for one layer is an error. **Two classes named together in
+  a DOT label that set different policies for the same layer are now rejected**
+  instead of resolving arbitrarily.
+- **Two classes on one object defining the same config template name** are now
+  reported when the classes are resolved, naming both classes. The clash used to
+  surface later as a duplicated namespace parameter that named neither — hard to
+  trace when one of them arrived through `use:`.
 - **`example/address_reservation`'s management layer had been disabled since
   2025-09-11**: it wrote `management_layer:` where the key is `mgmt_layer:`, and
   an unknown key is dropped in silence, so no management address was ever

@@ -193,9 +193,15 @@ digraph {
 			expectError: false,
 		},
 		{
-			name: "Multiple_Classes_Different_Policies_Valid",
+			// Both policies belong to layer ipv4, and a node holds one policy per
+			// layer, so this asks for two answers to the same question. The
+			// classes are named together in the DOT label and therefore share a
+			// tier, which makes it a conflict like any other. Before the tier
+			// rules reached policies, whichever class happened to be visited last
+			// silently won.
+			name: "NodeClass_Policy_Conflict_SameLayer",
 			configYAML: `
-name: valid_test
+name: conflict_test
 layer:
   - name: ipv4
     policy:
@@ -205,6 +211,37 @@ layer:
       - name: net2
         range: 192.168.2.0/24
         prefix: 30
+nodeclass:
+  - name: class1
+    policy: [net1]
+  - name: class2
+    policy: [net2]
+`,
+			dotContent: `
+digraph {
+  n1 [class="class1,class2"];
+}
+`,
+			expectError: true,
+			errorMsg:    "different policy ('net1' vs 'net2')",
+		},
+		{
+			// Different layers are independent, so a node may hold one policy in
+			// each.
+			name: "Multiple_Classes_Policies_In_Different_Layers_Valid",
+			configYAML: `
+name: valid_test
+layer:
+  - name: ipv4
+    policy:
+      - name: net1
+        range: 192.168.1.0/24
+        prefix: 30
+  - name: ipv6
+    policy:
+      - name: net2
+        range: 2001:db8::/32
+        prefix: 64
 nodeclass:
   - name: class1
     policy: [net1]
@@ -740,5 +777,52 @@ connectionclass:
 				}
 			}
 		})
+	}
+}
+
+// TestPolicyTierResolution pins that a policy follows the same precedence as
+// any other class attribute. Policies were applied as each class was visited,
+// and classes are visited strongest first, so the last write won and the
+// weakest class silently took the layer.
+func TestPolicyTierResolution(t *testing.T) {
+	const yaml = `
+class_policy:
+  node:
+    base: [weak_base]
+  interface:
+    default: [default]
+
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: strong_pool
+        range: 10.0.0.0/16
+        prefix: 24
+      - name: weak_pool
+        range: 172.20.0.0/16
+        prefix: 24
+
+nodeclass:
+  - name: mine
+    interface_policy: [strong_pool]
+  - name: weak_base
+    interface_policy: [weak_pool]
+
+interfaceclass:
+  - name: default
+`
+	const dot = `digraph { r1 [xlabel="mine"]; r2 [xlabel="mine"]; r1 -> r2 [dir="none"] }`
+
+	nm := buildModel(t, dot, yaml)
+	for _, n := range nm.Nodes {
+		for _, iface := range n.Interfaces {
+			addr := iface.GetParams()["ip_addr"]
+			if !strings.HasPrefix(addr, "10.0.") {
+				t.Errorf("%s.%s: ip_addr = %q, want one from the user class pool 10.0.0.0/16; "+
+					"the base class is the weaker tier and must not take the layer",
+					n.Name, iface.Name, addr)
+			}
+		}
 	}
 }

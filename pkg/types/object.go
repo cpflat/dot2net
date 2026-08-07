@@ -1137,6 +1137,52 @@ func (n *Node) SetLabels(cfg *Config, labels []string, moduleLabels []string) er
 // SetLabels and at the start of SetClasses, because labels can still be added in
 // between: AddClassLabels for relational classes, and modules through the
 // ObjectClassifier hook. Resolving only in SetLabels would silently drop those.
+// recordPolicy resolves which IP policy wins for a layer when several classes
+// name one, by the same tier rule the values follow. Applying them as they are
+// visited would let the last class win, and classes are visited strongest
+// first, so the weakest one would have taken the layer.
+//
+// It reports whether policyName names a policy at all: the parameter lists mix
+// policy names with plain parameter flags, and the caller tells them apart by
+// this.
+func recordPolicy(t *tieredValues, cfg *Config, policyName string, tier int) (isPolicy bool, other string, ok bool) {
+	policy, found := cfg.policyMap[policyName]
+	if !found {
+		return false, "", true
+	}
+	other, ok = t.set(policy.layer.Name, policyName, tier)
+	return true, other, ok
+}
+
+// applyPolicies hands the winning policies to the object.
+func applyPolicies(t *tieredValues, cfg *Config, set func(*Layer, *IPPolicy)) {
+	for _, policyName := range t.values {
+		policy := cfg.policyMap[policyName]
+		set(policy.layer, policy)
+	}
+}
+
+// recordConfigNames reports two classes on the same object defining a config
+// template under the same name. Left to config generation, the clash surfaces
+// as a duplicated namespace parameter that names neither class - hard to trace
+// when one of them arrived through use:.
+func recordConfigNames(seen map[string]string, objType, objName, className string, cts []*ConfigTemplate) error {
+	for _, ct := range cts {
+		if ct.Name == "" {
+			continue
+		}
+		if other, ok := seen[ct.Name]; ok {
+			return fmt.Errorf(
+				"%s %s: classes %s and %s both define a config template named %q. "+
+					"use: attaches a class rather than letting it be overridden, so rename one of them "+
+					"or drop the use:",
+				objType, objName, other, className, ct.Name)
+		}
+		seen[ct.Name] = className
+	}
+	return nil
+}
+
 // expandUsedClasses attaches the classes that the already-attached ones name in
 // their use: list, transitively. A used class is attached exactly as if it had
 // been listed alongside, so composition follows the ordinary multi-class rules:
@@ -1217,6 +1263,9 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// same tier is an error (see tieredValues).
 	values := newTieredValues()
 	single := newTieredValues()
+	nodePolicies := newTieredValues()
+	ifacePolicies := newTieredValues()
+	configNames := map[string]string{}
 
 	// set defaults for nodes without class
 	n.NamePrefix = DefaultNodePrefix
@@ -1229,42 +1278,48 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 		// }
 		// n.ParsedLabels.Classes = append(n.ParsedLabels.Classes, nc)
 		nm.nodeClassMemberMap.addClassMember(nc.Name, n)
+		if err := recordConfigNames(configNames, "node", n.Name, nc.Name, nc.ConfigTemplates); err != nil {
+			return err
+		}
 
 		// check virtual
 		if nc.Virtual {
 			n.SetVirtual(true)
 		}
 
+		tier := n.ClassTier(nc.Name)
+
 		// check ippolicy flags
 		for _, p := range nc.IPPolicy {
-			policy, ok := cfg.policyMap[p]
-			if ok {
-				n.setPolicy(policy.layer, policy)
-			} else {
+			isPolicy, other, ok := recordPolicy(nodePolicies, cfg, p, tier)
+			if !isPolicy {
 				return fmt.Errorf("invalid policy name %s in nodeclass %s", p, nc.Name)
+			}
+			if !ok {
+				return classConflictError("node", n.Name, "policy", other, p)
 			}
 		}
 
 		// check interface_policy flags
 		for _, p := range nc.InterfaceIPPolicy {
-			policy, ok := cfg.policyMap[p]
-			if ok {
-				for _, iface := range n.Interfaces {
-					iface.setPolicy(policy.layer, policy)
-				}
-			} else {
+			isPolicy, other, ok := recordPolicy(ifacePolicies, cfg, p, tier)
+			if !isPolicy {
 				return fmt.Errorf("invalid policy name %s in nodeclass %s", p, nc.Name)
+			}
+			if !ok {
+				return classConflictError("node", n.Name, "interface policy", other, p)
 			}
 		}
 
 		// check parameter flags
 		for _, num := range nc.Parameters {
-			policy, ok := cfg.policyMap[num]
-			if ok {
-				// ip policy
-				n.setPolicy(policy.layer, policy)
-			} else {
+			isPolicy, other, ok := recordPolicy(nodePolicies, cfg, num, tier)
+			if !isPolicy {
 				n.setParamFlag(num)
+				continue
+			}
+			if !ok {
+				return classConflictError("node", n.Name, "policy", other, num)
 			}
 		}
 
@@ -1272,8 +1327,6 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 		for i := range nc.MemberClasses {
 			n.AddMemberClass(nc.MemberClasses[i])
 		}
-
-		tier := n.ClassTier(nc.Name)
 
 		// Check for value conflicts
 		for key, value := range nc.Values {
@@ -1297,6 +1350,13 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 		}
 
 	}
+
+	applyPolicies(nodePolicies, cfg, n.setPolicy)
+	applyPolicies(ifacePolicies, cfg, func(l *Layer, p *IPPolicy) {
+		for _, iface := range n.Interfaces {
+			iface.setPolicy(l, p)
+		}
+	})
 
 	// Apply the winning single-valued attributes. Assigning after the loop (rather
 	// than on every class) is what makes the tier order authoritative.
@@ -1663,6 +1723,12 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 	// set defaults for interfaces without class
 	iface.NamePrefix = DefaultInterfacePrefix
+	configNames := map[string]string{}
+	// Connection and interface classes are resolved separately, and the
+	// interface's own classes are applied last so that they stay the more
+	// specific of the two. Tiers only order classes of the same kind.
+	connPolicies := newTieredValues()
+	ifacePolicies := newTieredValues()
 
 	// check connectionclass flags
 	for _, cls := range iface.Connection.ClassLabels() {
@@ -1671,30 +1737,37 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 			return fmt.Errorf("invalid connectionclass name %s", cls)
 		}
 		nm.connectionClassMemberMap.addClassMember(cc.Name, iface)
+		if err := recordConfigNames(configNames, "interface", iface.conflictName(), cc.Name, cc.ConfigTemplates); err != nil {
+			return err
+		}
 
 		// check virtual
 		// NOTE: a virtual connectionclass no longer marks the interface virtual.
 		// "virtual" applies to the object it is attached to: a connection that is
 		// not a real link can still have real interfaces at its ends.
 
+		ccTier := iface.Connection.ClassTier(cc.Name)
+
 		// check ippolicy flags
 		for _, p := range cc.IPPolicy {
-			policy, ok := cfg.policyMap[p]
-			if ok {
-				iface.setPolicy(policy.layer, policy)
-			} else {
+			isPolicy, other, ok := recordPolicy(connPolicies, cfg, p, ccTier)
+			if !isPolicy {
 				return fmt.Errorf("invalid policy name %s in connectionclass %s", p, cc.Name)
+			}
+			if !ok {
+				return classConflictError("interface", iface.conflictName(), "policy", other, p)
 			}
 		}
 
 		// check parameter flags
 		for _, num := range cc.Parameters {
-			policy, ok := cfg.policyMap[num]
-			if ok {
-				// ip policy
-				iface.setPolicy(policy.layer, policy)
-			} else {
+			isPolicy, other, ok := recordPolicy(connPolicies, cfg, num, ccTier)
+			if !isPolicy {
 				iface.setParamFlag(num)
+				continue
+			}
+			if !ok {
+				return classConflictError("interface", iface.conflictName(), "policy", other, num)
 			}
 		}
 
@@ -1722,6 +1795,9 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 		// 	}
 		// 	iface.ParsedLabels.Classes = append(iface.ParsedLabels.Classes, ic)
 		nm.interfaceClassMemberMap.addClassMember(ic.Name, iface)
+		if err := recordConfigNames(configNames, "interface", iface.conflictName(), ic.Name, ic.ConfigTemplates); err != nil {
+			return err
+		}
 
 		// check virtual
 		if ic.Virtual {
@@ -1729,24 +1805,28 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 		}
 		//iface.Virtual = iface.Virtual || ic.Virtual
 
+		icTier := iface.ClassTier(ic.Name)
+
 		// check ippolicy flags
 		for _, p := range ic.IPPolicy {
-			policy, ok := cfg.policyMap[p]
-			if ok {
-				iface.setPolicy(policy.layer, policy)
-			} else {
+			isPolicy, other, ok := recordPolicy(ifacePolicies, cfg, p, icTier)
+			if !isPolicy {
 				return fmt.Errorf("invalid policy name %s in interfaceclass %s", p, ic.Name)
+			}
+			if !ok {
+				return classConflictError("interface", iface.conflictName(), "policy", other, p)
 			}
 		}
 
 		// check parameter flags
 		for _, num := range ic.Parameters {
-			policy, ok := cfg.policyMap[num]
-			if ok {
-				// ip policy
-				iface.setPolicy(policy.layer, policy)
-			} else {
+			isPolicy, other, ok := recordPolicy(ifacePolicies, cfg, num, icTier)
+			if !isPolicy {
 				iface.setParamFlag(num)
+				continue
+			}
+			if !ok {
+				return classConflictError("interface", iface.conflictName(), "policy", other, num)
 			}
 		}
 
@@ -1785,6 +1865,11 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 			}
 		}
 	}
+
+	// Connection classes first, so that the interface's own classes take the
+	// layer when both name a policy for it.
+	applyPolicies(connPolicies, cfg, iface.setPolicy)
+	applyPolicies(ifacePolicies, cfg, iface.setPolicy)
 
 	// Apply the winning single-valued attributes (see Node.SetClasses).
 	if prefix, ok := single.get("prefix"); ok {
@@ -2062,6 +2147,7 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// Resolve attributes contributed by several classes (see tieredValues).
 	values := newTieredValues()
 	single := newTieredValues()
+	policies := newTieredValues()
 
 	defaultConnectionLayer := cfg.DefaultConnectionLayer()
 	for _, layer := range defaultConnectionLayer {
@@ -2069,8 +2155,12 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 	}
 
 	// check connectionclass flags to connections and their interfaces
+	configNames := map[string]string{}
 	for _, cls := range conn.GetClasses() {
 		cc := cls.(*ConnectionClass)
+		if err := recordConfigNames(configNames, "connection", conn.Name, cc.Name, cc.ConfigTemplates); err != nil {
+			return err
+		}
 
 		// register connection to connectionClassMemberMap (same pattern as Node/Interface)
 		nm.connectionClassMemberMap.addClassMember(cc.Name, conn)
@@ -2080,24 +2170,28 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 			conn.SetVirtual(true)
 		}
 
+		ccTier := conn.ClassTier(cc.Name)
+
 		// check ippolicy flags (same pattern as Node/Interface)
 		for _, p := range cc.IPPolicy {
-			policy, ok := cfg.policyMap[p]
-			if ok {
-				conn.setPolicy(policy.layer, policy)
-			} else {
+			isPolicy, other, ok := recordPolicy(policies, cfg, p, ccTier)
+			if !isPolicy {
 				return fmt.Errorf("invalid policy name %s in connectionclass %s", p, cc.Name)
+			}
+			if !ok {
+				return classConflictError("connection", conn.Name, "policy", other, p)
 			}
 		}
 
 		// check parameter flags (same pattern as Node/Interface)
 		for _, num := range cc.Parameters {
-			policy, ok := cfg.policyMap[num]
-			if ok {
-				// ip policy
-				conn.setPolicy(policy.layer, policy)
-			} else {
+			isPolicy, other, ok := recordPolicy(policies, cfg, num, ccTier)
+			if !isPolicy {
 				conn.setParamFlag(num)
+				continue
+			}
+			if !ok {
+				return classConflictError("connection", conn.Name, "policy", other, num)
 			}
 		}
 
@@ -2126,6 +2220,8 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 			}
 		}
 	}
+
+	applyPolicies(policies, cfg, conn.setPolicy)
 
 	// The winning prefix is not stored on the Connection: assignConnectionNames
 	// resolves it by taking the first non-empty prefix from GetClasses(), which is
@@ -2466,6 +2562,7 @@ func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, lay
 func (seg *NetworkSegment) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// set defaults for segments without class
 	seg.NamePrefix = DefaultSegmentPrefix
+	configNames := map[string]string{}
 
 	// Resolve attributes contributed by several classes (see tieredValues).
 	single := newTieredValues()
@@ -2473,6 +2570,9 @@ func (seg *NetworkSegment) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 	for _, cls := range seg.GetClasses() {
 		sc := cls.(*SegmentClass)
+		if err := recordConfigNames(configNames, "segment", seg.Name, sc.Name, sc.ConfigTemplates); err != nil {
+			return err
+		}
 		tier := seg.ClassTier(sc.Name)
 
 		// Check for value conflicts
@@ -2784,8 +2884,12 @@ func (g *Group) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// Resolve attributes contributed by several classes (see tieredValues).
 	values := newTieredValues()
 
+	configNames := map[string]string{}
 	for _, cls := range g.GetClasses() {
 		gc := cls.(*GroupClass)
+		if err := recordConfigNames(configNames, "group", g.Name, gc.Name, gc.ConfigTemplates); err != nil {
+			return err
+		}
 		//	for _, cls := range g.classLabels {
 		//		gc, ok := cfg.groupClassMap[cls]
 		//		if !ok {
