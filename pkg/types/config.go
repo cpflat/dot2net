@@ -25,8 +25,14 @@ const ClassTypeMemberHeader string = "member"
 const ClassTypeMemberClassNameAny = "any"
 const ClassTypeValueHeader string = "value"
 
-// Special class names used by modules
-const VirtualNodeClassName string = "virtual"
+// Deployment forms a node class can ask for through NodeClass.Deploy. They
+// answer what the platform puts in place for the node: a container of its own,
+// a facility the platform provides itself, or nothing at all.
+const (
+	DeployContainer string = "container" // a container of its own (the fallback)
+	DeployPlatform  string = "platform"  // provided by the platform itself
+	DeployNone      string = "none"      // nothing is deployed; parameters only
+)
 
 // Default format names
 const DefaultFormatPhaseFormatName = "DefaultFormatPhaseFormat"
@@ -306,16 +312,72 @@ func (cfg *Config) GetValidNodeClasses(given []string) *ParsedLabels {
 	return cfg.getValidClasses(given, p.Base, p.Default)
 }
 
-// IsSwitchNode reports whether any of the node's classes marks it as a shared
-// L2 domain the platform realizes itself (see NodeClass.Switch). Booleans
-// combine by OR across classes, as virtual does.
-func (cfg *Config) IsSwitchNode(n *Node) bool {
+// deployClaim returns the deployment form this class asks for, or "" when it
+// asks for nothing. It is also where the value is validated, so that a typo is
+// reported against the class that contains it.
+func (nc *NodeClass) deployClaim() (string, error) {
+	switch nc.Deploy {
+	case "", DeployContainer, DeployPlatform, DeployNone:
+	default:
+		return "", fmt.Errorf("nodeclass %s: unknown deploy value %q (expected %s, %s or %s)",
+			nc.Name, nc.Deploy, DeployContainer, DeployPlatform, DeployNone)
+	}
+	if nc.Virtual {
+		if nc.Deploy != "" && nc.Deploy != DeployNone {
+			return "", fmt.Errorf("nodeclass %s: virtual: true means deploy: %s, which contradicts deploy: %s",
+				nc.Name, DeployNone, nc.Deploy)
+		}
+		return DeployNone, nil
+	}
+	return nc.Deploy, nil
+}
+
+// ResolveDeploy determines how a node is deployed from the classes it carries.
+// Claims are weighed by class tier, so a default coming from a module or from
+// the base class loses to anything the user wrote; two classes of the same tier
+// asking for different forms is a conflict only the user can resolve. A node no
+// class speaks for is a DeployContainer.
+//
+// Tiers are compared rather than relying on the order of ClassLabels, because
+// classes pulled in through use: are appended after the ones that named them
+// and would otherwise be weighed as if they came last.
+//
+// The result comes from the labels alone so that a module can ask before
+// SetClasses has run: ClassifyObjects needs it to pick which node class to
+// attach.
+func (cfg *Config) ResolveDeploy(n *Node) (string, error) {
+	deploy := DeployContainer
+	claimed := ClassTierModule - 1
 	for _, name := range n.ClassLabels() {
-		if nc, ok := cfg.NodeClassByName(name); ok && nc.Switch {
-			return true
+		nc, ok := cfg.NodeClassByName(name)
+		if !ok {
+			continue
+		}
+		claim, err := nc.deployClaim()
+		if err != nil {
+			return "", err
+		}
+		if claim == "" {
+			continue
+		}
+		switch tier := n.ClassTier(name); {
+		case tier > claimed:
+			deploy, claimed = claim, tier
+		case tier == claimed && claim != deploy:
+			return "", fmt.Errorf("node %s: classes of the same precedence ask to deploy it as %s and as %s",
+				n.Name, deploy, claim)
 		}
 	}
-	return false
+	return deploy, nil
+}
+
+// IsSwitchNode reports whether the node stands for a shared L2 domain that the
+// platform provides itself. Modules call this while classifying objects, before
+// the classes are checked, so a broken deploy value is reported here as "not a
+// switch" and surfaces from SetClasses instead.
+func (cfg *Config) IsSwitchNode(n *Node) bool {
+	deploy, err := cfg.ResolveDeploy(n)
+	return err == nil && deploy == DeployPlatform
 }
 
 func (cfg *Config) GetValidInterfaceClasses(given []string) *ParsedLabels {
@@ -775,19 +837,24 @@ type NodeClass struct {
 	// by the user. It decides the tier a class keeps when another class pulls
 	// it in through Use, so that a module's defaults still lose to the user.
 	ModuleProvided bool `yaml:"-" mapstructure:"-"`
-	// A virtual node have parameters, but no object nor configuration. It is considered only on parameter assignment.
-	Name    string `yaml:"name" mapstructure:"name"`
-	Virtual bool   `yaml:"virtual" mapstructure:"virtual"`
-	// Switch marks a node standing for a shared L2 domain that the platform
-	// realizes itself, rather than a container to deploy. It sits beside virtual
-	// because it answers the same kind of question - what the platform does with
-	// an object of this class - and belongs where a reader looking at the class
-	// will find it.
+	Name string `yaml:"name" mapstructure:"name"`
+	// Virtual is the spelling of DeployNone released in v0.7. It stays as a
+	// shorthand: virtual: true claims deploy: none, while virtual: false claims
+	// nothing, which is how the boolean has always behaved.
+	Virtual bool `yaml:"virtual" mapstructure:"virtual"`
+	// Deploy states what the platform puts in place for a node carrying this
+	// class: DeployContainer, DeployPlatform or DeployNone.
 	//
-	// What the realization looks like is up to each platform module: a bridge
-	// node for containerlab, a switches: entry for TiNET, a collision domain for
-	// Kathara. dot2net itself only knows the node is not a container.
-	Switch            bool              `yaml:"switch" mapstructure:"switch"`
+	// An empty value is not a claim. A class that stays silent leaves the choice
+	// to the other classes on the node, and a node no class speaks for is a
+	// container. The zero value must therefore not be normalised to
+	// DeployContainer at load time: every silent class would then claim
+	// "container" and collide with the one class that asked for something else.
+	//
+	// What each form looks like is up to the platform module: containerlab
+	// writes a bridge node, TiNET a switches: entry, Kathara a collision domain.
+	// dot2net itself only knows the node is not a container of its own.
+	Deploy            string            `yaml:"deploy" mapstructure:"deploy"`
 	IPPolicy          []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Parameters        []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	Values            map[string]string `yaml:"values" mapstructure:"values"`

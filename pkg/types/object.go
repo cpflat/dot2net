@@ -1282,11 +1282,6 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 			return err
 		}
 
-		// check virtual
-		if nc.Virtual {
-			n.SetVirtual(true)
-		}
-
 		tier := n.ClassTier(nc.Name)
 
 		// check ippolicy flags
@@ -1357,6 +1352,16 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 			iface.setPolicy(l, p)
 		}
 	})
+
+	// A node nothing is deployed for carries parameters but produces no object
+	// and no configuration, which is what virtual has always meant.
+	deploy, err := cfg.ResolveDeploy(n)
+	if err != nil {
+		return err
+	}
+	if deploy == DeployNone {
+		n.SetVirtual(true)
+	}
 
 	// Apply the winning single-valued attributes. Assigning after the loop (rather
 	// than on every class) is what makes the tier order authoritative.

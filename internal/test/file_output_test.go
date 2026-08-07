@@ -916,7 +916,7 @@ nodeclass:
       - name: startup
         template: []
   - name: my_sw
-    switch: true
+    deploy: platform
     values: {kind: ovs-bridge}
 ` + use + `
 interfaceclass:

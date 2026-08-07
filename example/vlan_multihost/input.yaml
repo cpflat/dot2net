@@ -86,7 +86,7 @@ nodeclass:
   # carries no image and no config, only the kind, whose value containerlab
   # owns and dot2net passes through.
   - name: platform_sw
-    switch: true
+    deploy: platform
     values:
       kind: ovs-bridge
       assert_used: "true"
