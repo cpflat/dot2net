@@ -2,12 +2,12 @@ digraph {
 	// Each host is a group. The class sits in xlabel so that label stays
 	// available as a display title; a subgraph's label doubles as a class.
 	subgraph host1 {
-		xlabel="worker";
+		xlabel="host";
 		r1[xlabel="router"];
 		r2[xlabel="router"];
 	}
 	subgraph host2 {
-		xlabel="worker";
+		xlabel="host";
 		r3[xlabel="router"];
 		r4[xlabel="router"];
 	}

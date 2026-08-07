@@ -22,8 +22,10 @@ name: vlan_multihost
 
 global:
   path: local
-  # Files of a node in a "worker" group are written below that group.
-  output_group_class: worker
+  # The value is this scenario's own group class, not a reserved word: the
+  # setting only picks which grouping the directory layout follows. Splitting by
+  # AS would be written the same way.
+  output_group_class: host
 
 module:
   - assert
@@ -119,7 +121,7 @@ connectionclass:
           - "  - {{ .name }}"
 
 groupclass:
-  - name: worker
+  - name: host
     values:
       assert_used: "true"
     config:

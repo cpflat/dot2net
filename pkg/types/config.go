@@ -428,6 +428,13 @@ type GlobalSettings struct {
 	// rather than as a group class).
 	IgnoreUndefinedClass bool `yaml:"ignore_undefined_class" mapstructure:"ignore_undefined_class"`
 	// OutputGroupClass names the group class that splits the output directory.
+	//
+	// The value is an ordinary group class of the scenario's own choosing, not a
+	// reserved word: this setting says nothing about what the class means, only
+	// which one the layout follows. Splitting by AS is as valid as splitting by
+	// host, and a scenario whose groups are placement units still has to point
+	// this at them explicitly.
+	//
 	// When set, every group carrying that class gets a subdirectory, and all
 	// files belonging to it - its own group-scope files and the files of its
 	// member nodes - are written below that subdirectory:
