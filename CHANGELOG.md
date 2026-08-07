@@ -111,6 +111,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   different policies for one layer is an error. **Two classes named together in
   a DOT label that set different policies for the same layer are now rejected**
   instead of resolving arbitrarily.
+- **A class pulled in with `use:` lost to the base class**, or failed the build
+  outright. Class labels are not listed in order of precedence — `use:` appends
+  the classes it reaches after everything else, keeping the tier they were
+  defined at — but four places resolved attributes by walking that list and
+  keeping the first value they saw. A base class stating `values: {mtu: 9000}`
+  therefore beat a user class that used a class stating `1500`, and where the
+  clash was checked the build stopped instead, calling two classes "the same
+  precedence" when one outranked the other. Values, policies, prefixes and
+  `mgmt_interfaceclass` now resolve by tier whatever order the classes come in.
+  Connection and segment names follow the prefix that was resolved rather than
+  re-deriving their own, which could disagree with it.
 - **Two classes on one object defining the same config template name** are now
   reported when the classes are resolved, naming both classes. The clash used to
   surface later as a duplicated namespace parameter that named neither — hard to
