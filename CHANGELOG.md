@@ -67,6 +67,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "unset"; `deploy: container` is how to say it out loud and override another
   class. Only the field name is reserved, so a class may still be *called*
   `switch` and mean an ordinary container, as eight of the bundled examples do.
+- **`boundary_class` on a group class**: names a connection class attached to
+  every connection that leaves a group of that class. Whether the two ends sit
+  in the same group follows from the topology, so annotating each edge would
+  state twice what is already written once, and the two can disagree. The label
+  goes on at the module tier, so a class written on the edge outranks it. The
+  feature knows nothing about hosts: setting it on an `as` class marks the eBGP
+  sessions just as setting it on the worker class marks the links that leave a
+  machine.
+- **`worker` group class**: marks a placement unit, a machine that containers
+  are deployed onto, as opposed to a group that exists to share parameters. A
+  node belongs to several groups at once, so the two uses need telling apart.
+  dot2net owns the word rather than letting each platform module pick its own,
+  because fourteen of the bundled examples emit both `topo.yaml` and `spec.yaml`
+  from one topology and a name like `clabHost` in the DOT file would tie it to
+  containerlab.
+- **One containerlab topology file per machine.** A lab is deployed to a single
+  machine, so when a scenario declares worker groups the topology file becomes
+  group-scoped and each machine gets one it can deploy on its own, holding its
+  own nodes and the links with both ends inside it. Bind paths become relative
+  to the machine's directory, since containerlab resolves them against the
+  directory holding the topology file; this requires
+  `global.output_group_class: worker` so that a machine's files sit beside its
+  topology, and says so if they do not. Scenarios that declare no placement unit
+  keep the single network-scoped file.
+
+  A link between two machines appears in no topology file, because nothing
+  inside containerlab can create it — the machines are wired outside the lab.
+  Give each machine its own bridge and join them with a link; that link is what
+  `boundary_class` marks. Address assignment still sees one segment spanning
+  both machines, because searching for a segment passes through bridges, which
+  carry no addresses. `example/vlan_multihost` is built this way.
 - **`LabelOwner.AddModuleClassLabels`**: lets a module attach a class label at the
   module tier. A module classifying objects through the `ObjectClassifier` hook
   had only `AddClassLabels`, which files labels as user-written — so a module's
@@ -122,6 +153,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `mgmt_interfaceclass` now resolve by tier whatever order the classes come in.
   Connection and segment names follow the prefix that was resolved rather than
   re-deriving their own, which could disagree with it.
+- **The TiNET `switches:` list ran its entries together on one line.** It
+  borrowed the format that renders the inline interfaces list, where `", "` is
+  right. No example had two switches before, so it never showed.
 - **Two classes on one object defining the same config template name** are now
   reported when the classes are resolved, naming both classes. The clash used to
   surface later as a duplicated namespace parameter that named neither — hard to
