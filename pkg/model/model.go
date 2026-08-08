@@ -62,8 +62,16 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 		return nil, err
 	}
 
-	// Let modules classify or reshape the topology before class labels are
-	// resolved. Labels added after checkClasses would never become classes.
+	// Classify before the class labels are resolved: a label added after
+	// checkClasses would never become a class. The core pass runs first so that
+	// a module classifying objects can already see which connections leave a
+	// group.
+	err = classifyBoundaryConnections(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	// Let modules classify or reshape the topology.
 	err = classifyModuleObjects(cfg, nm)
 	if err != nil {
 		return nil, err

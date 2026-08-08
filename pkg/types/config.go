@@ -25,6 +25,19 @@ const ClassTypeMemberHeader string = "member"
 const ClassTypeMemberClassNameAny = "any"
 const ClassTypeValueHeader string = "value"
 
+// WorkerGroupClassName marks a group that stands for one placement unit: a
+// machine that containers are deployed onto, as opposed to a group that exists
+// to share parameters (an AS, an OSPF area). A node belongs to several groups
+// at once, so the two uses have to be told apart by name.
+//
+// dot2net owns the word rather than letting each platform module pick its own.
+// Fourteen of the bundled examples load containerlab and TiNET together and
+// emit both topo.yaml and spec.yaml from one topology; a module-specific name
+// like clabHost written in the DOT file would tie that file to one platform.
+// The vocabulary is shared and only its interpretation belongs to the module.
+// See doc/active/CLASS_SEMANTICS.md ch.3 for the naming survey.
+const WorkerGroupClassName string = "worker"
+
 // Deployment forms a node class can ask for through NodeClass.Deploy. They
 // answer what the platform puts in place for the node: a container of its own,
 // a facility the platform provides itself, or nothing at all.
@@ -949,8 +962,17 @@ type GroupClass struct {
 	// by the user. It decides the tier a class keeps when another class pulls
 	// it in through Use, so that a module's defaults still lose to the user.
 	ModuleProvided  bool              `yaml:"-" mapstructure:"-"`
-	Name            string            `yaml:"name" mapstructure:"name"`
-	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
+	Name    string `yaml:"name" mapstructure:"name"`
+	Virtual bool   `yaml:"virtual" mapstructure:"virtual"`
+	// BoundaryClass names a connection class attached to every connection that
+	// leaves a group of this class. Whether the two ends sit in the same group
+	// follows from the topology, so the alternative - annotating each edge -
+	// would state twice what is already written once, and the two can disagree.
+	//
+	// The feature knows nothing about hosts: setting it on an "as" class marks
+	// the eBGP sessions just as setting it on the worker class marks the links
+	// that leave a machine.
+	BoundaryClass   string            `yaml:"boundary_class" mapstructure:"boundary_class"`
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
 	Values          map[string]string `yaml:"values" mapstructure:"values"`
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
@@ -959,6 +981,13 @@ type GroupClass struct {
 }
 
 func (gc *GroupClass) ClassName() string { return gc.Name }
+
+// IsWorkerGroup reports whether the group stands for one machine that
+// containers are deployed onto. Modules ask this to decide what to split per
+// machine; the concept itself carries no platform meaning.
+func (cfg *Config) IsWorkerGroup(g *Group) bool {
+	return g.HasClass(WorkerGroupClassName)
+}
 
 func (gc *GroupClass) GetGivenValues() map[string]string {
 	return gc.Values
