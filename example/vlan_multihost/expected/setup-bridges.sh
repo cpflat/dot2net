@@ -1,2 +1,3 @@
 #!/bin/sh
-ovs-vsctl --may-exist add-br sw_inter
+ovs-vsctl --may-exist add-br br1
+ovs-vsctl --may-exist add-br br2

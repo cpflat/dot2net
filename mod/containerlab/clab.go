@@ -3,6 +3,7 @@ package containerlab
 import (
 	"embed"
 	"fmt"
+	"strings"
 
 	"github.com/cpflat/dot2net/pkg/types"
 )
@@ -23,6 +24,10 @@ const ClabLinkFormatName = "_clabLink"
 const NetworkClassName = "_clabNetwork"
 const NodeClassName = "_clabNode"
 const SwitchNodeClassName = "_clabSwitchNode"
+
+// WorkerGroupClassName carries the topology file when the scenario declares
+// placement units, so that each machine gets one it can deploy on its own.
+const WorkerGroupClassName = "_clabWorkerGroup"
 
 // Ready-made classes a scenario opts into with use:. containerlab refuses to
 // deploy when a bridge node's bridge does not exist, and its deployment check
@@ -91,27 +96,55 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	cfg.AddFormatStyle(formatStyle)
 
-	// add file definition
-	fileDef := &types.FileDefinition{
+	// One topology file, or one per machine. A lab is deployed to a single
+	// machine, so a topology spread over several of them needs a file each;
+	// with no placement units declared there is one machine and one file.
+	//
+	// The choice is made here because a FileDefinition carries a fixed scope
+	// and the model does not exist yet. What can be read at this point is the
+	// scenario's own configuration, which is loaded before the modules are.
+	_, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName)
+
+	scope := types.ClassTypeNetwork
+	if perWorker {
+		scope = types.ClassTypeGroup
+	}
+	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:  ClabOutputFile,
 		Path:  "",
-		Scope: types.ClassTypeNetwork,
-	}
-	cfg.AddFileDefinition(fileDef)
+		Scope: scope,
+	})
 
-	// add network class
+	// The topology file is owned by whichever object it is scoped to: the
+	// network as a whole, or one worker group. Only the group knows which nodes
+	// and which links belong to it, and it already answers that - a connection
+	// with one end outside the group is not one of its children, which is
+	// exactly the set a machine can wire with veth.
 	ct1 := &types.ConfigTemplate{File: ClabOutputFile}
-	bytes, err := templates.ReadFile("templates/topo.yaml.network_clab_topo")
+	topoTemplate := "templates/topo.yaml.network_clab_topo"
+	if perWorker {
+		topoTemplate = "templates/topo.yaml.group_clab_topo"
+	}
+	bytes, err := templates.ReadFile(topoTemplate)
 	if err != nil {
 		return err
 	}
 	ct1.Template = []string{string(bytes)}
 
-	networkClass := &types.NetworkClass{
-		Name:            NetworkClassName,
-		ConfigTemplates: []*types.ConfigTemplate{ct1},
+	if perWorker {
+		// Not AddModuleGroupClassLabel: that would give the topology file to
+		// every group, including the ones that only share parameters.
+		// ClassifyObjects picks the worker groups out.
+		cfg.AddGroupClass(&types.GroupClass{
+			Name:            WorkerGroupClassName,
+			ConfigTemplates: []*types.ConfigTemplate{ct1},
+		})
+	} else {
+		cfg.AddNetworkClass(&types.NetworkClass{
+			Name:            NetworkClassName,
+			ConfigTemplates: []*types.ConfigTemplate{ct1},
+		})
 	}
-	cfg.AddNetworkClass(networkClass)
 
 	// add node class
 	ct1 = &types.ConfigTemplate{Name: "clab_cmds", Format: ClabCmdFormatName, Depends: []string{"startup"}}
@@ -241,6 +274,14 @@ func (m *ClabModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) 
 			node.AddModuleClassLabels(NodeClassName)
 		}
 	}
+	// Only the groups standing for a machine get a topology file. The others
+	// group nodes for some purpose of the scenario's own - an AS, an area - and
+	// nothing is deployed to them.
+	for _, group := range nm.Groups {
+		if cfg.IsWorkerGroup(group) {
+			group.AddModuleClassLabels(WorkerGroupClassName)
+		}
+	}
 	return nil
 }
 
@@ -319,6 +360,19 @@ func (m *ClabModule) generateFilemountParams(
 		if err != nil {
 			return nil, err
 		}
+		// containerlab resolves a relative bind against the directory holding
+		// the topology file. With one topology per machine that file sits in
+		// the machine's directory, so the path has to start there rather than
+		// at the output root - otherwise the machine's own name appears twice.
+		if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
+			dir, err := node.OutputDir(cfg)
+			if err != nil {
+				return nil, err
+			}
+			if dir != "" {
+				srcPath = strings.TrimPrefix(srcPath, dir+"/")
+			}
+		}
 		dstPath := fileDef.Path
 
 		params := map[string]string{
@@ -332,6 +386,19 @@ func (m *ClabModule) generateFilemountParams(
 }
 
 func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
+	// A machine is deployed from its own directory, so everything its topology
+	// file refers to has to live under that directory. Splitting the output by
+	// some other grouping would scatter the node files elsewhere and leave no
+	// relative path from the topology to them.
+	if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
+		if got := cfg.GlobalSettings.OutputGroupClass; got != types.WorkerGroupClassName {
+			return fmt.Errorf(
+				"a topology split across %s groups needs global.output_group_class: %s so that "+
+					"each machine's files sit beside its topo.yaml (it is %q)",
+				types.WorkerGroupClassName, types.WorkerGroupClassName, got)
+		}
+	}
+
 	// node config templates named startup
 	flag := false
 	for _, nc := range cfg.NodeClasses {

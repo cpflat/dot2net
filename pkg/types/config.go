@@ -454,6 +454,12 @@ func (cfg *Config) AddConnectionClass(nc *ConnectionClass) {
 	cfg.connectionClassMap[nc.Name] = nc
 }
 
+func (cfg *Config) AddGroupClass(gc *GroupClass) {
+	gc.ModuleProvided = cfg.registeringModule
+	cfg.GroupClasses = append(cfg.GroupClasses, gc)
+	cfg.groupClassMap[gc.Name] = gc
+}
+
 func (cfg *Config) AddParameterRule(pr *ParameterRule) {
 	cfg.ParameterRules = append(cfg.ParameterRules, pr)
 	cfg.parameterRuleMap[pr.Name] = pr

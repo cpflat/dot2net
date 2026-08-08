@@ -1,0 +1,25 @@
+name: host2
+topology:
+  nodes:
+    br2:
+      kind: ovs-bridge
+    r3:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r3/frr.conf:/etc/frr/frr.conf
+      exec:
+      - ip addr add 10.0.0.2/24 dev net0
+      - ip addr add 10.0.2.1/24 dev net1
+    r4:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.0
+      binds:
+      - r4/frr.conf:/etc/frr/frr.conf
+      exec:
+      - ip addr add 10.0.2.2/24 dev net0
+
+  links:
+  - endpoints: [r3:net0, br2:net1]
+  - endpoints: [r3:net1, r4:net0]
+

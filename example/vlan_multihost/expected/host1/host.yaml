@@ -3,4 +3,5 @@ nodes:
   - r1
   - r2
 links:
-  - conn0
+  - conn1
+  - conn3

@@ -4,3 +4,4 @@ nodes:
   - r4
 links:
   - conn2
+  - conn4

@@ -1,25 +1,40 @@
 digraph {
-	// Each host is a group. The class sits in xlabel so that label stays
-	// available as a display title; a subgraph's label doubles as a class.
+	// Each machine is a group of class "worker". worker is dot2net's word for a
+	// placement unit: the machine containers are deployed onto, as opposed to a
+	// group that only shares parameters. The class sits in xlabel so that label
+	// stays available as a display title; a subgraph's label doubles as a class.
+	//
+	// A scenario where every cluster is a machine can leave this out entirely
+	// and write class_policy.group.default: [worker] instead.
 	subgraph host1 {
-		xlabel="host";
+		xlabel="worker";
 		r1[xlabel="router"];
 		r2[xlabel="router"];
+		// The bridge each machine provides. containerlab emits it as an
+		// ovs-bridge node, TiNET as a switches: entry.
+		br1[xlabel="platform_sw"];
 	}
 	subgraph host2 {
-		xlabel="host";
+		xlabel="worker";
 		r3[xlabel="router"];
 		r4[xlabel="router"];
+		br2[xlabel="platform_sw"];
 	}
 
-	// Links that stay inside one host.
+	// Links that stay inside one machine. These are the ones containerlab can
+	// wire with veth, so they are the ones that reach a topology file.
 	r1->r2[dir="none", xlabel="segment#intra"];
 	r3->r4[dir="none", xlabel="segment#intra"];
+	r2->br1[dir="none", xlabel="segment#inter"];
+	r3->br2[dir="none", xlabel="segment#inter"];
 
-	// The hosts meet on a shared L2 domain that the platform provides: a bridge
-	// for containerlab, a switches: entry for TiNET. sw_inter belongs to no
-	// host, so neither host file carries these links.
-	sw_inter[xlabel="platform_sw"];
-	r2->sw_inter[dir="none", xlabel="segment#inter"];
-	r3->sw_inter[dir="none", xlabel="segment#inter"];
+	// The one link that leaves a machine. Nothing inside containerlab can make
+	// it: the two bridges are joined outside the lab, by a VLAN between the two
+	// machines. dot2net marks it through the worker class's boundary_class and
+	// lists it in inter-host-links.txt for whoever wires it.
+	//
+	// It is still a link in the model, so the address assignment sees one
+	// segment spanning both machines: bridges carry no addresses, so searching
+	// for a segment passes straight through them.
+	br1->br2[dir="none", xlabel="segment#inter"];
 }

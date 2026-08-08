@@ -15,6 +15,17 @@
 #     a bridge by containerlab and as a switches: entry by TiNET. Contrast with
 #     example/switching, which realizes its switch as a container instead.
 #   - use:, which pulls a ready-made class out of a module (see platform_sw)
+#   - worker groups: containerlab writes one topo.yaml per machine, holding only
+#     the nodes of that machine and the links it can wire with veth
+#   - boundary_class: the one link that leaves a machine is found from the
+#     subgraphs, not annotated on the edge, and is listed in inter-host-links.txt
+#
+# The two bridges are joined outside the lab - by a VLAN between the machines -
+# so no topology file contains that link, and inter-host-links.txt is what tells
+# the operator to make it. The address assignment still sees one segment across
+# both machines, because a search for a segment passes through bridges. TiNET
+# runs on one machine and does not split, so its spec.yaml holds everything and
+# the same link has to be patched locally (ovs-vsctl) instead.
 # The assert module pins that the classes above really are applied; without it
 # a class that stops matching just disappears from the output and the expected
 # files record its absence.
@@ -22,10 +33,11 @@ name: vlan_multihost
 
 global:
   path: local
-  # The value is this scenario's own group class, not a reserved word: the
-  # setting only picks which grouping the directory layout follows. Splitting by
-  # AS would be written the same way.
-  output_group_class: host
+  # Which grouping the directory layout follows. Here it is the same class that
+  # marks the machines, so a machine's files pack as one directory - but the
+  # setting is independent of that: splitting the output by AS while deploying
+  # per machine would be written the same way.
+  output_group_class: worker
 
 module:
   - assert
@@ -38,6 +50,8 @@ file:
   - name: segments.txt
     scope: network
   - name: setup-bridges.sh
+    scope: network
+  - name: inter-host-links.txt
     scope: network
   - name: frr.conf
     path: /etc/frr/frr.conf
@@ -119,8 +133,25 @@ connectionclass:
         template:
           - "  - {{ .name }}"
 
+  # Attached by the worker class's boundary_class, never written on an edge.
+  # In a real deployment this is where the VLAN id policy would hang.
+  - name: crosses_host
+    values:
+      assert_used: "true"
+    config:
+      - name: crossing_entry
+        template:
+          - "{{ .name }} {{ ._clab_src_endpoint }} {{ ._clab_dst_endpoint }}"
+
 groupclass:
-  - name: host
+  # worker is dot2net's reserved class name for a placement unit. Naming it here
+  # is what makes containerlab write one topology file per machine instead of
+  # one for the whole network.
+  - name: worker
+    # Connections that leave a machine get this connection class. Which links
+    # those are follows from the subgraphs, so the edges carry no annotation
+    # saying it a second time. The same field on an "as" class would mark eBGP.
+    boundary_class: crosses_host
     values:
       assert_used: "true"
     config:
@@ -164,3 +195,7 @@ networkclass:
         template:
           - "#!/bin/sh"
           - "{{ .nodes_clab_bridge_setup }}"
+      # The links no topology file can create, for whoever wires the machines.
+      - file: inter-host-links.txt
+        template:
+          - "{{ .connections_crossing_entry }}"

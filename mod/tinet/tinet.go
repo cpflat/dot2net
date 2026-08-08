@@ -14,6 +14,11 @@ const TinetImageParamName = "image"
 const TinetBindMountsParamName = "_tn_bindMounts"
 
 const TinetYamlFormatName = "_tinetYaml"
+
+// TinetSwitchFormatName joins the switches: entries one per line. The general
+// _tinetYaml style joins with ", " because it also renders the inline
+// interfaces list, which would run the switch entries together.
+const TinetSwitchFormatName = "_tinetSwitchList"
 const SpecCmdFormatName = "tinetSpecCmd"
 
 // const TinetVtyshCLIFormatName = "tinetVtyshCLI"
@@ -51,6 +56,11 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	formatStyle := &types.FormatStyle{
 		Name:                TinetYamlFormatName,
 		MergeBlockSeparator: ", ",
+	}
+	cfg.AddFormatStyle(formatStyle)
+	formatStyle = &types.FormatStyle{
+		Name:                TinetSwitchFormatName,
+		MergeBlockSeparator: "\n",
 	}
 	cfg.AddFormatStyle(formatStyle)
 	formatStyle = &types.FormatStyle{
@@ -134,7 +144,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 
 	// A switch is a shared L2 domain TiNET realizes as an OVS bridge of its own,
 	// so it belongs in the switches: section rather than in nodes:.
-	ctSwitch := &types.ConfigTemplate{Name: "tn_switch", Format: TinetYamlFormatName}
+	ctSwitch := &types.ConfigTemplate{Name: "tn_switch", Format: TinetSwitchFormatName}
 	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_switch")
 	if err != nil {
 		return err
