@@ -156,6 +156,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The TiNET `switches:` list ran its entries together on one line.** It
   borrowed the format that renders the inline interfaces list, where `", "` is
   right. No example had two switches before, so it never showed.
+- **A node in two `worker` groups built without complaint and wrote
+  contradictory output**: it was listed in the topology file of both machines,
+  and the links inside one machine were marked as leaving it, because its two
+  endpoints then belong to different sets of worker groups. Nested or
+  overlapping worker subgraphs are easy to write. The invariant existed — a
+  placement unit holds each node once — but only the output directory enforced
+  it, and only when the output is split by group and the node writes a file of
+  its own. It is now checked on the topology itself. Groups that merely share
+  parameters are unaffected: an AS spanning two machines nests and overlaps as
+  before.
 - **Two classes on one object defining the same config template name** are now
   reported when the classes are resolved, naming both classes. The clash used to
   surface later as a duplicated namespace parameter that named neither — hard to
