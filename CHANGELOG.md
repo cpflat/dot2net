@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`example/ospf_multihost`**: `example/ospf_simple` placed on two machines —
+  the same OSPF configuration, split across a machine boundary. This is the
+  scenario to copy when writing a multi-host topology; `example/vlan_multihost`
+  demonstrates the machinery (`worker`, `boundary_class`, `deploy`, `use:`) and
+  configures no routing. Verified on two hosts: the OSPF adjacency between the
+  border routers comes up across the boundary, each machine learns the other's
+  subnets, and traffic is routed between them.
 - **`xlabel` is read on edges and subgraphs**, not only on nodes. It was silently
   ignored there, so `sw1 -> sw2 [xlabel="trunk"]` attached no connection class —
   which is what `example/value_class_basic` had been doing. For a subgraph,
@@ -156,6 +163,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The TiNET `switches:` list ran its entries together on one line.** It
   borrowed the format that renders the inline interfaces list, where `", "` is
   right. No example had two switches before, so it never showed.
+- **`dot2net files` omitted every per-machine `topo.yaml`, and `dot2net clean`
+  left them behind.** The file-list pipeline stopped before classification, and
+  a topology file scoped to a worker group is assigned there rather than when
+  the module is loaded. The single-machine case hid it: that topology file is
+  network-scoped and registered at load time. The pipeline now runs the same
+  classification a build does, boundary connections included.
 - **A node in two `worker` groups built without complaint and wrote
   contradictory output**: it was listed in the topology file of both machines,
   and the links inside one machine were marked as leaving it, because its two
