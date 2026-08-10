@@ -41,6 +41,11 @@ func BuildNetworkModelForFileList(cfg *types.Config, d *Diagram) (nm *types.Netw
 		return nil, err
 	}
 
+	err = checkWorkerGroupsDisjoint(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
 	err = checkClasses(cfg, nm)
 	if err != nil {
 		return nil, err
@@ -58,6 +63,13 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 
 	// build topology
 	nm, err = buildSkeleton(cfg, d)
+	if err != nil {
+		return nil, err
+	}
+
+	// Before anything reads the worker groups: a node in two of them makes both
+	// the boundary classification and the per-machine output files inconsistent.
+	err = checkWorkerGroupsDisjoint(cfg, nm)
 	if err != nil {
 		return nil, err
 	}
