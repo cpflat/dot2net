@@ -162,6 +162,79 @@ func TestCmdClean_DeletesOnlyGeneratedFiles(t *testing.T) {
 	}
 }
 
+// copyScenarioInputs copies a scenario's top-level files into a fresh temp dir
+// and chdirs into it, returning to the original directory when the test ends.
+func copyScenarioInputs(t *testing.T, scenario string) {
+	t.Helper()
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	scenarioDir := filepath.Join(wd, "example", scenario)
+	tmpDir := t.TempDir()
+	entries, err := os.ReadDir(scenarioDir)
+	if err != nil {
+		t.Fatalf("ReadDir scenario: %v", err)
+	}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(scenarioDir, e.Name()))
+		if err != nil {
+			t.Fatalf("read input %s: %v", e.Name(), err)
+		}
+		if err := os.WriteFile(filepath.Join(tmpDir, e.Name()), data, 0644); err != nil {
+			t.Fatalf("write input %s: %v", e.Name(), err)
+		}
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() { os.Chdir(wd) })
+}
+
+// TestCmdFiles_ListsPerMachineTopologyFiles guards the file-list pipeline against
+// missing what a module hands out during classification. A topology file scoped
+// to a worker group is assigned there, not when the module is loaded, so a
+// pipeline that stops before classification reports a short list - and `clean`,
+// which deletes exactly that list, used to leave every per-machine topo.yaml
+// behind. The single-machine scenarios cannot catch this: their topology file is
+// network-scoped and registered at load time.
+func TestCmdFiles_ListsPerMachineTopologyFiles(t *testing.T) {
+	copyScenarioInputs(t, "ospf_multihost")
+
+	const dotFile = "input.dot"
+	const cfgFile = "input.yaml"
+
+	app := &cli.App{Writer: io.Discard, ErrWriter: io.Discard, Commands: []*cli.Command{commandBuild, commandClean}}
+	if err := app.Run([]string{"dot2net", "build", "-c", cfgFile, dotFile}); err != nil {
+		t.Fatalf("build run: %v", err)
+	}
+
+	listed := map[string]bool{}
+	for _, f := range listGeneratedFiles(t, dotFile, cfgFile) {
+		listed[f] = true
+	}
+	for _, want := range []string{"host1/topo.yaml", "host2/topo.yaml"} {
+		if _, err := os.Stat(filepath.FromSlash(want)); err != nil {
+			t.Fatalf("the build did not write %s: %v", want, err)
+		}
+		if !listed[want] {
+			t.Errorf("%s was generated but is missing from the file list", want)
+		}
+	}
+
+	if err := app.Run([]string{"dot2net", "clean", "-c", cfgFile, dotFile}); err != nil {
+		t.Fatalf("clean run: %v", err)
+	}
+	for _, gone := range []string{"host1/topo.yaml", "host2/topo.yaml"} {
+		if _, err := os.Stat(filepath.FromSlash(gone)); err == nil {
+			t.Errorf("clean left %s behind", gone)
+		}
+	}
+}
+
 // TestCmdClean_DryRun verifies that --dry-run reports without deleting.
 func TestCmdClean_DryRun(t *testing.T) {
 	wd, err := os.Getwd()

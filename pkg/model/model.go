@@ -27,8 +27,16 @@ const NumberNumber string = "number"
 // This function only processes the minimum required for FilesToGenerate() to work:
 // - Module loading (for FileDefinitions)
 // - Topology skeleton (nodes, interfaces, class labels)
+// - Classification, both the core pass and the modules'
 // - Class validation
 // It skips expensive operations like IP address assignment and parameter generation.
+//
+// Every step that can give an object a class has to run here, because a class is
+// what carries the config templates a file comes from. Classifying is cheap - it
+// only attaches labels - and leaving it out silently shortens the list: a
+// topology file scoped to a worker group is handed out by the module classifier,
+// so before this ran, `dot2net files` omitted the per-machine topo.yaml and
+// `dot2net clean` left it behind.
 func BuildNetworkModelForFileList(cfg *types.Config, d *Diagram) (nm *types.NetworkModel, err error) {
 	err = LoadModules(cfg)
 	if err != nil {
@@ -42,6 +50,16 @@ func BuildNetworkModelForFileList(cfg *types.Config, d *Diagram) (nm *types.Netw
 	}
 
 	err = checkWorkerGroupsDisjoint(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	err = classifyBoundaryConnections(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	err = classifyModuleObjects(cfg, nm)
 	if err != nil {
 		return nil, err
 	}
