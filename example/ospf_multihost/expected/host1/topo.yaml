@@ -1,0 +1,26 @@
+name: host1
+topology:
+  nodes:
+    br1:
+      kind: ovs-bridge
+    r1:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.4
+      binds:
+      - r1/frr.conf:/etc/frr/frr.conf
+      - r1/daemons:/etc/frr/daemons
+      - r1/vtysh.conf:/etc/frr/vtysh.conf
+
+    r2:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.4
+      binds:
+      - r2/frr.conf:/etc/frr/frr.conf
+      - r2/daemons:/etc/frr/daemons
+      - r2/vtysh.conf:/etc/frr/vtysh.conf
+
+
+  links:
+  - endpoints: [r2:net0, br1:net1]
+  - endpoints: [r1:net0, r2:net1]
+

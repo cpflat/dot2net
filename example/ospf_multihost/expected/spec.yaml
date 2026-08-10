@@ -1,0 +1,35 @@
+switches:
+  - name: br1
+  - name: br2
+
+nodes:
+  - name: r1
+    image: quay.io/frrouting/frr:8.5.4
+    interfaces: [{name: net0, type: direct, args: r2#net1}]
+    mounts: [host1/r1/frr.conf:/etc/frr/frr.conf, host1/r1/daemons:/etc/frr/daemons, host1/r1/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r2
+    image: quay.io/frrouting/frr:8.5.4
+    interfaces: [{name: net0, type: bridge, args: br1}, {name: net1, type: direct, args: r1#net0}]
+    mounts: [host1/r2/frr.conf:/etc/frr/frr.conf, host1/r2/daemons:/etc/frr/daemons, host1/r2/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r3
+    image: quay.io/frrouting/frr:8.5.4
+    interfaces: [{name: net0, type: bridge, args: br2}, {name: net1, type: direct, args: r4#net0}]
+    mounts: [host2/r3/frr.conf:/etc/frr/frr.conf, host2/r3/daemons:/etc/frr/daemons, host2/r3/vtysh.conf:/etc/frr/vtysh.conf]
+  - name: r4
+    image: quay.io/frrouting/frr:8.5.4
+    interfaces: [{name: net0, type: direct, args: r3#net1}]
+    mounts: [host2/r4/frr.conf:/etc/frr/frr.conf, host2/r4/daemons:/etc/frr/daemons, host2/r4/vtysh.conf:/etc/frr/vtysh.conf]
+
+node_configs:
+  - name: r1
+    cmds:
+      - cmd: 
+  - name: r2
+    cmds:
+      - cmd: 
+  - name: r3
+    cmds:
+      - cmd: 
+  - name: r4
+    cmds:
+      - cmd: 

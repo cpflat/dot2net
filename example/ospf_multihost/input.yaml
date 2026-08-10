@@ -1,0 +1,153 @@
+# OSPF over two machines.
+#
+# This is example/ospf_simple placed on a multi-host lab: the same OSPF
+# configuration, split across two machines that are wired together outside the
+# lab. It is the scenario to copy when writing a multi-host topology of your
+# own; example/vlan_multihost is the feature demonstration and configures no
+# routing at all.
+#
+# What running it proves:
+#   - the routers on one machine reach the routers on the other, and OSPF forms
+#     an adjacency across the machine boundary
+#   - the segment between the two border routers spans both machines: bridges
+#     carry no address, so a search for a segment passes through them and both
+#     ends of the crossing link land in one /24
+#
+# Deploying it (see doc/active/TEST_ENVIRONMENT.md 1.6 for the full procedure):
+#   1. put host1/ on one machine and host2/ on the other
+#   2. run setup-bridges.sh on each - containerlab refuses to deploy when an
+#      ovs-bridge node names a bridge that does not exist yet
+#   3. containerlab deploy -t topo.yaml on each
+#   4. join br1 and br2 by hand. They are on different machines, so no topology
+#      file can do it; inter-host-links.txt is what names the link to make.
+name: ospf_multihost
+
+global:
+  path: local
+  # One directory per machine, so a machine's files pack as a unit. containerlab
+  # needs this to be the worker class: it resolves bind paths relative to the
+  # directory holding the topology file.
+  output_group_class: worker
+
+module:
+  - tinet
+  - containerlab
+
+file:
+  - name: frr.conf
+    path: /etc/frr/frr.conf
+  - name: daemons
+    path: /etc/frr/daemons
+  - name: vtysh.conf
+    path: /etc/frr/vtysh.conf
+  # The two files an operator needs, neither of which belongs to one machine.
+  - name: setup-bridges.sh
+    scope: network
+  - name: inter-host-links.txt
+    scope: network
+
+class_policy:
+  interface:
+    default: [default]
+  connection:
+    default: [link]
+
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+      - name: lo
+        type: loopback
+        range: 10.0.255.0/24
+
+nodeclass:
+  - name: router
+    # The address policy is named here rather than on the interface class, so
+    # that the bridge - which carries no interface_policy - stays addressless.
+    interface_policy: [ip]
+    policy: [lo]
+    values:
+      kind: linux
+      image: quay.io/frrouting/frr:8.5.4
+    config:
+      - file: daemons
+        sourcefile: ./daemons
+      - file: vtysh.conf
+        sourcefile: ./vtysh.conf
+      # Identical to example/ospf_simple. The addresses are set by zebra from
+      # this file, so no exec commands are needed.
+      - file: frr.conf
+        blocks:
+          after: ["interfaces_ospf_addr"]
+        template:
+          - "ip forwarding"
+          - "!"
+          - "router ospf"
+          - " ospf router-id {{ .ip_loopback }}"
+          - "{{ .interfaces_ospf_net }}"
+          - "!"
+      - name: startup
+        template: []
+
+  # Provided by the platform, so no container is generated for it: it carries
+  # the kind alone, whose value containerlab owns and dot2net passes through.
+  - name: platform_sw
+    deploy: platform
+    values:
+      kind: ovs-bridge
+    # containerlab refuses to deploy when the bridge does not already exist, so
+    # the script below has to create it. clabOvsBridgeSetup is a ready-made
+    # class the containerlab module offers; a lab whose bridges are provisioned
+    # by Ansible, or need sudo, or live in another OVS database, drops the use:
+    # line and writes its own clab_bridge_setup template.
+    use: [clabOvsBridgeSetup]
+
+interfaceclass:
+  - name: default
+    config:
+      # Only routers are addressed. The bridge is layer-unaware, which is also
+      # what lets a search for a segment look through it.
+      - name: ospf_addr
+        node: router
+        template:
+          - "interface {{ .name }}"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - "!"
+      - name: ospf_net
+        node: router
+        template:
+          - " network {{ .ip_net }} area 0"
+
+connectionclass:
+  - name: link
+
+  # Attached by the worker class's boundary_class, never written on an edge.
+  - name: crosses_host
+    config:
+      - name: crossing_entry
+        template:
+          - "{{ .name }} {{ ._clab_src_endpoint }} {{ ._clab_dst_endpoint }}"
+
+groupclass:
+  # worker is dot2net's reserved class name for a placement unit. Naming it is
+  # what makes containerlab write one topology file per machine.
+  - name: worker
+    # Connections that leave a machine get this connection class. Which links
+    # those are follows from the subgraphs, so the edges carry no annotation
+    # saying it a second time.
+    boundary_class: crosses_host
+
+networkclass:
+  - name: _default
+    config:
+      - file: setup-bridges.sh
+        template:
+          - "#!/bin/sh"
+          - "{{ .nodes_clab_bridge_setup }}"
+      # The links no topology file can create, for whoever wires the machines.
+      - file: inter-host-links.txt
+        template:
+          - "{{ .connections_crossing_entry }}"

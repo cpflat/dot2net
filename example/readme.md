@@ -19,6 +19,8 @@
 ## For demonstration
 
 - ospf_simple
+- ospf_multihost — ospf_simple placed on two machines. The one to copy when
+  writing a multi-host topology.
 
 
 ## Other TIPS
@@ -26,5 +28,6 @@
 - switching
 - address_reservation
 - param_share
-- vlan_multihost
+- vlan_multihost — demonstrates the multi-host machinery itself (worker,
+  boundary_class, deploy, use:) and configures no routing.
 
