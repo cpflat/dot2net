@@ -50,7 +50,7 @@ file:
   - name: segments.txt
     scope: network
   - name: setup-bridges.sh
-    scope: network
+    scope: group
   - name: inter-host-links.txt
     scope: network
   - name: frr.conf
@@ -155,6 +155,12 @@ groupclass:
     values:
       assert_used: "true"
     config:
+      # The bridges belong to a machine, so this script lands in the machine's
+      # own directory and holds only its own bridges.
+      - file: setup-bridges.sh
+        template:
+          - "#!/bin/sh"
+          - "{{ .nodes_clab_bridge_setup }}"
       - file: host.yaml
         template:
           - "host: {{ .name }}"
@@ -191,10 +197,6 @@ networkclass:
       - file: segments.txt
         template:
           - "{{ .segments_ip_seg_entry }}"
-      - file: setup-bridges.sh
-        template:
-          - "#!/bin/sh"
-          - "{{ .nodes_clab_bridge_setup }}"
       # The links no topology file can create, for whoever wires the machines.
       - file: inter-host-links.txt
         template:

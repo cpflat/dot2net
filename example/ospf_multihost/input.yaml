@@ -40,9 +40,12 @@ file:
     path: /etc/frr/daemons
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
-  # The two files an operator needs, neither of which belongs to one machine.
+  # The two files an operator needs. The bridges belong to a machine, so that
+  # script is scoped to the group and lands in the machine's own directory,
+  # holding only its own bridges; the link between the machines belongs to
+  # neither, so it stays at the output root.
   - name: setup-bridges.sh
-    scope: network
+    scope: group
   - name: inter-host-links.txt
     scope: network
 
@@ -139,14 +142,15 @@ groupclass:
     # those are follows from the subgraphs, so the edges carry no annotation
     # saying it a second time.
     boundary_class: crosses_host
-
-networkclass:
-  - name: _default
     config:
       - file: setup-bridges.sh
         template:
           - "#!/bin/sh"
           - "{{ .nodes_clab_bridge_setup }}"
+
+networkclass:
+  - name: _default
+    config:
       # The links no topology file can create, for whoever wires the machines.
       - file: inter-host-links.txt
         template:
