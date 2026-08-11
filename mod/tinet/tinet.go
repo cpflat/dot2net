@@ -3,6 +3,7 @@ package tinet
 import (
 	"embed"
 	"fmt"
+	"strings"
 
 	"github.com/cpflat/dot2net/pkg/types"
 )
@@ -24,6 +25,11 @@ const SpecCmdFormatName = "tinetSpecCmd"
 // const TinetVtyshCLIFormatName = "tinetVtyshCLI"
 
 const NetworkClassName = "_tinetNetwork"
+
+// WorkerGroupClassName carries the spec file when the scenario declares
+// placement units, the way NetworkClassName carries it when it does not.
+const WorkerGroupClassName = "_tinetWorkerGroup"
+
 const NodeClassName = "_tinetNode"
 const InterfaceClassName = "_tinetInterface"
 const SwitchNodeClassName = "_tinetSwitch"
@@ -70,15 +76,28 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	}
 	cfg.AddFormatStyle(formatStyle)
 
+	// One spec file, or one per machine. A lab is deployed to a single machine,
+	// so a topology spread over several of them needs a file each; with no
+	// placement units declared there is one machine and one file.
+	//
+	// The choice is made here because a FileDefinition carries a fixed scope
+	// and the model does not exist yet. What can be read at this point is the
+	// scenario's own configuration, which is loaded before the modules are.
+	_, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName)
+
 	// add file definition
+	scope := types.ClassTypeNetwork
+	if perWorker {
+		scope = types.ClassTypeGroup
+	}
 	fileDef := &types.FileDefinition{
 		Name:  TinetOutputFile,
 		Path:  "",
-		Scope: types.ClassTypeNetwork,
+		Scope: scope,
 	}
 	cfg.AddFileDefinition(fileDef)
 
-	// add network class
+	// add the class that owns the spec file
 	// The switches: section is a separate block so that it disappears entirely
 	// when the topology has no switch node: RequiredParams is satisfied only by
 	// a parameter that is present and non-empty.
@@ -99,11 +118,26 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct1.Template = []string{string(bytes)}
 
-	networkClass := &types.NetworkClass{
-		Name:            NetworkClassName,
-		ConfigTemplates: []*types.ConfigTemplate{ctSwitches, ct1},
+	// The spec file is owned by whichever object it is scoped to: the network as
+	// a whole, or one worker group. Only the group knows which nodes and which
+	// links belong to it, and it already answers that - a connection with one
+	// end outside the group is not one of its children, which is exactly the
+	// set a machine can wire itself. The template text is the same either way:
+	// it aggregates over "the nodes of this object", and the object differs.
+	if perWorker {
+		// Not AddModuleGroupClassLabel: that would give the spec file to every
+		// group, including the ones that only share parameters. ClassifyObjects
+		// picks the worker groups out.
+		cfg.AddGroupClass(&types.GroupClass{
+			Name:            WorkerGroupClassName,
+			ConfigTemplates: []*types.ConfigTemplate{ctSwitches, ct1},
+		})
+	} else {
+		cfg.AddNetworkClass(&types.NetworkClass{
+			Name:            NetworkClassName,
+			ConfigTemplates: []*types.ConfigTemplate{ctSwitches, ct1},
+		})
 	}
-	cfg.AddNetworkClass(networkClass)
 
 	// add node class
 	ct1 = &types.ConfigTemplate{Name: "tn_cmds", Format: SpecCmdFormatName, Depends: []string{"startup"}}
@@ -271,6 +305,19 @@ func (m *TinetModule) generateFilemountParams(
 		if err != nil {
 			return nil, err
 		}
+		// With one spec file per machine, that file sits in the machine's
+		// directory and the lab is brought up from there, so the mount path has
+		// to start at that directory rather than at the output root - otherwise
+		// the machine's own name appears twice.
+		if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
+			dir, err := node.OutputDir(cfg)
+			if err != nil {
+				return nil, err
+			}
+			if dir != "" {
+				srcPath = strings.TrimPrefix(srcPath, dir+"/")
+			}
+		}
 		dstPath := fileDef.Path
 
 		params := map[string]string{
@@ -303,10 +350,33 @@ func (m TinetModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) 
 			}
 		}
 	}
+	// Only the groups standing for a machine get a spec file. The others group
+	// nodes for some purpose of the scenario's own - an AS, an area - and
+	// nothing is deployed to them.
+	if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
+		for _, group := range nm.Groups {
+			if cfg.IsWorkerGroup(group) {
+				group.AddModuleClassLabels(WorkerGroupClassName)
+			}
+		}
+	}
 	return nil
 }
 
 func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
+	// A machine is brought up from its own directory, so everything its spec
+	// file mounts has to live under that directory. Splitting the output by
+	// some other grouping would scatter the node files elsewhere and leave no
+	// relative path from the spec to them.
+	if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
+		if got := cfg.GlobalSettings.OutputGroupClass; got != types.WorkerGroupClassName {
+			return fmt.Errorf(
+				"a topology split across %s groups needs global.output_group_class: %s so that "+
+					"each machine's files sit beside its spec.yaml (it is %q)",
+				types.WorkerGroupClassName, types.WorkerGroupClassName, got)
+		}
+	}
+
 	// node config templates named startup
 	flag := false
 	for _, nc := range cfg.NodeClasses {

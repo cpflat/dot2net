@@ -24,8 +24,8 @@
 # so no topology file contains that link, and inter-host-links.txt is what tells
 # the operator to make it. The address assignment still sees one segment across
 # both machines, because a search for a segment passes through bridges. TiNET
-# runs on one machine and does not split, so its spec.yaml holds everything and
-# the same link has to be patched locally (ovs-vsctl) instead.
+# splits the same way: each machine gets its own spec.yaml holding its own nodes,
+# and the crossing link is absent from both.
 # The assert module pins that the classes above really are applied; without it
 # a class that stops matching just disappears from the output and the expected
 # files record its absence.
