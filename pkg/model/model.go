@@ -54,6 +54,11 @@ func BuildNetworkModelForFileList(cfg *types.Config, d *Diagram) (nm *types.Netw
 		return nil, err
 	}
 
+	err = aggregateCrossingLinks(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
 	err = classifyBoundaryConnections(cfg, nm)
 	if err != nil {
 		return nil, err
@@ -88,6 +93,13 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 	// Before anything reads the worker groups: a node in two of them makes both
 	// the boundary classification and the per-machine output files inconsistent.
 	err = checkWorkerGroupsDisjoint(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	// Reshape before anything reads the topology: the links this adds have to be
+	// seen as leaving a machine like any other.
+	err = aggregateCrossingLinks(cfg, nm)
 	if err != nil {
 		return nil, err
 	}

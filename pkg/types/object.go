@@ -361,6 +361,29 @@ func newParsedLabels() *ParsedLabels {
 // ClassTier returns the tier of the named class. Unknown classes are treated as
 // user-written, which is the safe default: an unexpected class then conflicts
 // with other user classes instead of silently overriding them.
+// CloneLabels returns a copy that shares nothing with the receiver, so a label
+// added to one does not turn up on the other. Replicating an object needs this:
+// a bridge split across machines starts from the same classes as the original
+// and then goes its own way.
+func (l *ParsedLabels) CloneLabels() *ParsedLabels {
+	c := newParsedLabels()
+	c.classLabels = append(c.classLabels, l.classLabels...)
+	c.rClassLabels = append(c.rClassLabels, l.rClassLabels...)
+	c.placeLabels = append(c.placeLabels, l.placeLabels...)
+	for k, v := range l.valueLabels {
+		c.valueLabels[k] = v
+	}
+	for k, v := range l.metaValueLabels {
+		c.metaValueLabels[k] = v
+	}
+	for k, v := range l.classTiers {
+		c.classTiers[k] = v
+	}
+	c.Classes = append(c.Classes, l.Classes...)
+	c.virtual = l.virtual
+	return c
+}
+
 func (l *ParsedLabels) ClassTier(name string) int {
 	if l.classTiers == nil {
 		return ClassTierUser
@@ -1389,6 +1412,33 @@ func (n *Node) String() string {
 
 func (n *Node) StringForMessage() string {
 	return fmt.Sprintf("node:%s", n.Name)
+}
+
+// AdoptInterface moves an interface here from the node currently holding it,
+// leaving the wire it belongs to untouched. Splitting a shared medium across
+// machines needs exactly this: the interface facing a member has to end up on
+// the replica that stands on that member's machine.
+func (n *Node) AdoptInterface(iface *Interface) {
+	from := iface.Node
+	if from == n {
+		return
+	}
+	if from != nil {
+		for i, held := range from.Interfaces {
+			if held == iface {
+				from.Interfaces = append(from.Interfaces[:i], from.Interfaces[i+1:]...)
+				break
+			}
+		}
+		if iface.Name != "" {
+			delete(from.interfaceMap, iface.Name)
+		}
+	}
+	iface.Node = n
+	n.Interfaces = append(n.Interfaces, iface)
+	if iface.Name != "" {
+		n.interfaceMap[iface.Name] = iface
+	}
 }
 
 func (n *Node) NewInterface(name string) *Interface {

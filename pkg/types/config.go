@@ -13,6 +13,31 @@ import (
 	// "github.com/spf13/viper"
 )
 
+// Defaults for settings whose absence must not be read as the zero value.
+//
+// LoadConfig starts from defaultGlobalSettings rather than an empty struct, and
+// the YAML decoder leaves alone whatever the document does not mention, so a
+// setting the scenario never writes keeps the value below. Keep them together:
+// a default buried in the code that reads it cannot be found by someone asking
+// what happens when they write nothing.
+//
+// (DefaultMaxAddressCount lives in pkg/model/address.go, where it is applied to
+// a zero value rather than pre-set here.)
+const (
+	// DefaultAggregateCrossingLinks replaces a shared segment that reaches
+	// across machines with one bridge per machine, linked to each other, so that
+	// the segment costs one link leaving a machine instead of one per member on
+	// the far side. On by default: the alternative is for the author to work the
+	// same replacement out by hand for every such segment.
+	DefaultAggregateCrossingLinks = true
+)
+
+func defaultGlobalSettings() GlobalSettings {
+	return GlobalSettings{
+		AggregateCrossingLinks: DefaultAggregateCrossingLinks,
+	}
+}
+
 const ClassTypeNetwork string = "network"
 const ClassTypeNode string = "node"
 const ClassTypeInterface string = "interface"
@@ -496,6 +521,18 @@ type GlobalSettings struct {
 	// silently skipped (useful when e.g. a subgraph label is meant for display
 	// rather than as a group class).
 	IgnoreUndefinedClass bool `yaml:"ignore_undefined_class" mapstructure:"ignore_undefined_class"`
+	// AggregateCrossingLinks cuts the number of links that leave a machine.
+	//
+	// A shared segment with members on several machines has to reach all of
+	// them. Left alone, every member on a machine other than the segment's own
+	// costs a link that leaves a machine - and a link leaving a machine costs a
+	// VLAN from a finite pool. Replacing the segment with one bridge per machine,
+	// linked to each other, brings that down to one link per pair of machines
+	// however many members there are.
+	//
+	// True by default. Set it to false for a platform that stretches a segment
+	// across machines itself, or to write the bridges out by hand.
+	AggregateCrossingLinks bool `yaml:"aggregate_crossing_links" mapstructure:"aggregate_crossing_links"`
 	// OutputGroupClass names the group class that splits the output directory.
 	//
 	// The value is an ordinary group class of the scenario's own choosing, not a
@@ -1314,7 +1351,7 @@ func GetRelativeFilePath(path string, cfg *Config) string {
 
 func LoadConfig(path string) (*Config, error) {
 
-	cfg := Config{}
+	cfg := Config{GlobalSettings: defaultGlobalSettings()}
 	bytes, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

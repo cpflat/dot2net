@@ -1,0 +1,25 @@
+digraph {
+	// One shared segment, drawn once, with members on two machines.
+	//
+	// Note what is NOT here: the author does not split sw1 into one bridge per
+	// machine and join them. They draw the segment they mean, and dot2net works
+	// out that it reaches two machines and replaces it with a bridge on each.
+	// Compare example/ospf_multihost, where the split is written by hand.
+	sw1[xlabel="platform_sw"];
+
+	subgraph host1 {
+		xlabel="worker";
+		r1[xlabel="router"];
+		r2[xlabel="router"];
+	}
+	subgraph host2 {
+		xlabel="worker";
+		r3[xlabel="router"];
+		r4[xlabel="router"];
+	}
+
+	r1->sw1[dir="none"];
+	r2->sw1[dir="none"];
+	r3->sw1[dir="none"];
+	r4->sw1[dir="none"];
+}
