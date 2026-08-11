@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Kathara module** (`module: [kathara]`): generates `lab.conf` and lets a
+  scenario write `<device>.startup` files at the output root. Kathara declares,
+  per device, which collision domain each interface sits on; a collision domain
+  is a shared medium, so the `deploy: platform` switch node that containerlab
+  emits as a bridge and TiNET as a `switches:` entry becomes one here — named
+  after the node, which itself gets no line since nothing is deployed for it. A
+  link between two ordinary devices gets a domain of its own.
+
+  Two of Kathara's constraints are reported rather than worked around: an
+  interface class asking for a prefix other than `eth` is rejected (Kathara
+  names interfaces after their index in `lab.conf` and offers no way to change
+  it), as is a device name outside `[a-z0-9_]{1,30}`. A device whose interface
+  indexes have a hole is also rejected — renumbering after dropped interfaces is
+  not implemented yet, so the case is named instead of emitted broken.
 - **One TiNET spec file per machine.** When the scenario declares `worker` groups
   the spec file becomes group-scoped, the same way the containerlab topology
   file does: each machine gets its own nodes and the links it can wire itself,
