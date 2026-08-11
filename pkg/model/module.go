@@ -12,6 +12,10 @@ import (
 )
 
 func LoadModules(cfg *types.Config) error {
+	if err := cfg.CheckModuleConfigNames(); err != nil {
+		return err
+	}
+
 	var m types.Module
 	modules := []types.Module{}
 	for _, name := range cfg.Modules {

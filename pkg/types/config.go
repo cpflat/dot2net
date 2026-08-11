@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -169,15 +170,21 @@ func AllOutput() []string {
 // config elements
 
 type Config struct {
-	Name            string            `yaml:"name" mapstructure:"name"`
-	Modules         []string          `yaml:"module" mapstructure:"module"`
-	ClassPolicy     ClassPolicy       `yaml:"class_policy" mapstructure:"class_policy"`
-	GlobalSettings  GlobalSettings    `yaml:"global" mapstructure:"global"`
-	FileDefinitions []*FileDefinition `yaml:"file" mapstructure:"file"`
-	FormatStyles    []*FormatStyle    `yaml:"format,flow" mapstructure:"format,flow"`
-	Layers          []*Layer          `yaml:"layer" mapstructure:"layer"`
-	ManagementLayer ManagementLayer   `yaml:"mgmt_layer" mapstructure:"mgmt_layer"`
-	ParameterRules  []*ParameterRule  `yaml:"param_rule,flow" mapstructure:"param_rule,flow"`
+	Name    string   `yaml:"name" mapstructure:"name"`
+	Modules []string `yaml:"module" mapstructure:"module"`
+	// ModuleConfig holds a section per module, for settings that belong to one
+	// platform rather than to the topology. Kept apart from GlobalSettings
+	// because what a module offers is its own: containerlab's management
+	// network and Kathara's bridged devices sound alike and are not the same
+	// thing, so a shared key would be wrong.
+	ModuleConfig    map[string]map[string]any `yaml:"module_config" mapstructure:"module_config"`
+	ClassPolicy     ClassPolicy               `yaml:"class_policy" mapstructure:"class_policy"`
+	GlobalSettings  GlobalSettings            `yaml:"global" mapstructure:"global"`
+	FileDefinitions []*FileDefinition         `yaml:"file" mapstructure:"file"`
+	FormatStyles    []*FormatStyle            `yaml:"format,flow" mapstructure:"format,flow"`
+	Layers          []*Layer                  `yaml:"layer" mapstructure:"layer"`
+	ManagementLayer ManagementLayer           `yaml:"mgmt_layer" mapstructure:"mgmt_layer"`
+	ParameterRules  []*ParameterRule          `yaml:"param_rule,flow" mapstructure:"param_rule,flow"`
 
 	NetworkClasses    []*NetworkClass    `yaml:"networkclass,flow" mapstructure:"network,flow"`
 	NodeClasses       []*NodeClass       `yaml:"nodeclass,flow" mapstructure:"nodes,flow"`
@@ -1375,6 +1382,48 @@ func GetRelativeFilePath(path string, cfg *Config) string {
 	} else {
 		return path
 	}
+}
+
+// DecodeModuleConfig fills dst from the module_config section named for a
+// module, and says whether there was one. The section is decoded with the same
+// YAML decoder the rest of the file uses, so a module describes its settings
+// with an ordinary struct and yaml tags.
+func (cfg *Config) DecodeModuleConfig(name string, dst any) (bool, error) {
+	raw, ok := cfg.ModuleConfig[name]
+	if !ok {
+		return false, nil
+	}
+	bytes, err := yaml.Marshal(raw)
+	if err != nil {
+		return false, fmt.Errorf("module_config %s: %w", name, err)
+	}
+	if err := yaml.Unmarshal(bytes, dst); err != nil {
+		return false, fmt.Errorf("module_config %s: %w", name, err)
+	}
+	return true, nil
+}
+
+// CheckModuleConfigNames rejects a section naming a module the scenario does
+// not load. Such a section does nothing, and the reason is nearly always a typo
+// or a module removed from the list while its settings stayed behind.
+func (cfg *Config) CheckModuleConfigNames() error {
+	loaded := map[string]bool{}
+	for _, name := range cfg.Modules {
+		loaded[name] = true
+	}
+	names := make([]string, 0, len(cfg.ModuleConfig))
+	for name := range cfg.ModuleConfig {
+		if !loaded[name] {
+			names = append(names, name)
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	return fmt.Errorf(
+		"module_config names %s, which the scenario does not load; add it to module: or remove the section",
+		strings.Join(names, ", "))
 }
 
 func LoadConfig(path string) (*Config, error) {

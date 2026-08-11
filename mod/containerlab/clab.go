@@ -51,6 +51,19 @@ const BridgeSetupConfigName = "clab_bridge_setup"
 const InterfaceClassName = "_clabInterface"
 const ConnectionClassName = "_clabConnection"
 
+// Options are the containerlab module's own settings, written under
+// module_config.containerlab.
+type Options struct {
+	// ManagementNetwork attaches containerlab's management network to every
+	// node, the way containerlab does on its own. It is off by default: that
+	// network is a second path between every pair of nodes, so a reachability
+	// test that should have failed can pass through it. It also takes eth0,
+	// which a scenario may want for a data interface.
+	//
+	// Turn it on for clab exec and the clab-* names.
+	ManagementNetwork bool `yaml:"management_network"`
+}
+
 //go:embed templates/*
 var templates embed.FS
 
@@ -74,6 +87,11 @@ func NewModule() types.Module {
 }
 
 func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
+	var opts Options
+	if _, err := cfg.DecodeModuleConfig("containerlab", &opts); err != nil {
+		return err
+	}
+
 	// add file format
 	formatStyle := &types.FormatStyle{
 		Name:                ClabYamlFormatName,
@@ -186,7 +204,14 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	if err != nil {
 		return err
 	}
-	ct4.Template = []string{string(bytes)}
+	// The template carries network-mode: none. Asking for the management
+	// network means taking that line out again, which is why it sits on a line
+	// of its own.
+	nodeTopo := string(bytes)
+	if opts.ManagementNetwork {
+		nodeTopo = strings.ReplaceAll(nodeTopo, "      network-mode: none\n", "")
+	}
+	ct4.Template = []string{nodeTopo}
 
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,

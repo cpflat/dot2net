@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`module_config`**: a section per module, for settings that belong to one
+  platform rather than to the topology.
+
+  ```yaml
+  module_config:
+    containerlab:
+      management_network: true
+  ```
+
+  Kept apart from `global:`, which holds what every platform shares. What a
+  module offers is its own - containerlab's management network and Kathara's
+  bridged devices sound alike and are not the same thing, so a shared key would
+  be wrong. A section naming a module the scenario does not load is rejected,
+  since it does nothing and is nearly always a typo.
+
+  `containerlab.management_network` is the first setting to live there: it puts
+  the management network back for a scenario that wants `clab exec` and the
+  `clab-*` names.
 - **containerlab nodes are emitted with `network-mode: none`.** A lab now has
   only the links its topology describes. The management network containerlab
   attaches by default is convenient — `clab exec`, `clab-*` names — but it is
