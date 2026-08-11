@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **One TiNET spec file per machine.** When the scenario declares `worker` groups
+  the spec file becomes group-scoped, the same way the containerlab topology
+  file does: each machine gets its own nodes and the links it can wire itself,
+  and the link that leaves a machine appears in neither. Mount paths become
+  relative to the machine's directory. Scenarios that declare no placement unit
+  keep the single network-scoped file. Verified on two hosts: the same DOT and
+  YAML bring up an OSPF adjacency across the machine boundary on TiNET as well
+  as on containerlab.
 - **`example/ospf_multihost`**: `example/ospf_simple` placed on two machines —
   the same OSPF configuration, split across a machine boundary. This is the
   scenario to copy when writing a multi-host topology; `example/vlan_multihost`
@@ -163,6 +171,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The TiNET `switches:` list ran its entries together on one line.** It
   borrowed the format that renders the inline interfaces list, where `", "` is
   right. No example had two switches before, so it never showed.
+- **TiNET bind mount sources were relative, and Docker refuses them** — it reads
+  a relative source as a volume name, so a generated `spec.yaml` could not be
+  deployed as written. The paths have been relative since the module refactor
+  that moved tinet out of `pkg/`, which dropped the `filepath.Abs` the earlier
+  implementation used. Resolving at build time would bake the generating machine
+  into the output, so the source now carries a literal `$PWD`, expanded by the
+  shell that `tinet up` output is piped to — which runs where the spec file sits.
 - **`dot2net files` omitted every per-machine `topo.yaml`, and `dot2net clean`
   left them behind.** The file-list pipeline stopped before classification, and
   a topology file scoped to a worker group is assigned there rather than when
