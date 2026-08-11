@@ -42,7 +42,6 @@ var commandBuild = &cli.Command{
 	},
 }
 
-
 var commandParams = &cli.Command{
 	Name:   "params",
 	Usage:  "List available numbers for config templates",

@@ -12,6 +12,7 @@ import (
 )
 
 const EmptyOutput string = "#EMPTY#"
+
 // EmptySeparator moved to pkg/types so that modules can use it too.
 const EmptySeparator = types.EmptySeparator
 const NChars int = 32
@@ -492,7 +493,6 @@ func collectConfigBlocks(ns types.NameSpacer, blockRefs []string) ([]string, err
 		if !exists {
 			return nil, fmt.Errorf("config block not found: %s (parameter name: %s)", ref, paramName)
 		}
-
 
 		blocks = append(blocks, block)
 	}

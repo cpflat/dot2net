@@ -207,7 +207,7 @@ func (pool *ipPool) getAvailablePrefix(cnt int) ([]netip.Prefix, error) {
 		}
 		return prefixes, nil
 	}
-	
+
 	required := cnt + len(pool.boundIndex)
 	if !pool.isEnough(required) {
 		return nil, fmt.Errorf("no enough network prefix in address pool (%d required), cnt=%d, boundIndex=%d, availableBits=%d", required, cnt, len(pool.boundIndex), pool.availableBits)
@@ -411,7 +411,6 @@ func searchSegments(nm *types.NetworkModel, layer *types.Layer, verbose bool) ([
 	}
 	return segs, nil
 }
-
 
 func setNeighbors(segs []*types.NetworkSegment, layer *types.Layer) {
 	for _, seg := range segs {
@@ -798,4 +797,3 @@ func getIPAddr(pool netip.Prefix, cnt int, reserved []netip.Addr, maxCount int) 
 	}
 	return addrs, nil
 }
-

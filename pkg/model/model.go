@@ -510,7 +510,7 @@ func assignConnectionNames(nm *types.NetworkModel) error {
 			existingNames[conn.Name] = struct{}{}
 		}
 	}
-	
+
 	for prefix, connections := range prefixMap {
 		i := 0
 		for _, conn := range connections {
@@ -528,14 +528,14 @@ func assignConnectionNames(nm *types.NetworkModel) error {
 			i++
 		}
 	}
-	
+
 	// confirm all connections are named
 	for _, conn := range nm.Connections {
 		if conn.Name == "" {
 			return fmt.Errorf("there still exists unnamed connections after assignConnectionNames")
 		}
 	}
-	
+
 	return nil
 }
 

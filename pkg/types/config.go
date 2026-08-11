@@ -898,8 +898,8 @@ type NodeClass struct {
 	// ModuleProvided marks a class registered by a module rather than written
 	// by the user. It decides the tier a class keeps when another class pulls
 	// it in through Use, so that a module's defaults still lose to the user.
-	ModuleProvided bool `yaml:"-" mapstructure:"-"`
-	Name string `yaml:"name" mapstructure:"name"`
+	ModuleProvided bool   `yaml:"-" mapstructure:"-"`
+	Name           string `yaml:"name" mapstructure:"name"`
 	// Virtual is the spelling of DeployNone released in v0.7. It stays as a
 	// shorthand: virtual: true claims deploy: none, while virtual: false claims
 	// nothing, which is how the boolean has always behaved.
@@ -1004,9 +1004,9 @@ type GroupClass struct {
 	// ModuleProvided marks a class registered by a module rather than written
 	// by the user. It decides the tier a class keeps when another class pulls
 	// it in through Use, so that a module's defaults still lose to the user.
-	ModuleProvided  bool              `yaml:"-" mapstructure:"-"`
-	Name    string `yaml:"name" mapstructure:"name"`
-	Virtual bool   `yaml:"virtual" mapstructure:"virtual"`
+	ModuleProvided bool   `yaml:"-" mapstructure:"-"`
+	Name           string `yaml:"name" mapstructure:"name"`
+	Virtual        bool   `yaml:"virtual" mapstructure:"virtual"`
 	// BoundaryClass names a connection class attached to every connection that
 	// leaves a group of this class. Whether the two ends sit in the same group
 	// follows from the topology, so the alternative - annotating each edge -
