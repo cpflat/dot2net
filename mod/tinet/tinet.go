@@ -318,6 +318,13 @@ func (m *TinetModule) generateFilemountParams(
 				srcPath = strings.TrimPrefix(srcPath, dir+"/")
 			}
 		}
+		// Docker refuses a relative bind source - it reads one as a volume name
+		// - and TiNET passes the string into `docker run -v` untouched. The
+		// output of `tinet up` is meant to be piped to a shell, so $PWD is
+		// expanded there, against the directory the lab is brought up from.
+		// That is where the spec file sits, which is what the paths above are
+		// relative to.
+		srcPath = "$PWD/" + srcPath
 		dstPath := fileDef.Path
 
 		params := map[string]string{

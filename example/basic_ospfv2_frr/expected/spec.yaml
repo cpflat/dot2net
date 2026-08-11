@@ -2,19 +2,19 @@ nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: r2#net0}, {name: net1, type: direct, args: r3#net0}, {name: net2, type: direct, args: s1#net0}]
-    mounts: [r1/daemons:/etc/frr/daemons, r1/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r1/daemons:/etc/frr/daemons, $PWD/r1/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: r1#net0}, {name: net1, type: direct, args: r4#net0}]
-    mounts: [r2/daemons:/etc/frr/daemons, r2/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r2/daemons:/etc/frr/daemons, $PWD/r2/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: r1#net1}, {name: net1, type: direct, args: r4#net1}, {name: net2, type: direct, args: s3#net0}]
-    mounts: [r3/daemons:/etc/frr/daemons, r3/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r3/daemons:/etc/frr/daemons, $PWD/r3/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r4
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: net0, type: direct, args: r2#net1}, {name: net1, type: direct, args: r3#net1}, {name: net2, type: direct, args: s4#net0}]
-    mounts: [r4/daemons:/etc/frr/daemons, r4/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r4/daemons:/etc/frr/daemons, $PWD/r4/vtysh.conf:/etc/frr/vtysh.conf]
   - name: s1
     image: nicolaka/netshoot
     interfaces: [{name: net0, type: direct, args: r1#net2}]
