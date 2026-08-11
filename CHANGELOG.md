@@ -28,14 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file does: each machine gets its own nodes and the links it can wire itself,
   and the link that leaves a machine appears in neither. Mount paths become
   relative to the machine's directory. Scenarios that declare no placement unit
-  keep the single network-scoped file. Verified on two hosts: the same DOT and
+  keep the single network-scoped file. Deployed on two VMs: the same DOT and
   YAML bring up an OSPF adjacency across the machine boundary on TiNET as well
   as on containerlab.
 - **`example/ospf_multihost`**: `example/ospf_simple` placed on two machines —
   the same OSPF configuration, split across a machine boundary. This is the
   scenario to copy when writing a multi-host topology; `example/vlan_multihost`
   demonstrates the machinery (`worker`, `boundary_class`, `deploy`, `use:`) and
-  configures no routing. Verified on two hosts: the OSPF adjacency between the
+  configures no routing. Deployed on two VMs: the OSPF adjacency between the
   border routers comes up across the boundary, each machine learns the other's
   subnets, and traffic is routed between them.
 - **`xlabel` is read on edges and subgraphs**, not only on nodes. It was silently
