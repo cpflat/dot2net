@@ -9,7 +9,7 @@ import (
 )
 
 // classifyBoundaryConnections attaches a class to the connections that leave a
-// group, for every group class that names one in boundary_class.
+// group, for every group class that names one in boundary_crossing_connection_class.
 //
 // Which links cross a boundary follows from the topology: a node's groups are
 // already known once the skeleton is built. Making the author mark the edges
@@ -23,12 +23,12 @@ import (
 // between machines, an eBGP template for the ones between autonomous systems.
 func classifyBoundaryConnections(cfg *types.Config, nm *types.NetworkModel) error {
 	for _, gc := range cfg.GroupClasses {
-		if gc.BoundaryClass == "" {
+		if gc.BoundaryCrossingConnectionClass == "" {
 			continue
 		}
-		if _, ok := cfg.ConnectionClassByName(gc.BoundaryClass); !ok {
-			return fmt.Errorf("groupclass %s: boundary_class %q is not a defined connectionclass",
-				gc.Name, gc.BoundaryClass)
+		if _, ok := cfg.ConnectionClassByName(gc.BoundaryCrossingConnectionClass); !ok {
+			return fmt.Errorf("groupclass %s: boundary_crossing_connection_class %q is not a defined connectionclass",
+				gc.Name, gc.BoundaryCrossingConnectionClass)
 		}
 		for _, conn := range nm.Connections {
 			if conn.Src == nil || conn.Dst == nil {
@@ -39,7 +39,7 @@ func classifyBoundaryConnections(cfg *types.Config, nm *types.NetworkModel) erro
 			}
 			// Module tier: the class is derived, so anything the scenario wrote
 			// on the edge itself outranks it instead of clashing with it.
-			conn.AddModuleClassLabels(gc.BoundaryClass)
+			conn.AddModuleClassLabels(gc.BoundaryCrossingConnectionClass)
 		}
 	}
 	return nil

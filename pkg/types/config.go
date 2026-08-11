@@ -1007,18 +1007,19 @@ type GroupClass struct {
 	ModuleProvided bool   `yaml:"-" mapstructure:"-"`
 	Name           string `yaml:"name" mapstructure:"name"`
 	Virtual        bool   `yaml:"virtual" mapstructure:"virtual"`
-	// BoundaryClass names a connection class attached to every connection that
-	// leaves a group of this class. Whether the two ends sit in the same group
-	// follows from the topology, so the alternative - annotating each edge -
-	// would state twice what is already written once, and the two can disagree.
+	// BoundaryCrossingConnectionClass names a connection class attached to every
+	// connection that leaves a group of this class. Whether the two ends sit in
+	// the same group follows from the topology, so the alternative - annotating
+	// each edge - would state twice what is already written once, and the two
+	// can disagree.
 	//
 	// The feature knows nothing about hosts: setting it on an "as" class marks
 	// the eBGP sessions just as setting it on the worker class marks the links
 	// that leave a machine.
-	BoundaryClass   string            `yaml:"boundary_class" mapstructure:"boundary_class"`
-	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
-	Values          map[string]string `yaml:"values" mapstructure:"values"`
-	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
+	BoundaryCrossingConnectionClass string            `yaml:"boundary_crossing_connection_class" mapstructure:"boundary_crossing_connection_class"`
+	Parameters                      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	Values                          map[string]string `yaml:"values" mapstructure:"values"`
+	ConfigTemplates                 []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 
 	LabelOwnerClass
 }

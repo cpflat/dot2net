@@ -127,7 +127,8 @@ interfaceclass:
 connectionclass:
   - name: link
 
-  # Attached by the worker class's boundary_class, never written on an edge.
+  # Attached by the worker class's boundary_crossing_connection_class, never
+  # written on an edge.
   - name: crosses_host
     config:
       - name: crossing_entry
@@ -141,7 +142,7 @@ groupclass:
     # Connections that leave a machine get this connection class. Which links
     # those are follows from the subgraphs, so the edges carry no annotation
     # saying it a second time.
-    boundary_class: crosses_host
+    boundary_crossing_connection_class: crosses_host
     config:
       - file: setup-bridges.sh
         template:

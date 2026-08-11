@@ -30,8 +30,9 @@ digraph {
 
 	// The one link that leaves a machine. Nothing inside containerlab can make
 	// it: the two bridges are joined outside the lab, by a VLAN between the two
-	// machines. dot2net marks it through the worker class's boundary_class and
-	// lists it in inter-host-links.txt for whoever wires it.
+	// machines. dot2net marks it through the worker class's
+	// boundary_crossing_connection_class and lists it in inter-host-links.txt
+	// for whoever wires it.
 	//
 	// It is still a link in the model, so the address assignment sees one
 	// segment spanning both machines: bridges carry no addresses, so searching

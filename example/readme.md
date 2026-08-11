@@ -32,5 +32,5 @@
 - address_reservation
 - param_share
 - vlan_multihost — demonstrates the multi-host machinery itself (worker,
-  boundary_class, deploy, use:) and configures no routing.
+  boundary_crossing_connection_class, deploy, use:) and configures no routing.
 

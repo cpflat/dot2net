@@ -17,8 +17,9 @@
 #   - use:, which pulls a ready-made class out of a module (see platform_sw)
 #   - worker groups: containerlab writes one topo.yaml per machine, holding only
 #     the nodes of that machine and the links it can wire with veth
-#   - boundary_class: the one link that leaves a machine is found from the
-#     subgraphs, not annotated on the edge, and is listed in inter-host-links.txt
+#   - boundary_crossing_connection_class: the one link that leaves a machine
+#     is found from the subgraphs, not annotated on the edge, and is listed in
+#     inter-host-links.txt
 #
 # The two bridges are joined outside the lab - by a VLAN between the machines -
 # so no topology file contains that link, and inter-host-links.txt is what tells
@@ -133,8 +134,9 @@ connectionclass:
         template:
           - "  - {{ .name }}"
 
-  # Attached by the worker class's boundary_class, never written on an edge.
-  # In a real deployment this is where the VLAN id policy would hang.
+  # Attached by the worker class's boundary_crossing_connection_class, never
+  # written on an edge. In a real deployment this is where the VLAN id policy
+  # would hang.
   - name: crosses_host
     values:
       assert_used: "true"
@@ -151,7 +153,7 @@ groupclass:
     # Connections that leave a machine get this connection class. Which links
     # those are follows from the subgraphs, so the edges carry no annotation
     # saying it a second time. The same field on an "as" class would mark eBGP.
-    boundary_class: crosses_host
+    boundary_crossing_connection_class: crosses_host
     values:
       assert_used: "true"
     config:

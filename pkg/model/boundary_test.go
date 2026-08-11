@@ -44,7 +44,7 @@ const boundaryYAML = `
 name: boundary
 groupclass:
   - name: worker
-    boundary_class: leaves_host
+    boundary_crossing_connection_class: leaves_host
 connectionclass:
   - name: leaves_host
     values: {crossing: "yes"}
@@ -100,7 +100,7 @@ func TestBoundaryClassIsWeakerThanAWrittenClass(t *testing.T) {
 name: boundary_tier
 groupclass:
   - name: worker
-    boundary_class: leaves_host
+    boundary_crossing_connection_class: leaves_host
 connectionclass:
   - name: leaves_host
     values: {mtu: "9000"}
@@ -137,7 +137,7 @@ func TestBoundaryClassWorksForAnyGroupClass(t *testing.T) {
 name: boundary_as
 groupclass:
   - name: as
-    boundary_class: ebgp
+    boundary_crossing_connection_class: ebgp
 connectionclass:
   - name: ebgp
 `, `graph {
@@ -191,10 +191,10 @@ func TestBoundaryClassRejectsUndefinedClass(t *testing.T) {
 name: boundary_typo
 groupclass:
   - name: worker
-    boundary_class: no_such_class
+    boundary_crossing_connection_class: no_such_class
 `, `graph { subgraph host1 { xlabel="worker"; r1; } r1 -- r2; }`)
 	if err == nil {
-		t.Fatal("an undefined boundary_class must be rejected")
+		t.Fatal("an undefined boundary_crossing_connection_class must be rejected")
 	}
 	if !strings.Contains(err.Error(), "no_such_class") {
 		t.Errorf("the error should quote the offending name, got: %v", err)
