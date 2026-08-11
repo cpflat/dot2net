@@ -4,6 +4,7 @@ topology:
     r1:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       binds:
       - r1/zebra.conf:/etc/frr/zebra.conf
       - r1/ospfd.conf:/etc/frr/ospfd.conf
@@ -16,6 +17,7 @@ topology:
     r2:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       binds:
       - r2/zebra.conf:/etc/frr/zebra.conf
       - r2/ospfd.conf:/etc/frr/ospfd.conf
@@ -28,6 +30,7 @@ topology:
     r3:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       binds:
       - r3/zebra.conf:/etc/frr/zebra.conf
       - r3/ospfd.conf:/etc/frr/ospfd.conf
@@ -40,6 +43,7 @@ topology:
     r4:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       binds:
       - r4/zebra.conf:/etc/frr/zebra.conf
       - r4/ospfd.conf:/etc/frr/ospfd.conf
@@ -52,6 +56,7 @@ topology:
     s1:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -60,6 +65,7 @@ topology:
     s2:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -68,6 +74,7 @@ topology:
     s3:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -80,6 +87,7 @@ topology:
     s4:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -88,6 +96,7 @@ topology:
     s5:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -98,6 +107,7 @@ topology:
     s6:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up

@@ -4,6 +4,7 @@ topology:
     r1:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r1/frr.conf:/etc/frr/frr.conf
       - r1/daemons:/etc/frr/daemons
@@ -12,6 +13,7 @@ topology:
     r2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r2/frr.conf:/etc/frr/frr.conf
       - r2/daemons:/etc/frr/daemons
@@ -20,6 +22,7 @@ topology:
     r3:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r3/frr.conf:/etc/frr/frr.conf
       - r3/daemons:/etc/frr/daemons
@@ -28,6 +31,7 @@ topology:
     sw1:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -38,6 +42,7 @@ topology:
     sw2:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up

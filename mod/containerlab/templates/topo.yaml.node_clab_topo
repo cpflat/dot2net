@@ -1,4 +1,5 @@
     {{ .name }}:
       kind: {{ .kind }}
       image: {{ .image }}
+      network-mode: none
 {{ .self_clab_topo_binds }}{{ .self_clab_topo_exec }}

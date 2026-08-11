@@ -4,6 +4,7 @@ topology:
     leaf1:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.1/32" -c "router bgp 65000" -c "bgp router-id 10.255.0.1" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -14,6 +15,7 @@ topology:
     leaf2:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.2/32" -c "router bgp 65001" -c "bgp router-id 10.255.0.2" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -24,6 +26,7 @@ topology:
     leaf3:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.3/32" -c "router bgp 65002" -c "bgp router-id 10.255.0.3" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -34,6 +37,7 @@ topology:
     leaf4:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.4/32" -c "router bgp 65003" -c "bgp router-id 10.255.0.4" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -44,6 +48,7 @@ topology:
     spine1:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.5/32" -c "router bgp 65004" -c "bgp router-id 10.255.0.5" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -54,6 +59,7 @@ topology:
     spine2:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.6/32" -c "router bgp 65005" -c "bgp router-id 10.255.0.6" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -64,6 +70,7 @@ topology:
     sv1:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.7/32" -c "router bgp 65006" -c "bgp router-id 10.255.0.7" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -71,6 +78,7 @@ topology:
     sv2:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.8/32" -c "router bgp 65007" -c "bgp router-id 10.255.0.8" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -78,6 +86,7 @@ topology:
     sv3:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.9/32" -c "router bgp 65008" -c "bgp router-id 10.255.0.9" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -85,6 +94,7 @@ topology:
     sv4:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.10/32" -c "router bgp 65009" -c "bgp router-id 10.255.0.10" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -92,6 +102,7 @@ topology:
     sv5:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.11/32" -c "router bgp 65010" -c "bgp router-id 10.255.0.11" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -99,6 +110,7 @@ topology:
     sv6:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.12/32" -c "router bgp 65011" -c "bgp router-id 10.255.0.12" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -106,6 +118,7 @@ topology:
     sv7:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.13/32" -c "router bgp 65012" -c "bgp router-id 10.255.0.13" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
@@ -113,6 +126,7 @@ topology:
     sv8:
       kind: linux
       image: slankdev/frr
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.14/32" -c "router bgp 65013" -c "bgp router-id 10.255.0.14" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"

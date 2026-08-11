@@ -4,6 +4,7 @@ topology:
     r1:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r1/zebra.conf:/etc/frr/zebra.conf
       - r1/bgpd.conf:/etc/frr/bgpd.conf
@@ -17,6 +18,7 @@ topology:
     r2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r2/zebra.conf:/etc/frr/zebra.conf
       - r2/bgpd.conf:/etc/frr/bgpd.conf
@@ -30,6 +32,7 @@ topology:
     r3:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r3/zebra.conf:/etc/frr/zebra.conf
       - r3/ospfd.conf:/etc/frr/ospfd.conf
@@ -42,6 +45,7 @@ topology:
     r4:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r4/zebra.conf:/etc/frr/zebra.conf
       - r4/bgpd.conf:/etc/frr/bgpd.conf
@@ -53,6 +57,7 @@ topology:
     r5:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r5/zebra.conf:/etc/frr/zebra.conf
       - r5/bgpd.conf:/etc/frr/bgpd.conf
@@ -64,6 +69,7 @@ topology:
     sw0:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -74,6 +80,7 @@ topology:
     sw1:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -84,6 +91,7 @@ topology:
     sw10:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -92,6 +100,7 @@ topology:
     sw2:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -102,6 +111,7 @@ topology:
     sw4:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -112,6 +122,7 @@ topology:
     sw5:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -122,6 +133,7 @@ topology:
     sw6:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -130,6 +142,7 @@ topology:
     sw7:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -138,6 +151,7 @@ topology:
     sw8:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -146,6 +160,7 @@ topology:
     sw9:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up

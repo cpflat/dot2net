@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **containerlab nodes are emitted with `network-mode: none`.** A lab now has
+  only the links its topology describes. The management network containerlab
+  attaches by default is convenient — `clab exec`, `clab-*` names — but it is
+  also a second path between every pair of nodes, and a reachability test that
+  should have failed can pass through it without anyone noticing. TiNET runs its
+  nodes with `--net none` and Kathara gives them no management network either,
+  so this also brings the three into line.
+
+  It frees `eth0` as well: containerlab refuses a data interface by that name
+  while the management network is attached, which is what kept a scenario from
+  loading the Kathara module alongside the other two.
 - **`raw` on a config entry**: hands a source file through as read instead of
   reading it as a template. For a file that is material rather than a template —
   one dot2net has nothing to fill in, and that may carry `{{` of its own meant

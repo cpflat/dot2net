@@ -6,6 +6,7 @@ topology:
     r1:
       kind: linux
       image: quay.io/frrouting/frr:8.5.4
+      network-mode: none
       binds:
       - r1/frr.conf:/etc/frr/frr.conf
       - r1/daemons:/etc/frr/daemons
@@ -14,6 +15,7 @@ topology:
     r2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.4
+      network-mode: none
       binds:
       - r2/frr.conf:/etc/frr/frr.conf
       - r2/daemons:/etc/frr/daemons

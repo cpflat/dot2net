@@ -4,6 +4,7 @@ topology:
     host1:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - host1/zebra.conf:/etc/frr/zebra.conf
       - host1/daemons:/etc/frr/daemons
@@ -14,6 +15,7 @@ topology:
     host2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - host2/zebra.conf:/etc/frr/zebra.conf
       - host2/daemons:/etc/frr/daemons
@@ -24,6 +26,7 @@ topology:
     p1:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - p1/zebra.conf:/etc/frr/zebra.conf
       - p1/ospfd.conf:/etc/frr/ospfd.conf
@@ -36,6 +39,7 @@ topology:
     pe1:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - pe1/zebra.conf:/etc/frr/zebra.conf
       - pe1/bgpd.conf:/etc/frr/bgpd.conf
@@ -56,6 +60,7 @@ topology:
     pe2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - pe2/zebra.conf:/etc/frr/zebra.conf
       - pe2/bgpd.conf:/etc/frr/bgpd.conf
@@ -76,6 +81,7 @@ topology:
     pe3:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - pe3/zebra.conf:/etc/frr/zebra.conf
       - pe3/bgpd.conf:/etc/frr/bgpd.conf
@@ -89,6 +95,7 @@ topology:
     s1:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -99,6 +106,7 @@ topology:
     s2:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -111,6 +119,7 @@ topology:
     s3:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -121,6 +130,7 @@ topology:
     s4:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up

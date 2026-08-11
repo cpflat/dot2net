@@ -4,6 +4,7 @@ topology:
     r1:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r1/daemons:/etc/frr/daemons
       - r1/vtysh.conf:/etc/frr/vtysh.conf
@@ -18,6 +19,7 @@ topology:
     r2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r2/daemons:/etc/frr/daemons
       - r2/vtysh.conf:/etc/frr/vtysh.conf
@@ -30,6 +32,7 @@ topology:
     r3:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r3/daemons:/etc/frr/daemons
       - r3/vtysh.conf:/etc/frr/vtysh.conf
@@ -44,6 +47,7 @@ topology:
     r4:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
+      network-mode: none
       binds:
       - r4/daemons:/etc/frr/daemons
       - r4/vtysh.conf:/etc/frr/vtysh.conf
@@ -58,6 +62,7 @@ topology:
     s1:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.9/30 dev net0
@@ -65,6 +70,7 @@ topology:
     s3:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.21/30 dev net0
@@ -72,6 +78,7 @@ topology:
     s4:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.25/30 dev net0

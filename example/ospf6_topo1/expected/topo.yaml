@@ -4,6 +4,7 @@ topology:
     r1:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       binds:
       - r1/zebra.conf:/etc/frr/zebra.conf
       - r1/staticd.conf:/etc/frr/staticd.conf
@@ -16,6 +17,7 @@ topology:
     r2:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       binds:
       - r2/zebra.conf:/etc/frr/zebra.conf
       - r2/staticd.conf:/etc/frr/staticd.conf
@@ -28,6 +30,7 @@ topology:
     r3:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       binds:
       - r3/zebra.conf:/etc/frr/zebra.conf
       - r3/staticd.conf:/etc/frr/staticd.conf
@@ -40,6 +43,7 @@ topology:
     r4:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       binds:
       - r4/zebra.conf:/etc/frr/zebra.conf
       - r4/staticd.conf:/etc/frr/staticd.conf
@@ -52,6 +56,7 @@ topology:
     sw1:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -60,6 +65,7 @@ topology:
     sw2:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -68,6 +74,7 @@ topology:
     sw3:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -76,6 +83,7 @@ topology:
     sw4:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -84,6 +92,7 @@ topology:
     sw5:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
@@ -96,6 +105,7 @@ topology:
     sw6:
       kind: linux
       image: nicolaka/netshoot
+      network-mode: none
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
