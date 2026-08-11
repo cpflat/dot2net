@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A shared segment reaching across machines is replaced with one bridge per
+  machine**, and the bridges are linked. A shared segment is drawn as a node the
+  platform provides rather than deploys, and such a node stands on one machine;
+  left alone, every member on another machine needs a link that leaves its own.
+  So a segment with n members over there costs n links leaving a machine — and
+  each one costs a VLAN from a finite pool. With the replacement it costs one
+  per pair of machines, whatever n is.
+
+  The author draws the segment they mean, once. `example/aggregate_crossing`
+  shows the difference: four routers on one segment, two per machine, cost four
+  crossings without it and one with it. The addresses do not move either way —
+  bridges carry none, so a search for a segment passes through them and all four
+  routers stay in one subnet.
+
+  A link between two such nodes is not counted as a member: it is the link
+  between two sides of a segment that is already split, whether dot2net made it
+  or the author wrote it out. `example/vlan_multihost` and
+  `example/ospf_multihost`, which write the split by hand, are unchanged.
+
+  `global.aggregate_crossing_links: false` turns it off, for a platform that
+  stretches a segment across machines itself or an author who wants to draw the
+  split. It defaults to on.
 - **Kathara module** (`module: [kathara]`): generates `lab.conf` and lets a
   scenario write `<device>.startup` files at the output root. Kathara declares,
   per device, which collision domain each interface sits on; a collision domain
