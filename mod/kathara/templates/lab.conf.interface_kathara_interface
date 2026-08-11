@@ -1,0 +1,1 @@
+{{ .node_name }}[{{ ._kathara_index }}]="{{ ._kathara_cd }}"

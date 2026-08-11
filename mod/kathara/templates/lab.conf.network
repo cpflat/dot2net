@@ -1,0 +1,2 @@
+LAB_NAME="{{ .name }}"
+{{ .nodes_kathara_device }}

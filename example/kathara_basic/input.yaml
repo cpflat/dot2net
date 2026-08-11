@@ -1,0 +1,69 @@
+# A Kathara lab: a shared medium and a point-to-point link.
+#
+# Kathara is a teaching-oriented emulator whose lab.conf declares, per device,
+# which collision domain each of its interfaces sits on. A collision domain is a
+# shared medium, which is what dot2net calls a switch node - the same
+# deploy: platform node that containerlab emits as a bridge and TiNET as a
+# switches: entry. The scenario says nothing Kathara-specific about it.
+#
+# Two things are Kathara's own and the module enforces them:
+#   - interfaces are named ethN after their index in lab.conf, so no other
+#     prefix can be asked for
+#   - device names are lowercase, at most 30 characters
+name: kathara_basic
+
+global:
+  path: local
+
+module:
+  - kathara
+
+file:
+  # Kathara reads <device>.startup from the lab directory itself, so these files
+  # sit at the output root rather than in a directory per node.
+  - name: startup
+    name_suffix: ".startup"
+    scope: node
+    output: root
+
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+
+class_policy:
+  node:
+    default: [router]
+  interface:
+    default: [default]
+
+nodeclass:
+  - name: router
+    # The address policy is named here rather than on the interface class, so
+    # that the shared medium - which carries no interface_policy - stays
+    # addressless and a segment search passes through it.
+    interface_policy: [ip]
+    config:
+      - file: startup
+        template:
+          - "{{ .interfaces_ifconf }}"
+
+  # The shared medium. Kathara realizes it as a collision domain, so nothing is
+  # deployed for it and it needs no image.
+  - name: platform_sw
+    deploy: platform
+
+interfaceclass:
+  - name: default
+    # Not a choice: Kathara derives the interface name from the index in
+    # lab.conf. Writing anything else here is rejected by the module.
+    prefix: eth
+    config:
+      - name: ifconf
+        node: router
+        template:
+          - "ip addr add {{ .ip_addr }}/{{ .ip_plen }} dev {{ .name }}"
+          - "ip link set {{ .name }} up"

@@ -1,0 +1,11 @@
+graph {
+	// A shared medium with three routers on it, plus one point-to-point link.
+	// Kathara calls the shared medium a collision domain; dot2net writes it the
+	// same way it does for the other platforms, as a node the platform provides
+	// rather than one it deploys.
+	sw1[xlabel="platform_sw"];
+	r1 -- sw1;
+	r2 -- sw1;
+	r3 -- sw1;
+	r3 -- r4;
+}

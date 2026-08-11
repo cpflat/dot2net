@@ -6,6 +6,7 @@ import (
 	assert "github.com/cpflat/dot2net/mod/assert"
 	containerlab "github.com/cpflat/dot2net/mod/containerlab"
 	frr "github.com/cpflat/dot2net/mod/frr"
+	"github.com/cpflat/dot2net/mod/kathara"
 	tinet "github.com/cpflat/dot2net/mod/tinet"
 	"github.com/cpflat/dot2net/pkg/types"
 )
@@ -25,6 +26,8 @@ func LoadModules(cfg *types.Config) error {
 			m = containerlab.NewModule()
 		case "assert":
 			m = assert.NewModule()
+		case "kathara":
+			m = kathara.NewModule()
 		default:
 			return fmt.Errorf("unknown module: %s", name)
 		}
