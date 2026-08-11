@@ -773,6 +773,9 @@ func checkSorterObjects(cfg *types.Config, ca *ConfigAggregator, ns types.NameSp
 
 // func generateConfigBlock(ct *types.ConfigTemplate, ns types.NameSpacer) (string, error) {
 func generateConfigBlock(ns types.NameSpacer, configTemplate *types.ConfigTemplate) (string, error) {
+	if content, ok := configTemplate.RawContent(); ok {
+		return content, nil
+	}
 	conf, err := getConfig(configTemplate.ParsedTemplate, ns.GetRelativeParams())
 	if err != nil {
 		return EmptyOutput, fmt.Errorf("templating failure for %s, %w", ns.StringForMessage(), err)

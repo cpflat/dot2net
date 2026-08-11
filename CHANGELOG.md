@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`raw` on a config entry**: hands a source file through as read instead of
+  reading it as a template. For a file that is material rather than a template —
+  one dot2net has nothing to fill in, and that may carry `{{` of its own meant
+  for whoever reads it later. Until now every `sourcefile:` was expanded, so
+  such a file either failed to parse or, worse, had an action quietly filled in
+  because its name happened to match a parameter. The bundled examples use it
+  for the FRR `daemons` and `vtysh.conf` files they ship.
+- **`delimiters` on a config entry**: replaces `{{` and `}}` for that template
+  alone, e.g. `delimiters: ["[[", "]]"]`. Generating a file that is itself a
+  template for another tool — an Ansible playbook, a TENTOU `infra.yml` — would
+  otherwise mean escaping every one of its actions, and an action naming a
+  parameter dot2net knows would be swallowed without a word. With different
+  marks the downstream syntax passes through and dot2net's own values are still
+  filled in, in the same file.
+- **A config entry naming both `template` and `sourcefile` is now rejected.**
+  Which came first was decided in the code and written down nowhere; no scenario
+  used it. Write two entries and order them with `blocks:`.
 - **A shared segment reaching across machines is replaced with one bridge per
   machine**, and the bridges are linked. A shared segment is drawn as a node the
   platform provides rather than deploys, and such a node stands on one machine;
@@ -118,7 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   "unset"; `deploy: container` is how to say it out loud and override another
   class. Only the field name is reserved, so a class may still be *called*
   `switch` and mean an ordinary container, as eight of the bundled examples do.
-- **`boundary_class` on a group class**: names a connection class attached to
+- **`boundary_crossing_connection_class` on a group class**: names a connection class attached to
   every connection that leaves a group of that class. Whether the two ends sit
   in the same group follows from the topology, so annotating each edge would
   state twice what is already written once, and the two can disagree. The label

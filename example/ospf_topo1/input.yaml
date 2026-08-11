@@ -66,10 +66,13 @@ nodeclass:
           - chown frr:frr /var/log/frr.log 
       - file: daemons
         sourcefile: ./daemons
+        raw: true
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
+        raw: true
       - file: frr.log
         sourcefile: ./frr.log
+        raw: true
       - file: zebra.conf
         style: sort
         sort_group: zebra.conf

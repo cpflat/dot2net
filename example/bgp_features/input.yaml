@@ -64,10 +64,13 @@ nodeclass:
     config:
       - file: daemons
         sourcefile: ./daemons
+        raw: true
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
+        raw: true
       - file: frr.log
         sourcefile: ./frr.log
+        raw: true
       - name: startup
         template:
           - "chown frr:frr /var/log/frr.log"

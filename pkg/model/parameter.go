@@ -827,6 +827,9 @@ func generateValueReferenceParams(cfg *types.Config, nm *types.NetworkModel) err
 
 // generateValueConfig generates config output for a single Value using a ConfigTemplate.
 func generateValueConfig(v *types.Value, ct *types.ConfigTemplate) (string, error) {
+	if content, ok := ct.RawContent(); ok {
+		return content, nil
+	}
 	if ct.ParsedTemplate == nil {
 		return "", nil
 	}

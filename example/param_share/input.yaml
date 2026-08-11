@@ -62,8 +62,10 @@ nodeclass:
     config:
       - file: daemons
         sourcefile: ./daemons
+        raw: true
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
+        raw: true
       - file: frr.conf
         blocks:
           after: ["interfaces_ospf_addr"]

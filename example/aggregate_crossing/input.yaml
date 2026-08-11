@@ -75,8 +75,10 @@ nodeclass:
     config:
       - file: daemons
         sourcefile: ./daemons
+        raw: true
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
+        raw: true
       # Identical to example/ospf_simple. The addresses are set by zebra from
       # this file, so no exec commands are needed.
       - file: frr.conf

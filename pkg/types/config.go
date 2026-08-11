@@ -1190,11 +1190,38 @@ type ConfigTemplate struct {
 	Template []string `yaml:"template" mapstructure:"template"`
 	// Load config template from external file
 	SourceFile string `yaml:"sourcefile" mapstructure:"sourcefile"`
+	// Raw hands the source file through untouched instead of reading it as a
+	// template. Use it for a file that is material rather than a template - one
+	// that dot2net has nothing to fill in, and that may contain {{ of its own
+	// meant for whoever reads the file later.
+	//
+	// Only for sourcefile: telling dot2net not to expand a template written
+	// inline would be asking it to ignore what the entry is. Write the literal
+	// text with Delimiters instead.
+	Raw bool `yaml:"raw" mapstructure:"raw"`
+	// Delimiters replaces {{ and }} for this template alone, so that text meant
+	// for a downstream tool passes through untouched. Generating a file that is
+	// itself a template - an Ansible playbook, a TENTOU infra.yml - otherwise
+	// means escaping every one of its actions, and an action that happens to
+	// name a parameter dot2net knows would be swallowed without a word.
+	//
+	// Two entries: the opening and closing marks, e.g. ["[[", "]]"].
+	Delimiters []string `yaml:"delimiters,flow" mapstructure:"delimiters,flow"`
 
 	ParsedTemplate *template.Template
+	rawContent     *string
 	platformSet    mapset.Set[string]
 	className      string
 	classType      string
+}
+
+// RawContent returns the text of a raw entry, which is handed through as read
+// rather than expanded. The second value says whether this is such an entry.
+func (ct *ConfigTemplate) RawContent() (string, bool) {
+	if ct.rawContent == nil {
+		return "", false
+	}
+	return *ct.rawContent, true
 }
 
 func (ct *ConfigTemplate) String() string {
@@ -1519,28 +1546,21 @@ func (cfg *Config) resolveClassPolicy() error {
 	return nil
 }
 
-func loadTemplate(tpl []string, path string) (*template.Template, error) {
+func loadTemplate(tpl []string, path string, delims []string) (*template.Template, error) {
+	t := template.New("")
+	if len(delims) > 0 {
+		t = t.Delims(delims[0], delims[1])
+	}
 	if len(tpl) == 0 && path == "" {
-		return template.New("").Parse("")
-		//return nil, fmt.Errorf("empty config template")
+		return t.Parse("")
 	} else if len(tpl) == 0 {
 		bytes, err := os.ReadFile(path)
 		if err != nil {
 			return nil, err
 		}
-		buf := convertLineFeed(string(bytes), "\n")
-		return template.New("").Parse(buf)
-	} else if path == "" {
-		buf := strings.Join(tpl, "\n")
-		return template.New("").Parse(buf)
-	} else {
-		bytes, err := os.ReadFile(path)
-		if err != nil {
-			return nil, err
-		}
-		buf := strings.Join(tpl, "\n") + "\n" + convertLineFeed(string(bytes), "\n")
-		return template.New("").Parse(buf)
+		return t.Parse(convertLineFeed(string(bytes), "\n"))
 	}
+	return t.Parse(strings.Join(tpl, "\n"))
 }
 
 func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
@@ -1564,12 +1584,48 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 		}
 	}
 
+	// A config entry is one thing or the other. Holding both would leave the
+	// order between them to be decided somewhere, and it was decided silently:
+	// the inline lines came first and the file after, which nothing said and
+	// nothing used. Two entries express the same thing, and blocks: puts them
+	// in the order the author wants.
+	if len(ct.Template) > 0 && ct.SourceFile != "" {
+		return fmt.Errorf(
+			"config %s names both template and sourcefile; write them as two config entries "+
+				"and order them with blocks:", ct)
+	}
+	if ct.Raw && ct.SourceFile == "" {
+		return fmt.Errorf(
+			"config %s is marked raw but names no sourcefile; raw hands a file through "+
+				"untouched, so there is nothing for it to do here. To write literal {{ in a "+
+				"template, set delimiters instead", ct)
+	}
+	if len(ct.Delimiters) > 0 && len(ct.Delimiters) != 2 {
+		return fmt.Errorf(
+			"config %s gives %d delimiters; it takes two, the opening and closing marks, "+
+				"e.g. [\"[[\", \"]]\"]", ct, len(ct.Delimiters))
+	}
+	if ct.Raw && len(ct.Delimiters) > 0 {
+		return fmt.Errorf(
+			"config %s is both raw and given delimiters; a file handed through untouched has "+
+				"no actions to delimit", ct)
+	}
+
 	// init parsed template object
 	path := ""
 	if ct.SourceFile != "" {
 		path = GetRelativeFilePath(ct.SourceFile, cfg)
 	}
-	tpl, err := loadTemplate(ct.Template, path)
+	if ct.Raw {
+		bytes, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("failed to read raw source of %s: %w", ct, err)
+		}
+		content := convertLineFeed(string(bytes), "\n")
+		ct.rawContent = &content
+		return nil
+	}
+	tpl, err := loadTemplate(ct.Template, path, ct.Delimiters)
 	if err != nil {
 		return fmt.Errorf("failed to load template %+v: %w", ct, err)
 	}
