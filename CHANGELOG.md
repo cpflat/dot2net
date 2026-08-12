@@ -119,13 +119,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `global.aggregate_crossing_links: false` turns it off, for a platform that
   stretches a segment across machines itself or an author who wants to draw the
   split. It defaults to on.
-- **Kathara module** (`module: [kathara]`): generates `lab.conf` and lets a
-  scenario write `<device>.startup` files at the output root. Kathara declares,
-  per device, which collision domain each interface sits on; a collision domain
-  is a shared medium, so the `deploy: platform` switch node that containerlab
-  emits as a bridge and TiNET as a `switches:` entry becomes one here — named
-  after the node, which itself gets no line since nothing is deployed for it. A
-  link between two ordinary devices gets a domain of its own.
+- **Kathara module** (`module: [kathara]`): generates `lab.conf`, including each
+  device's `image`, the directories to mount into it, and its
+  `<device>.startup`. Kathara declares, per device, which collision domain each
+  interface sits on; a collision domain is a shared medium, so the
+  `deploy: platform` switch node that containerlab emits as a bridge and TiNET
+  as a `switches:` entry becomes one here — named after the node, which itself
+  gets no line since nothing is deployed for it. A link between two ordinary
+  devices gets a domain of its own.
+
+  A mounted file reaches a device through `volume`, which is Kathara's bind
+  mount. Kathara mounts directories and refuses single files, so what is mounted
+  is a directory the scenario has named in `module_config.kathara.mount_dirs` —
+  a statement that dot2net supplies everything the software needs in it, since
+  mounting a directory hides what the image kept there and dot2net cannot see
+  inside an image to know whether that is safe. A file to be mounted from a
+  directory that was not named is reported, with both ways out: name the
+  directory, or provide the file by copy.
+
+  The lab lives in a directory of its own (`kathara/lab.conf`). Kathara reads a
+  directory named after a device, next to `lab.conf`, as files to copy into that
+  device once it has started — and the nodes' generated files sit at the output
+  root under exactly such names. A `lab.conf` beside them would set that copying
+  off: a second delivery nobody asked for, running after the device is up. One
+  level down, the convention finds nothing.
+
+  A node config template named `startup` becomes `<device>.startup`, the same
+  template containerlab puts in `exec:` and TiNET in `cmds:`. A scenario
+  therefore writes its startup commands once and runs on all three.
+
+  Verified by deploying `example/ospf_simple` with the Kathara module added:
+  the OSPF adjacency reaches Full and the routers two hops apart reach each
+  other, from generated files alone and with the same image as containerlab.
 
   Two of Kathara's constraints are reported rather than worked around: an
   interface class asking for a prefix other than `eth` is rejected (Kathara
@@ -270,6 +295,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   other class types, so a segment can carry static attributes
   (`values: {kind: ovs-bridge}`). Conflicting values from two classes of the same
   tier are rejected, as they are for the other class types.
+
+- **`provide` on a file definition**: says how the file reaches its node's
+  container, `mount` (the default) or `copy`. Neither is the better one, and
+  which to use follows from what the file is for:
+
+  ```yaml
+  file:
+    - name: frr.conf
+      path: /etc/frr/frr.conf   # provide: mount, and must be - FRR reads it while booting
+    - name: motd
+      path: /etc/motd
+      provide: copy             # the container may rewrite it; the generated file stays as generated
+  ```
+
+  A **mounted** file is the generated file itself, shown to the container. It is
+  there before the container's first process runs, which is the only way to
+  reach software that reads its configuration while booting. The other side of
+  that: what the container writes reaches the generated file, and a container's
+  own startup can take ownership of it — measured on Kathara, where a writable
+  mount left `/etc/frr` owned by the container's user and the generated files out
+  of the author's reach.
+
+  A **copied** file is placed once the container is up, from a read-only staging
+  directory (`r1/staging/etc/motd`, mounted at `/staging`). The container gets
+  its own copy: it may rewrite it, and nothing comes back. It cannot serve a
+  file read while booting, on any platform — containerlab's `exec:`, TiNET's
+  `cmds:` and Kathara's `<device>.startup` all run after the container has
+  started.
+
+  Nothing falls back silently. A combination a platform cannot honour is
+  reported: a file to be mounted from a directory Kathara was not told it owns,
+  a copy landing inside a mounted directory (the mount is read only, so the copy
+  would fail at deploy time — on Kathara without a word), a `mount_dirs` entry
+  that no file is generated into.
+
+  `dot2net files -v` lists the delivery beside each file. The plain listing
+  stays a list of paths, since `dot2net clean` reads it.
+- **Two file definitions writing the same file is now an error.** A file's
+  content is ordered by the config templates behind it, and two definitions
+  landing on one path have no such order: the one written last won and the
+  other's content was gone without a word. The names of a definition and of the
+  file it writes are separate things — `name_prefix`/`name_suffix` build the
+  filename — so `startup` and `kathara_startup` were different definitions both
+  writing `r1.startup`. The message names both definitions and the file.
+
+### Changed
+
+- **A node's files are laid out by the path they take inside the container.** A
+  file declared as `path: /etc/frr/frr.conf` is written to
+  `r1/etc/frr/frr.conf`, where it used to be written to `r1/frr.conf` and the
+  `path` was used only as the mount target. **This changes where generated files
+  appear**, so anything reading them by path — netroub, for one — has to follow.
+
+  Kathara is why: it delivers a device's files by copying the device's own
+  directory into the device, so the directory has to mirror the container's
+  filesystem for the files to land anywhere useful. containerlab and TiNET only
+  see a different source path in their mounts.
 
 ### Fixed
 

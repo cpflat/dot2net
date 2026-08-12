@@ -6,10 +6,10 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - host1/zebra.conf:/etc/frr/zebra.conf
-      - host1/daemons:/etc/frr/daemons
-      - host1/vtysh.conf:/etc/frr/vtysh.conf
-      - host1/frr.log:/var/log/frr.log
+      - host1/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - host1/etc/frr/daemons:/etc/frr/daemons
+      - host1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - host1/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
     host2:
@@ -17,10 +17,10 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - host2/zebra.conf:/etc/frr/zebra.conf
-      - host2/daemons:/etc/frr/daemons
-      - host2/vtysh.conf:/etc/frr/vtysh.conf
-      - host2/frr.log:/var/log/frr.log
+      - host2/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - host2/etc/frr/daemons:/etc/frr/daemons
+      - host2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - host2/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
     p1:
@@ -28,11 +28,11 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - p1/zebra.conf:/etc/frr/zebra.conf
-      - p1/ospfd.conf:/etc/frr/ospfd.conf
-      - p1/daemons:/etc/frr/daemons
-      - p1/vtysh.conf:/etc/frr/vtysh.conf
-      - p1/frr.log:/var/log/frr.log
+      - p1/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - p1/etc/frr/ospfd.conf:/etc/frr/ospfd.conf
+      - p1/etc/frr/daemons:/etc/frr/daemons
+      - p1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - p1/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1
@@ -41,12 +41,12 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - pe1/zebra.conf:/etc/frr/zebra.conf
-      - pe1/bgpd.conf:/etc/frr/bgpd.conf
-      - pe1/ospfd.conf:/etc/frr/ospfd.conf
-      - pe1/daemons:/etc/frr/daemons
-      - pe1/vtysh.conf:/etc/frr/vtysh.conf
-      - pe1/frr.log:/var/log/frr.log
+      - pe1/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - pe1/etc/frr/bgpd.conf:/etc/frr/bgpd.conf
+      - pe1/etc/frr/ospfd.conf:/etc/frr/ospfd.conf
+      - pe1/etc/frr/daemons:/etc/frr/daemons
+      - pe1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - pe1/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1
@@ -62,12 +62,12 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - pe2/zebra.conf:/etc/frr/zebra.conf
-      - pe2/bgpd.conf:/etc/frr/bgpd.conf
-      - pe2/ospfd.conf:/etc/frr/ospfd.conf
-      - pe2/daemons:/etc/frr/daemons
-      - pe2/vtysh.conf:/etc/frr/vtysh.conf
-      - pe2/frr.log:/var/log/frr.log
+      - pe2/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - pe2/etc/frr/bgpd.conf:/etc/frr/bgpd.conf
+      - pe2/etc/frr/ospfd.conf:/etc/frr/ospfd.conf
+      - pe2/etc/frr/daemons:/etc/frr/daemons
+      - pe2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - pe2/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1
@@ -83,12 +83,12 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - pe3/zebra.conf:/etc/frr/zebra.conf
-      - pe3/bgpd.conf:/etc/frr/bgpd.conf
-      - pe3/ospfd.conf:/etc/frr/ospfd.conf
-      - pe3/daemons:/etc/frr/daemons
-      - pe3/vtysh.conf:/etc/frr/vtysh.conf
-      - pe3/frr.log:/var/log/frr.log
+      - pe3/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - pe3/etc/frr/bgpd.conf:/etc/frr/bgpd.conf
+      - pe3/etc/frr/ospfd.conf:/etc/frr/ospfd.conf
+      - pe3/etc/frr/daemons:/etc/frr/daemons
+      - pe3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - pe3/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
       - sysctl -w net.ipv4.ip_forward=1

@@ -2,19 +2,19 @@ nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r2#eth0}, {name: eth1, type: direct, args: r3#eth0}, {name: eth2, type: direct, args: s1#eth0}]
-    mounts: [$PWD/r1/daemons:/etc/frr/daemons, $PWD/r1/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r1/etc/frr/daemons:/etc/frr/daemons, $PWD/r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r1#eth0}, {name: eth1, type: direct, args: r4#eth0}]
-    mounts: [$PWD/r2/daemons:/etc/frr/daemons, $PWD/r2/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r2/etc/frr/daemons:/etc/frr/daemons, $PWD/r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r1#eth1}, {name: eth1, type: direct, args: r4#eth1}, {name: eth2, type: direct, args: s3#eth0}]
-    mounts: [$PWD/r3/daemons:/etc/frr/daemons, $PWD/r3/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r3/etc/frr/daemons:/etc/frr/daemons, $PWD/r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r4
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r2#eth1}, {name: eth1, type: direct, args: r3#eth1}, {name: eth2, type: direct, args: s4#eth0}]
-    mounts: [$PWD/r4/daemons:/etc/frr/daemons, $PWD/r4/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r4/etc/frr/daemons:/etc/frr/daemons, $PWD/r4/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: s1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r1#eth2}]

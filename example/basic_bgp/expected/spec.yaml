@@ -2,11 +2,11 @@ nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r2#eth0}]
-    mounts: [$PWD/r1/daemons:/etc/frr/daemons, $PWD/r1/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r1/etc/frr/daemons:/etc/frr/daemons, $PWD/r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r1#eth0}]
-    mounts: [$PWD/r2/daemons:/etc/frr/daemons, $PWD/r2/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r2/etc/frr/daemons:/etc/frr/daemons, $PWD/r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
 
 node_configs:
   - name: r1

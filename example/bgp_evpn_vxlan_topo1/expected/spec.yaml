@@ -2,27 +2,27 @@ nodes:
   - name: host1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s1#eth0}]
-    mounts: [$PWD/host1/zebra.conf:/etc/frr/zebra.conf, $PWD/host1/daemons:/etc/frr/daemons, $PWD/host1/vtysh.conf:/etc/frr/vtysh.conf, $PWD/host1/frr.log:/var/log/frr.log]
+    mounts: [$PWD/host1/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/host1/etc/frr/daemons:/etc/frr/daemons, $PWD/host1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/host1/var/log/frr.log:/var/log/frr.log]
   - name: host2
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s4#eth0}]
-    mounts: [$PWD/host2/zebra.conf:/etc/frr/zebra.conf, $PWD/host2/daemons:/etc/frr/daemons, $PWD/host2/vtysh.conf:/etc/frr/vtysh.conf, $PWD/host2/frr.log:/var/log/frr.log]
+    mounts: [$PWD/host2/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/host2/etc/frr/daemons:/etc/frr/daemons, $PWD/host2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/host2/var/log/frr.log:/var/log/frr.log]
   - name: p1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s2#eth0}, {name: eth1, type: direct, args: s3#eth0}]
-    mounts: [$PWD/p1/zebra.conf:/etc/frr/zebra.conf, $PWD/p1/ospfd.conf:/etc/frr/ospfd.conf, $PWD/p1/daemons:/etc/frr/daemons, $PWD/p1/vtysh.conf:/etc/frr/vtysh.conf, $PWD/p1/frr.log:/var/log/frr.log]
+    mounts: [$PWD/p1/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/p1/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/p1/etc/frr/daemons:/etc/frr/daemons, $PWD/p1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/p1/var/log/frr.log:/var/log/frr.log]
   - name: pe1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s1#eth1}, {name: eth1, type: direct, args: s2#eth1}]
-    mounts: [$PWD/pe1/zebra.conf:/etc/frr/zebra.conf, $PWD/pe1/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe1/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe1/daemons:/etc/frr/daemons, $PWD/pe1/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe1/frr.log:/var/log/frr.log]
+    mounts: [$PWD/pe1/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/pe1/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe1/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe1/etc/frr/daemons:/etc/frr/daemons, $PWD/pe1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe1/var/log/frr.log:/var/log/frr.log]
   - name: pe2
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s3#eth1}, {name: eth1, type: direct, args: s4#eth1}]
-    mounts: [$PWD/pe2/zebra.conf:/etc/frr/zebra.conf, $PWD/pe2/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe2/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe2/daemons:/etc/frr/daemons, $PWD/pe2/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe2/frr.log:/var/log/frr.log]
+    mounts: [$PWD/pe2/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/pe2/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe2/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe2/etc/frr/daemons:/etc/frr/daemons, $PWD/pe2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe2/var/log/frr.log:/var/log/frr.log]
   - name: pe3
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s2#eth2}]
-    mounts: [$PWD/pe3/zebra.conf:/etc/frr/zebra.conf, $PWD/pe3/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe3/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe3/daemons:/etc/frr/daemons, $PWD/pe3/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe3/frr.log:/var/log/frr.log]
+    mounts: [$PWD/pe3/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/pe3/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe3/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe3/etc/frr/daemons:/etc/frr/daemons, $PWD/pe3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe3/var/log/frr.log:/var/log/frr.log]
   - name: s1
     image: nicolaka/netshoot
     interfaces: [{name: eth0, type: direct, args: host1#eth0}, {name: eth1, type: direct, args: pe1#eth0}]

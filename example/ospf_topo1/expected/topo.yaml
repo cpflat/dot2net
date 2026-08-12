@@ -6,12 +6,12 @@ topology:
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r1/zebra.conf:/etc/frr/zebra.conf
-      - r1/ospfd.conf:/etc/frr/ospfd.conf
-      - r1/ospf6d.conf:/etc/frr/ospf6d.conf
-      - r1/daemons:/etc/frr/daemons
-      - r1/vtysh.conf:/etc/frr/vtysh.conf
-      - r1/frr.log:/var/log/frr.log
+      - r1/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - r1/etc/frr/ospfd.conf:/etc/frr/ospfd.conf
+      - r1/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf
+      - r1/etc/frr/daemons:/etc/frr/daemons
+      - r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - r1/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
     r2:
@@ -19,12 +19,12 @@ topology:
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r2/zebra.conf:/etc/frr/zebra.conf
-      - r2/ospfd.conf:/etc/frr/ospfd.conf
-      - r2/ospf6d.conf:/etc/frr/ospf6d.conf
-      - r2/daemons:/etc/frr/daemons
-      - r2/vtysh.conf:/etc/frr/vtysh.conf
-      - r2/frr.log:/var/log/frr.log
+      - r2/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - r2/etc/frr/ospfd.conf:/etc/frr/ospfd.conf
+      - r2/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf
+      - r2/etc/frr/daemons:/etc/frr/daemons
+      - r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - r2/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
     r3:
@@ -32,12 +32,12 @@ topology:
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r3/zebra.conf:/etc/frr/zebra.conf
-      - r3/ospfd.conf:/etc/frr/ospfd.conf
-      - r3/ospf6d.conf:/etc/frr/ospf6d.conf
-      - r3/daemons:/etc/frr/daemons
-      - r3/vtysh.conf:/etc/frr/vtysh.conf
-      - r3/frr.log:/var/log/frr.log
+      - r3/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - r3/etc/frr/ospfd.conf:/etc/frr/ospfd.conf
+      - r3/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf
+      - r3/etc/frr/daemons:/etc/frr/daemons
+      - r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - r3/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
     r4:
@@ -45,12 +45,12 @@ topology:
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r4/zebra.conf:/etc/frr/zebra.conf
-      - r4/ospfd.conf:/etc/frr/ospfd.conf
-      - r4/ospf6d.conf:/etc/frr/ospf6d.conf
-      - r4/daemons:/etc/frr/daemons
-      - r4/vtysh.conf:/etc/frr/vtysh.conf
-      - r4/frr.log:/var/log/frr.log
+      - r4/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - r4/etc/frr/ospfd.conf:/etc/frr/ospfd.conf
+      - r4/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf
+      - r4/etc/frr/daemons:/etc/frr/daemons
+      - r4/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - r4/var/log/frr.log:/var/log/frr.log
       exec:
       - chown frr:frr /var/log/frr.log
     s1:

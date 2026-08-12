@@ -5,16 +5,14 @@ nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.4
     interfaces: [{name: eth0, type: bridge, args: sw1}]
-    mounts: [$PWD/r1/frr.conf:/etc/frr/frr.conf, $PWD/r1/daemons:/etc/frr/daemons, $PWD/r1/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r1/etc/frr/frr.conf:/etc/frr/frr.conf, $PWD/r1/etc/frr/daemons:/etc/frr/daemons, $PWD/r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
     image: quay.io/frrouting/frr:8.5.4
     interfaces: [{name: eth0, type: bridge, args: sw1}]
-    mounts: [$PWD/r2/frr.conf:/etc/frr/frr.conf, $PWD/r2/daemons:/etc/frr/daemons, $PWD/r2/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r2/etc/frr/frr.conf:/etc/frr/frr.conf, $PWD/r2/etc/frr/daemons:/etc/frr/daemons, $PWD/r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
 
 node_configs:
   - name: r1
     cmds:
-      - cmd: 
   - name: r2
     cmds:
-      - cmd: 

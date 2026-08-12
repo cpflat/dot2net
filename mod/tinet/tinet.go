@@ -159,7 +159,12 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	}
 
 	// add node class
-	ct1 = &types.ConfigTemplate{Name: "tn_cmds", Format: SpecCmdFormatName, Depends: []string{"startup"}}
+	ct1 = &types.ConfigTemplate{
+		Name:           "tn_cmds",
+		Format:         SpecCmdFormatName,
+		Depends:        []string{"startup"},
+		RequiredParams: []string{"self_startup"},
+	}
 	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_cmd")
 	if err != nil {
 		return err
@@ -173,11 +178,24 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct2.Template = []string{string(bytes)}
 
+	// The copies run before the scenario's own commands: a command the author
+	// wrote may use a file that is only there once it has been copied.
+	ctCopies := &types.ConfigTemplate{
+		Name:           "tn_copies",
+		Format:         SpecCmdFormatName,
+		RequiredParams: []string{"values_tinet_copy_entry"},
+	}
+	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_copies")
+	if err != nil {
+		return err
+	}
+	ctCopies.Template = []string{string(bytes)}
+
 	ct3 := &types.ConfigTemplate{
 		Name:    "tn_config",
-		Depends: []string{"tn_cmds"},
+		Depends: []string{"tn_copies", "tn_cmds"},
 		Blocks: types.BlocksConfig{
-			After: []string{"self_tn_cmds"},
+			After: []string{"self_tn_copies", "self_tn_cmds"},
 		},
 	}
 	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_config")
@@ -188,8 +206,8 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
-		Parameters:      []string{"tinet_binds"},
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3},
+		Parameters:      []string{"tinet_binds", "tinet_copies"},
+		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ctCopies},
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: ClassifyObjects picks between this class and
@@ -249,12 +267,25 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 		ConfigTemplates: []*types.ConfigTemplate{
 			{
 				Name:     "tinet_bind_entry",
-				Template: []string{"{{ .source }}:{{ .target }}"},
+				Template: []string{"{{ .source }}:{{ .target }}{{ .mode }}"},
 				Format:   TinetYamlFormatName,
 			},
 		},
 	}
 	cfg.AddParameterRule(bindsParamRule)
+
+	copiesEntry, err := templates.ReadFile("templates/spec.yaml.value_tn_copy_entry")
+	if err != nil {
+		return err
+	}
+	cfg.AddParameterRule(&types.ParameterRule{
+		Name:      "tinet_copies",
+		Mode:      types.ParameterRuleModeAttach,
+		Generator: "tinet.copyfiles",
+		ConfigTemplates: []*types.ConfigTemplate{
+			{Name: "tinet_copy_entry", Template: []string{string(copiesEntry)}},
+		},
+	})
 
 	return nil
 }
@@ -281,6 +312,8 @@ func (m *TinetModule) GenerateValueParameters(
 	switch generatorName {
 	case "filemounts":
 		return m.generateFilemountParams(target, cfg, nm)
+	case "copyfiles":
+		return copyFileParams(target, cfg)
 	default:
 		return nil, fmt.Errorf("unknown generator: %s", generatorName)
 	}
@@ -309,21 +342,9 @@ func (m *TinetModule) generateFilemountParams(
 		fileSet[file] = true
 	}
 
-	var results []map[string]string
-	for _, fileDef := range cfg.FileDefinitions {
-		if fileDef.Path == "" {
-			continue
-		}
-
-		// Check if this node actually generates this file
-		if !fileSet[fileDef.Name] {
-			continue
-		}
-
-		srcPath, err := node.OutputPath(cfg, fileDef)
-		if err != nil {
-			return nil, err
-		}
+	// Every mount path is stated the same way, so the adjustments live in one
+	// place rather than beside each source.
+	adjust := func(srcPath string) (string, error) {
 		// With one spec file per machine, that file sits in the machine's
 		// directory and the lab is brought up from there, so the mount path has
 		// to start at that directory rather than at the output root - otherwise
@@ -331,7 +352,7 @@ func (m *TinetModule) generateFilemountParams(
 		if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
 			dir, err := node.OutputDir(cfg)
 			if err != nil {
-				return nil, err
+				return "", err
 			}
 			if dir != "" {
 				srcPath = strings.TrimPrefix(srcPath, dir+"/")
@@ -348,14 +369,60 @@ func (m *TinetModule) generateFilemountParams(
 		if cfg.GlobalSettings.SplitModuleOutput {
 			srcPath = "../" + srcPath
 		}
-		srcPath = "$PWD/" + srcPath
-		dstPath := fileDef.Path
+		return "$PWD/" + srcPath, nil
+	}
 
-		params := map[string]string{
-			"source": srcPath,
-			"target": dstPath,
+	var results []map[string]string
+	for _, fileDef := range cfg.FileDefinitions {
+		if fileDef.Path == "" {
+			continue
 		}
-		results = append(results, params)
+
+		// Check if this node actually generates this file
+		if !fileSet[fileDef.Name] {
+			continue
+		}
+
+		// A file provided by copy is not mounted at its own path: it waits in
+		// the staging directory, mounted below, and is copied once the
+		// container is up.
+		if fileDef.GetProvide() == types.ProvideCopy {
+			continue
+		}
+
+		srcPath, err := node.OutputPath(cfg, fileDef)
+		if err != nil {
+			return nil, err
+		}
+		srcPath, err = adjust(srcPath)
+		if err != nil {
+			return nil, err
+		}
+
+		results = append(results, map[string]string{
+			"source": srcPath,
+			"target": fileDef.Path,
+			"mode":   "",
+		})
+
+	}
+
+	// The staging directory is read only: it holds what was generated, and the
+	// copies the container works with are made from it.
+	stagingDir, staged, err := node.StagingDir(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if staged {
+		srcPath, err := adjust(stagingDir)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, map[string]string{
+			"source": srcPath,
+			"target": "/" + types.StagingDirName,
+			"mode":   ":ro",
+		})
 	}
 
 	return results, nil
@@ -476,4 +543,30 @@ func addEntryScript(cfg *types.Config, scope, subdir string) error {
 		})
 	}
 	return nil
+}
+
+// copyFileParams turns the node's staged files into the source and target a copy
+// command names. The command itself lives in the module's template, since only
+// the platform knows where its commands are written.
+func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("copyfiles generator requires Node target, got %T", target)
+	}
+	if node.IsVirtual() {
+		return nil, nil
+	}
+	copies, err := types.StagedCopies(cfg, node)
+	if err != nil {
+		return nil, err
+	}
+	var results []map[string]string
+	for _, c := range copies {
+		results = append(results, map[string]string{
+			"source": c.Source,
+			"target": c.Target,
+			"dir":    c.Dir,
+		})
+	}
+	return results, nil
 }

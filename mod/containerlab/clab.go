@@ -23,6 +23,12 @@ const ClabDstEndpointParamName = "_clab_dst_endpoint"
 
 const ClabYamlFormatName = "_clabYaml"
 const ClabCmdFormatName = "clabCmd"
+
+// ClabCopyFormatName decorates the copy commands like any other exec entry. Both
+// blocks carry their separator in front rather than behind, because either one
+// can be the only one there: a block that ended with a newline would leave a
+// blank line behind whenever it came last.
+const ClabCopyFormatName = "clabCopy"
 const ClabLinkFormatName = "_clabLink"
 
 const NetworkClassName = "_clabNetwork"
@@ -110,6 +116,14 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	formatStyle = &types.FormatStyle{
 		Name:                ClabCmdFormatName,
 		FormatLinePrefix:    "      - ",
+		FormatBlockPrefix:   "\n",
+		MergeBlockSeparator: "\n",
+	}
+	cfg.AddFormatStyle(formatStyle)
+	formatStyle = &types.FormatStyle{
+		Name:                ClabCopyFormatName,
+		FormatLinePrefix:    "      - ",
+		FormatBlockPrefix:   "\n",
 		MergeBlockSeparator: "\n",
 	}
 	cfg.AddFormatStyle(formatStyle)
@@ -189,7 +203,28 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 
 	// add node class
-	ct1 = &types.ConfigTemplate{Name: "clab_cmds", Format: ClabCmdFormatName, Depends: []string{"startup"}}
+	// Both blocks are named clab_cmds and merge into one exec section, each
+	// appearing only when it has something to say - which is what keeps an empty
+	// startup from leaving an empty command behind. The copies come first: a
+	// command the author wrote may use a file that is only there once it has
+	// been copied.
+	ctCopies := &types.ConfigTemplate{
+		Name:           "clab_copies",
+		Format:         ClabCopyFormatName,
+		RequiredParams: []string{"values_clab_copy_entry"},
+	}
+	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_copies")
+	if err != nil {
+		return err
+	}
+	ctCopies.Template = []string{string(bytes)}
+
+	ct1 = &types.ConfigTemplate{
+		Name:           "clab_cmds",
+		Format:         ClabCmdFormatName,
+		Depends:        []string{"startup"},
+		RequiredParams: []string{"self_startup"},
+	}
 	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_cmd")
 	if err != nil {
 		return err
@@ -208,10 +243,27 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	ct2.Template = []string{string(bytes)}
 
 	// exec section - only output if startup exists (matches original {{ if .self_startup }})
+	// The two blocks that can fill the section, joined into one. Either alone is
+	// reason enough to write the section, and whether either has anything to say
+	// is known only once both are rendered - so the section asks whether this
+	// came out empty rather than trying to work it out beforehand.
+	ctExecBody := &types.ConfigTemplate{
+		Name:    "clab_exec_body",
+		Depends: []string{"clab_copies", "clab_cmds"},
+	}
+	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_exec_body")
+	if err != nil {
+		return err
+	}
+	ctExecBody.Template = []string{string(bytes)}
+
+	// The section appears when there is something to run, which is not the same
+	// as the scenario having written startup commands: a file provided by copy
+	// puts its own command here.
 	ct3 := &types.ConfigTemplate{
 		Name:           "clab_topo_exec",
-		RequiredParams: []string{"self_startup"},
-		Depends:        []string{"clab_cmds"},
+		RequiredParams: []string{"self_clab_exec_body"},
+		Depends:        []string{"clab_exec_body"},
 	}
 	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_topo_exec")
 	if err != nil {
@@ -239,8 +291,8 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
-		Parameters:      []string{"clab_binds"},
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4},
+		Parameters:      []string{"clab_binds", "clab_copies"},
+		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4, ctCopies, ctExecBody},
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: which of the two node classes a node gets is
@@ -303,11 +355,24 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		ConfigTemplates: []*types.ConfigTemplate{
 			{
 				Name:     "clab_bind_entry",
-				Template: []string{"      - {{ .source }}:{{ .target }}"},
+				Template: []string{"      - {{ .source }}:{{ .target }}{{ .mode }}"},
 			},
 		},
 	}
 	cfg.AddParameterRule(bindsParamRule)
+
+	copiesEntry, err := templates.ReadFile("templates/topo.yaml.value_clab_copy_entry")
+	if err != nil {
+		return err
+	}
+	cfg.AddParameterRule(&types.ParameterRule{
+		Name:      "clab_copies",
+		Mode:      types.ParameterRuleModeAttach,
+		Generator: "clab.copyfiles",
+		ConfigTemplates: []*types.ConfigTemplate{
+			{Name: "clab_copy_entry", Template: []string{string(copiesEntry)}},
+		},
+	})
 
 	return nil
 }
@@ -366,6 +431,8 @@ func (m *ClabModule) GenerateValueParameters(
 	switch generatorName {
 	case "filemounts":
 		return m.generateFilemountParams(target, cfg, nm)
+	case "copyfiles":
+		return copyFileParams(target, cfg)
 	default:
 		return nil, fmt.Errorf("unknown generator: %s", generatorName)
 	}
@@ -394,6 +461,28 @@ func (m *ClabModule) generateFilemountParams(
 		fileSet[file] = true
 	}
 
+	// containerlab resolves a relative bind against the directory holding the
+	// topology file, so every source path is stated from there rather than from
+	// the output root.
+	adjust := func(srcPath string) (string, error) {
+		// With one topology per machine that file sits in the machine's
+		// directory - otherwise the machine's own name appears twice.
+		if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
+			dir, err := node.OutputDir(cfg)
+			if err != nil {
+				return "", err
+			}
+			if dir != "" {
+				srcPath = strings.TrimPrefix(srcPath, dir+"/")
+			}
+		}
+		// The topology file sits one level down when the output is split.
+		if cfg.GlobalSettings.SplitModuleOutput {
+			srcPath = "../" + srcPath
+		}
+		return srcPath, nil
+	}
+
 	var results []map[string]string
 	for _, fileDef := range cfg.FileDefinitions {
 		if fileDef.Path == "" {
@@ -405,35 +494,46 @@ func (m *ClabModule) generateFilemountParams(
 			continue
 		}
 
+		// A file provided by copy is not bound: it waits in the staging
+		// directory, which is bound as a whole below, and is copied to its own
+		// path once the container is up.
+		if fileDef.GetProvide() == types.ProvideCopy {
+			continue
+		}
+
 		srcPath, err := node.OutputPath(cfg, fileDef)
 		if err != nil {
 			return nil, err
 		}
-		// containerlab resolves a relative bind against the directory holding
-		// the topology file. With one topology per machine that file sits in
-		// the machine's directory, so the path has to start there rather than
-		// at the output root - otherwise the machine's own name appears twice.
-		if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
-			dir, err := node.OutputDir(cfg)
-			if err != nil {
-				return nil, err
-			}
-			if dir != "" {
-				srcPath = strings.TrimPrefix(srcPath, dir+"/")
-			}
+		srcPath, err = adjust(srcPath)
+		if err != nil {
+			return nil, err
 		}
-		// The topology file sits one level down when the output is split, and
-		// containerlab resolves binds against its directory.
-		if cfg.GlobalSettings.SplitModuleOutput {
-			srcPath = "../" + srcPath
-		}
-		dstPath := fileDef.Path
 
 		params := map[string]string{
 			"source": srcPath,
-			"target": dstPath,
+			"target": fileDef.Path,
+			"mode":   "",
 		}
 		results = append(results, params)
+	}
+
+	// The staging directory is read only: it holds what was generated, and the
+	// copies the container works with are made from it.
+	stagingDir, staged, err := node.StagingDir(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if staged {
+		srcPath, err := adjust(stagingDir)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, map[string]string{
+			"source": srcPath,
+			"target": "/" + types.StagingDirName,
+			"mode":   ":ro",
+		})
 	}
 
 	return results, nil
@@ -547,4 +647,30 @@ func addEntryScript(cfg *types.Config, scope, subdir string) error {
 		})
 	}
 	return nil
+}
+
+// copyFileParams turns the node's staged files into the source and target a
+// copy command names. The command itself lives in the module's template, since
+// only the platform knows where its commands are written.
+func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("copyfiles generator requires Node target, got %T", target)
+	}
+	if node.IsVirtual() {
+		return nil, nil
+	}
+	copies, err := types.StagedCopies(cfg, node)
+	if err != nil {
+		return nil, err
+	}
+	var results []map[string]string
+	for _, c := range copies {
+		results = append(results, map[string]string{
+			"source": c.Source,
+			"target": c.Target,
+			"dir":    c.Dir,
+		})
+	}
+	return results, nil
 }

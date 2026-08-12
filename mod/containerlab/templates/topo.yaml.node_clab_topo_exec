@@ -1,2 +1,1 @@
-      exec:
-{{ .self_clab_cmds }}
+      exec:{{ .self_clab_exec_body }}

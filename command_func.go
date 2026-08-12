@@ -359,6 +359,25 @@ func CmdFiles(c *cli.Context) error {
 		return err
 	}
 
+	// The plain list is what a script reads, so it stays a list of paths. With
+	// -v it says where each file is meant to end up and how it gets there,
+	// which is otherwise only visible by reading the platform's own topology
+	// file.
+	if verbose {
+		files, err := model.DescribeGeneratedFiles(cfg, nm)
+		if err != nil {
+			return err
+		}
+		for _, file := range files {
+			if file.ContainerPath == "" {
+				fmt.Println(file.Path)
+				continue
+			}
+			fmt.Printf("%s\t%s\t%s\n", file.Path, file.ContainerPath, file.Provide)
+		}
+		return nil
+	}
+
 	files, err := model.ListGeneratedFiles(cfg, nm, verbose)
 	if err != nil {
 		return err

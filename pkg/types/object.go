@@ -1655,10 +1655,90 @@ func (n *Node) OutputPath(cfg *Config, filedef *FileDefinition) (string, error) 
 	if err != nil {
 		return "", err
 	}
-	if filedef.GetOutputLocation() != "root" {
-		dirname = path.Join(dirname, n.Name)
+	if filedef.GetOutputLocation() == "root" {
+		return path.Join(dirname, filedef.Subdir, filedef.GetFileName(n.Name)), nil
+	}
+	dirname = path.Join(dirname, n.Name)
+	// A file that names where it goes inside the container is laid out that way
+	// on disk too: r1/etc/frr/frr.conf for /etc/frr/frr.conf. Kathara asks for
+	// exactly this - it has no way to mount a single file, so what is mounted is
+	// the directory - and it costs the others nothing, since their bind and
+	// mount lines name the source path anyway.
+	//
+	// A file provided by copy waits under staging/ instead, mirroring the same
+	// path: r1/staging/etc/motd for /etc/motd. It has to sit apart from the
+	// mounted files, because the whole staging directory is mounted into the
+	// container as one, and anything else under the node directory would ride
+	// along into it.
+	if filedef.Path != "" {
+		if filedef.GetProvide() == ProvideCopy {
+			dirname = path.Join(dirname, StagingDirName)
+		}
+		return path.Join(dirname, strings.TrimPrefix(filedef.Path, "/")), nil
 	}
 	return path.Join(dirname, filedef.GetFileName(n.Name)), nil
+}
+
+// StagedCopy is one file waiting in the staging directory, named as the
+// container sees it: Source is where the mount puts it, Target where it belongs,
+// Dir the directory Target sits in. The command that moves it is the platform's
+// to write; what has to be copied where is not.
+type StagedCopy struct {
+	Source string
+	Target string
+	Dir    string
+}
+
+// StagedCopies lists the copies a node needs once its container is up, in the
+// order the file definitions are written so that two runs produce one file.
+func StagedCopies(cfg *Config, node *Node) ([]StagedCopy, error) {
+	generated := make(map[string]bool)
+	for _, name := range node.FilesToGenerate(cfg) {
+		generated[name] = true
+	}
+
+	var copies []StagedCopy
+	for _, filedef := range cfg.FileDefinitions {
+		if filedef.Path == "" || !generated[filedef.Name] {
+			continue
+		}
+		if filedef.GetProvide() != ProvideCopy {
+			continue
+		}
+		target := filedef.Path
+		copies = append(copies, StagedCopy{
+			Source: path.Join("/"+StagingDirName, target),
+			Target: target,
+			Dir:    path.Dir(target),
+		})
+	}
+	return copies, nil
+}
+
+// StagingDir returns where this node's copy-provided files wait, relative to the
+// output root, and whether the node has any. The directory is what a module
+// mounts into the container; the files inside it are copied to their own paths
+// once it is up.
+func (n *Node) StagingDir(cfg *Config) (string, bool, error) {
+	staged := false
+	for _, name := range n.FilesToGenerate(cfg) {
+		filedef, ok := cfg.FileDefinitionByName(name)
+		if !ok || filedef.Path == "" {
+			continue
+		}
+		if filedef.GetProvide() == ProvideCopy {
+			staged = true
+			break
+		}
+	}
+	if !staged {
+		return "", false, nil
+	}
+	dirname, err := n.OutputDir(cfg)
+	if err != nil {
+		return "", false, err
+	}
+	return path.Join(dirname, n.Name, StagingDirName), true, nil
 }
 
 // FilesToGenerate returns a list of file names that the node will generate based on its classes.

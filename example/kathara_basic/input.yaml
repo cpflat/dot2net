@@ -18,14 +18,6 @@ global:
 module:
   - kathara
 
-file:
-  # Kathara reads <device>.startup from the lab directory itself, so these files
-  # sit at the output root rather than in a directory per node.
-  - name: startup
-    name_suffix: ".startup"
-    scope: node
-    output: root
-
 layer:
   - name: ip
     default_connect: true
@@ -47,7 +39,10 @@ nodeclass:
     # addressless and a segment search passes through it.
     interface_policy: [ip]
     config:
-      - file: startup
+      # startup is the name every platform module looks for: containerlab puts
+      # it in exec:, TiNET in cmds:, Kathara in <device>.startup. Naming the
+      # file here instead would tie the scenario to one of them.
+      - name: startup
         template:
           - "{{ .interfaces_ifconf }}"
 

@@ -5,11 +5,11 @@ nodes:
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: bridge, args: br2}, {name: eth1, type: direct, args: r4#eth0}]
-    mounts: [$PWD/r3/frr.conf:/etc/frr/frr.conf]
+    mounts: [$PWD/r3/etc/frr/frr.conf:/etc/frr/frr.conf]
   - name: r4
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r3#eth1}]
-    mounts: [$PWD/r4/frr.conf:/etc/frr/frr.conf]
+    mounts: [$PWD/r4/etc/frr/frr.conf:/etc/frr/frr.conf]
 
 node_configs:
   - name: r3

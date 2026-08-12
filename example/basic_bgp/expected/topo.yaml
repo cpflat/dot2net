@@ -6,8 +6,8 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - r1/daemons:/etc/frr/daemons
-      - r1/vtysh.conf:/etc/frr/vtysh.conf
+      - r1/etc/frr/daemons:/etc/frr/daemons
+      - r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
       - vtysh -c "conf t" -c "router bgp 65000" -c "bgp router-id 10.255.0.1"
       - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.1/24" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65001"
@@ -16,8 +16,8 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - r2/daemons:/etc/frr/daemons
-      - r2/vtysh.conf:/etc/frr/vtysh.conf
+      - r2/etc/frr/daemons:/etc/frr/daemons
+      - r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
       - vtysh -c "conf t" -c "router bgp 65001" -c "bgp router-id 10.255.0.2"
       - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.2/24" -c "router bgp 65001" -c "neighbor 10.0.0.1 remote-as 65000"

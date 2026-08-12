@@ -74,6 +74,16 @@ func BuildNetworkModelForFileList(cfg *types.Config, d *Diagram) (nm *types.Netw
 		return nil, err
 	}
 
+	err = checkOutputFilesUnique(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkCopyTargets(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
 	return nm, nil
 }
 
@@ -120,6 +130,16 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 	}
 
 	err = checkClasses(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkOutputFilesUnique(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	err = checkCopyTargets(cfg, nm)
 	if err != nil {
 		return nil, err
 	}

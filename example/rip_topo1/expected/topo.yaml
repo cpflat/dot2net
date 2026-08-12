@@ -6,36 +6,36 @@ topology:
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r1/zebra.conf:/etc/frr/zebra.conf
-      - r1/ripd.conf:/etc/frr/ripd.conf
-      - r1/staticd.conf:/etc/frr/staticd.conf
-      - r1/daemons:/etc/frr/daemons
-      - r1/vtysh.conf:/etc/frr/vtysh.conf
-      - r1/frr.log:/var/log/frr.log
+      - r1/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - r1/etc/frr/ripd.conf:/etc/frr/ripd.conf
+      - r1/etc/frr/staticd.conf:/etc/frr/staticd.conf
+      - r1/etc/frr/daemons:/etc/frr/daemons
+      - r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - r1/var/log/frr.log:/var/log/frr.log
 
     r2:
       kind: linux
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r2/zebra.conf:/etc/frr/zebra.conf
-      - r2/ripd.conf:/etc/frr/ripd.conf
-      - r2/staticd.conf:/etc/frr/staticd.conf
-      - r2/daemons:/etc/frr/daemons
-      - r2/vtysh.conf:/etc/frr/vtysh.conf
-      - r2/frr.log:/var/log/frr.log
+      - r2/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - r2/etc/frr/ripd.conf:/etc/frr/ripd.conf
+      - r2/etc/frr/staticd.conf:/etc/frr/staticd.conf
+      - r2/etc/frr/daemons:/etc/frr/daemons
+      - r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - r2/var/log/frr.log:/var/log/frr.log
 
     r3:
       kind: linux
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r3/zebra.conf:/etc/frr/zebra.conf
-      - r3/ripd.conf:/etc/frr/ripd.conf
-      - r3/staticd.conf:/etc/frr/staticd.conf
-      - r3/daemons:/etc/frr/daemons
-      - r3/vtysh.conf:/etc/frr/vtysh.conf
-      - r3/frr.log:/var/log/frr.log
+      - r3/etc/frr/zebra.conf:/etc/frr/zebra.conf
+      - r3/etc/frr/ripd.conf:/etc/frr/ripd.conf
+      - r3/etc/frr/staticd.conf:/etc/frr/staticd.conf
+      - r3/etc/frr/daemons:/etc/frr/daemons
+      - r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
+      - r3/var/log/frr.log:/var/log/frr.log
 
     sw1:
       kind: linux

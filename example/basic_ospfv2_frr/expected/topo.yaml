@@ -6,8 +6,8 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - r1/daemons:/etc/frr/daemons
-      - r1/vtysh.conf:/etc/frr/vtysh.conf
+      - r1/etc/frr/daemons:/etc/frr/daemons
+      - r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.1/30 dev eth0
@@ -21,8 +21,8 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - r2/daemons:/etc/frr/daemons
-      - r2/vtysh.conf:/etc/frr/vtysh.conf
+      - r2/etc/frr/daemons:/etc/frr/daemons
+      - r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.2/30 dev eth0
@@ -34,8 +34,8 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - r3/daemons:/etc/frr/daemons
-      - r3/vtysh.conf:/etc/frr/vtysh.conf
+      - r3/etc/frr/daemons:/etc/frr/daemons
+      - r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.6/30 dev eth0
@@ -49,8 +49,8 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - r4/daemons:/etc/frr/daemons
-      - r4/vtysh.conf:/etc/frr/vtysh.conf
+      - r4/etc/frr/daemons:/etc/frr/daemons
+      - r4/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.14/30 dev eth0

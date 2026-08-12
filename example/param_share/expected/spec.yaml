@@ -2,15 +2,15 @@ nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r2#eth0}]
-    mounts: [$PWD/r1/frr.conf:/etc/frr/frr.conf, $PWD/r1/daemons:/etc/frr/daemons, $PWD/r1/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r1/etc/frr/frr.conf:/etc/frr/frr.conf, $PWD/r1/etc/frr/daemons:/etc/frr/daemons, $PWD/r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: r1#eth0}, {name: eth1, type: direct, args: sw1#eth0}]
-    mounts: [$PWD/r2/frr.conf:/etc/frr/frr.conf, $PWD/r2/daemons:/etc/frr/daemons, $PWD/r2/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r2/etc/frr/frr.conf:/etc/frr/frr.conf, $PWD/r2/etc/frr/daemons:/etc/frr/daemons, $PWD/r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: sw1#eth1}, {name: eth1, type: direct, args: sw2#eth0}]
-    mounts: [$PWD/r3/frr.conf:/etc/frr/frr.conf, $PWD/r3/daemons:/etc/frr/daemons, $PWD/r3/vtysh.conf:/etc/frr/vtysh.conf]
+    mounts: [$PWD/r3/etc/frr/frr.conf:/etc/frr/frr.conf, $PWD/r3/etc/frr/daemons:/etc/frr/daemons, $PWD/r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: sw1
     image: nicolaka/netshoot
     interfaces: [{name: eth0, type: direct, args: r2#eth1}, {name: eth1, type: direct, args: r3#eth0}]
@@ -23,13 +23,10 @@ nodes:
 node_configs:
   - name: r1
     cmds:
-      - cmd: 
   - name: r2
     cmds:
-      - cmd: 
   - name: r3
     cmds:
-      - cmd: 
   - name: sw1
     cmds:
       - cmd: ip link add br0 type bridge

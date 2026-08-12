@@ -8,18 +8,18 @@ topology:
       image: quay.io/frrouting/frr:8.5.4
       network-mode: none
       binds:
-      - r1/frr.conf:/etc/frr/frr.conf
-      - r1/daemons:/etc/frr/daemons
-      - r1/vtysh.conf:/etc/frr/vtysh.conf
+      - r1/etc/frr/frr.conf:/etc/frr/frr.conf
+      - r1/etc/frr/daemons:/etc/frr/daemons
+      - r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
 
     r2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.4
       network-mode: none
       binds:
-      - r2/frr.conf:/etc/frr/frr.conf
-      - r2/daemons:/etc/frr/daemons
-      - r2/vtysh.conf:/etc/frr/vtysh.conf
+      - r2/etc/frr/frr.conf:/etc/frr/frr.conf
+      - r2/etc/frr/daemons:/etc/frr/daemons
+      - r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
 
 
   links:

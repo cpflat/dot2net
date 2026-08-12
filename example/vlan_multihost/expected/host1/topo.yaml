@@ -8,7 +8,7 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - r1/frr.conf:/etc/frr/frr.conf
+      - r1/etc/frr/frr.conf:/etc/frr/frr.conf
       exec:
       - ip addr add 10.0.1.1/24 dev eth0
     r2:
@@ -16,7 +16,7 @@ topology:
       image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
-      - r2/frr.conf:/etc/frr/frr.conf
+      - r2/etc/frr/frr.conf:/etc/frr/frr.conf
       exec:
       - ip addr add 10.0.0.1/24 dev eth0
       - ip addr add 10.0.1.2/24 dev eth1

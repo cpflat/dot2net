@@ -1,1 +1,1 @@
-{{ .interfaces_kathara_interface }}
+{{ .self_kathara_image }}{{ .self_kathara_volumes }}{{ .interfaces_kathara_interface }}

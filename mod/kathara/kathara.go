@@ -3,6 +3,7 @@ package kathara
 import (
 	"embed"
 	"fmt"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +14,15 @@ import (
 const ModuleName = "kathara"
 
 const KatharaOutputFile = "lab.conf"
+
+// StartupFile is how Kathara lets a lab act on a device once it is up. The name
+// is the key config entries reference; the file itself is <device>.startup and
+// sits beside lab.conf, which is where Kathara looks for it.
+const StartupFile = "kathara_startup"
+const StartupFileSuffix = ".startup"
+
+const VolumeParamRuleName = "kathara_volumes"
+const CopyParamRuleName = "kathara_copies"
 const ScriptFile = "kathara.sh"
 const ScriptClassName = "_katharaScript"
 
@@ -35,6 +45,12 @@ const InterfaceClassName = "_katharaInterface"
 
 const KatharaLineFormatName = "_katharaLine"
 
+// KatharaCopyFormatName ends the copy commands with a newline so that the
+// scenario's own startup commands begin on a line of their own. A startup file
+// is a shell script, so a newline left at the end when there are no startup
+// commands costs nothing.
+const KatharaCopyFormatName = "_katharaCopy"
+
 // Kathara validates these itself and fails the whole lab, so the same rules are
 // checked here where the message can name the scenario's own object.
 var deviceNamePattern = regexp.MustCompile(`^[a-z0-9_]{1,30}$`)
@@ -53,6 +69,7 @@ var (
 	_ types.ObjectClassifier   = (*KatharaModule)(nil)
 	_ types.ParameterProvider  = (*KatharaModule)(nil)
 	_ types.RequirementChecker = (*KatharaModule)(nil)
+	_ types.ParameterGenerator = (*KatharaModule)(nil)
 )
 
 func NewModule() types.Module {
@@ -69,11 +86,25 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		Name:                KatharaLineFormatName,
 		MergeBlockSeparator: "\n",
 	})
+	cfg.AddFormatStyle(&types.FormatStyle{
+		Name:                KatharaCopyFormatName,
+		FormatBlockSuffix:   "\n",
+		MergeBlockSeparator: "\n",
+	})
 
+	// The lab lives in a directory of its own, and not only for tidiness:
+	// Kathara reads a directory named after a device, next to lab.conf, as
+	// files to copy into that device once it has started. The nodes' generated
+	// files sit at the output root under exactly such names, so a lab.conf
+	// beside them would set that copying off - a second delivery nobody asked
+	// for, running after the device is up. With the lab one level down, the
+	// convention finds nothing and the only way in is the one the scenario
+	// chose.
 	cfg.AddFileDefinition(&types.FileDefinition{
-		Name:  KatharaOutputFile,
-		Path:  "",
-		Scope: types.ClassTypeNetwork,
+		Name:   KatharaOutputFile,
+		Path:   "",
+		Scope:  types.ClassTypeNetwork,
+		Subdir: ModuleName,
 	})
 
 	ct, err := templateFrom("templates/lab.conf.network", &types.ConfigTemplate{
@@ -98,15 +129,122 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	}
 
 	ct, err = templateFrom("templates/lab.conf.node_kathara_device", &types.ConfigTemplate{
-		Name:   "kathara_device",
-		Format: KatharaLineFormatName,
+		Name:    "kathara_device",
+		Format:  KatharaLineFormatName,
+		Depends: []string{"kathara_image", "kathara_volumes"},
+	})
+	if err != nil {
+		return err
+	}
+	// Kathara starts a device and then copies its files in, so anything the
+	// image reads while booting is read before those files exist: an FRR
+	// container comes up with the image's own daemons file, not the scenario's.
+	// The startup file is what runs after the copy, which is why the startup
+	// commands a scenario already writes for the other platforms are carried
+	// here rather than being left out.
+	cfg.AddFileDefinition(&types.FileDefinition{
+		Name:       StartupFile,
+		NameSuffix: StartupFileSuffix,
+		Scope:      types.ClassTypeNode,
+		Output:     "root",
+		Subdir:     ModuleName,
+	})
+	// containerlab and TiNET both refuse a scenario without a startup template;
+	// Kathara has no reason to, so the dependency is named only when there is
+	// one to depend on.
+	var startupDepends []string
+	for _, nc := range cfg.NodeClasses {
+		for _, t := range nc.ConfigTemplates {
+			if t.Name == "startup" {
+				startupDepends = []string{"startup"}
+			}
+		}
+	}
+	// The copies come first: a command the author wrote may use a file that is
+	// only there once it has been copied.
+	ctCopies, err := templateFrom("templates/startup.node_kathara_copies", &types.ConfigTemplate{
+		Name:           "kathara_copies",
+		Format:         KatharaCopyFormatName,
+		RequiredParams: []string{"values_kathara_copy_entry"},
+	})
+	if err != nil {
+		return err
+	}
+	// What the file holds is worked out first, so that the file itself can ask
+	// whether anything came of it: either the copies or the scenario's startup
+	// commands are reason enough to write it, and neither alone can say so.
+	ctStartupBody, err := templateFrom("templates/startup.node_kathara_startup_body", &types.ConfigTemplate{
+		Name:    "kathara_startup_body",
+		Depends: append([]string{"kathara_copies"}, startupDepends...),
+	})
+	if err != nil {
+		return err
+	}
+	ctStartup, err := templateFrom("templates/startup.node_kathara_startup", &types.ConfigTemplate{
+		Name:           "kathara_startup",
+		File:           StartupFile,
+		RequiredParams: []string{"self_kathara_startup_body"},
+		Depends:        []string{"kathara_startup_body"},
+	})
+	if err != nil {
+		return err
+	}
+
+	// The image is a device option like any other, and Kathara falls back to its
+	// own base image when none is given - which is why a scenario that names one
+	// has to have it carried through, or the lab comes up without the software
+	// it was written for. RequiredParams leaves the line out when the scenario
+	// names no image, so a device may still take the default on purpose.
+	ctImage, err := templateFrom("templates/lab.conf.node_kathara_image", &types.ConfigTemplate{
+		Name:           "kathara_image",
+		Format:         KatharaLineFormatName,
+		RequiredParams: []string{"image"},
+	})
+	if err != nil {
+		return err
+	}
+	// Kathara copies a device's files in after it has started, so a file the
+	// software reads while booting arrives too late. A volume is mounted before
+	// the device starts, which is what the other platforms' bind mounts do, so
+	// the files are put in place that way instead.
+	ctVolumes, err := templateFrom("templates/lab.conf.node_kathara_volumes", &types.ConfigTemplate{
+		Name:           "kathara_volumes",
+		Format:         KatharaLineFormatName,
+		RequiredParams: []string{"values_kathara_volume_entry"},
 	})
 	if err != nil {
 		return err
 	}
 	cfg.AddNodeClass(&types.NodeClass{
 		Name:            NodeClassName,
-		ConfigTemplates: []*types.ConfigTemplate{ct},
+		Parameters:      []string{VolumeParamRuleName, CopyParamRuleName},
+		ConfigTemplates: []*types.ConfigTemplate{ct, ctImage, ctStartup, ctStartupBody, ctCopies, ctVolumes},
+	})
+
+	entry, err := templateFrom("templates/lab.conf.value_kathara_volume_entry", &types.ConfigTemplate{
+		Name: "kathara_volume_entry",
+	})
+	if err != nil {
+		return err
+	}
+	copyEntry, err := templateFrom("templates/startup.value_kathara_copy_entry", &types.ConfigTemplate{
+		Name: "kathara_copy_entry",
+	})
+	if err != nil {
+		return err
+	}
+	cfg.AddParameterRule(&types.ParameterRule{
+		Name:            CopyParamRuleName,
+		Mode:            types.ParameterRuleModeAttach,
+		Generator:       ModuleName + ".copyfiles",
+		ConfigTemplates: []*types.ConfigTemplate{copyEntry},
+	})
+
+	cfg.AddParameterRule(&types.ParameterRule{
+		Name:            VolumeParamRuleName,
+		Mode:            types.ParameterRuleModeAttach,
+		Generator:       ModuleName + ".filemounts",
+		ConfigTemplates: []*types.ConfigTemplate{entry},
 	})
 
 	// RequiredLink: the line declares a wire, so it must not be emitted for a
@@ -208,6 +346,10 @@ func interfaceIndex(iface *types.Interface) (int, error) {
 }
 
 func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
+	if err := checkMountDirsUsed(cfg, nm); err != nil {
+		return err
+	}
+
 	// The interface prefix is dictated by Kathara, so a scenario that asks for
 	// another one is telling the module to do something it cannot. Say so
 	// rather than overwrite the request without a word.
@@ -260,6 +402,12 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 // Options are the Kathara module's own settings, written under
 // module_config.kathara.
 type Options struct {
+	// MountDirs names the directories inside a device that dot2net supplies
+	// entirely. Kathara mounts a directory rather than a file, and the mount
+	// replaces what the image had there, so this says which directories the
+	// scenario is willing to take over.
+	MountDirs []string `yaml:"mount_dirs"`
+
 	// GenerateScripts writes an entry point script beside the lab. It carries
 	// that Kathara reads its files from the directory it runs in, and that
 	// kathara exec cannot pass a command containing -c.
@@ -272,9 +420,10 @@ type Options struct {
 // those startup files are written by the scenario rather than by this module.
 func addEntryScript(cfg *types.Config) error {
 	cfg.AddFileDefinition(&types.FileDefinition{
-		Name:  ScriptFile,
-		Path:  "",
-		Scope: types.ClassTypeNetwork,
+		Name:   ScriptFile,
+		Path:   "",
+		Scope:  types.ClassTypeNetwork,
+		Subdir: ModuleName,
 	})
 	bytes, err := templates.ReadFile("templates/kathara.sh.entry")
 	if err != nil {
@@ -286,5 +435,186 @@ func addEntryScript(cfg *types.Config) error {
 			{File: ScriptFile, Template: []string{string(bytes)}},
 		},
 	})
+	return nil
+}
+
+// GenerateValueParameters implements types.ParameterGenerator.
+func (m *KatharaModule) GenerateValueParameters(
+	generatorName string,
+	target types.ValueOwner,
+	cfg *types.Config,
+	nm *types.NetworkModel,
+) ([]map[string]string, error) {
+	switch generatorName {
+	case "filemounts":
+		return m.generateFilemountParams(target, cfg)
+	case "copyfiles":
+		return copyFileParams(target, cfg)
+	default:
+		return nil, fmt.Errorf("unknown generator: %s", generatorName)
+	}
+}
+
+// generateFilemountParams names the directories to mount into a device.
+//
+// Kathara mounts directories and refuses single files, so the unit is not the
+// file but a directory the scenario has declared as its own in
+// module_config.kathara.mount_dirs. That declaration is not a restatement of
+// what the paths already say: mounting a directory replaces the image's own, so
+// everything the image kept there is hidden, and dot2net cannot see inside an
+// image to know whether that is safe. A file whose directory was not declared
+// is reported rather than quietly delivered some other way.
+func (m *KatharaModule) generateFilemountParams(
+	target types.ValueOwner,
+	cfg *types.Config,
+) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("filemounts generator requires Node target, got %T", target)
+	}
+	if node.IsVirtual() || cfg.IsSwitchNode(node) {
+		return nil, nil
+	}
+
+	var opts Options
+	if _, err := cfg.DecodeModuleConfig(ModuleName, &opts); err != nil {
+		return nil, err
+	}
+
+	generated := make(map[string]bool)
+	for _, name := range node.FilesToGenerate(cfg) {
+		generated[name] = true
+	}
+
+	mounted := make(map[string]bool)
+	var results []map[string]string
+	for _, fileDef := range cfg.FileDefinitions {
+		if fileDef.Path == "" || !generated[fileDef.Name] {
+			continue
+		}
+		// A file provided by copy is not mounted at its own path: it waits in
+		// the staging directory, mounted below.
+		if fileDef.GetProvide() == types.ProvideCopy {
+			continue
+		}
+
+		dir, ok := owningDir(opts.MountDirs, fileDef.Path)
+		if !ok {
+			return nil, fmt.Errorf(
+				"file %s is to be mounted at %s, but Kathara mounts directories rather than files, "+
+					"and %s is not among module_config.kathara.mount_dirs. Add the directory there if "+
+					"dot2net supplies everything the software needs in it - mounting it hides what the "+
+					"image kept there - or give the file provide: copy, which places it once the device "+
+					"has started",
+				fileDef.Name, fileDef.Path, path.Dir(fileDef.Path))
+		}
+		if mounted[dir] {
+			continue
+		}
+		mounted[dir] = true
+
+		results = append(results, map[string]string{
+			"device": node.Name,
+			"source": path.Join("..", node.Name, strings.TrimPrefix(dir, "/")),
+			"target": dir,
+		})
+	}
+
+	stagingDir, staged, err := node.StagingDir(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if staged {
+		// The staging directory is dot2net's own and exists in no image, so it
+		// hides nothing and needs no declaration.
+		results = append(results, map[string]string{
+			"device": node.Name,
+			"source": path.Join("..", stagingDir),
+			"target": "/" + types.StagingDirName,
+		})
+	}
+	return results, nil
+}
+
+// owningDir returns the declared directory that holds the given path.
+func owningDir(mountDirs []string, filePath string) (string, bool) {
+	for _, dir := range mountDirs {
+		clean := path.Clean(dir)
+		if path.Dir(filePath) == clean || strings.HasPrefix(filePath, clean+"/") {
+			return clean, true
+		}
+	}
+	return "", false
+}
+
+// copyFileParams turns the node's staged files into the source and target a copy
+// command names. The command itself lives in the module's template, since only
+// the platform knows where its commands are written.
+func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("copyfiles generator requires Node target, got %T", target)
+	}
+	if node.IsVirtual() || cfg.IsSwitchNode(node) {
+		return nil, nil
+	}
+	copies, err := types.StagedCopies(cfg, node)
+	if err != nil {
+		return nil, err
+	}
+	var results []map[string]string
+	for _, c := range copies {
+		results = append(results, map[string]string{
+			"source": c.Source,
+			"target": c.Target,
+			"dir":    c.Dir,
+		})
+	}
+	return results, nil
+}
+
+// checkMountDirsUsed rejects a declared directory that holds none of the
+// generated files. Taking over a directory of a device's filesystem is not a
+// thing to do by accident, and a name that matches nothing is nearly always a
+// misspelling of one that would have.
+func checkMountDirsUsed(cfg *types.Config, nm *types.NetworkModel) error {
+	var opts Options
+	if _, err := cfg.DecodeModuleConfig(ModuleName, &opts); err != nil {
+		return err
+	}
+	if len(opts.MountDirs) == 0 {
+		return nil
+	}
+
+	used := make(map[string]bool, len(opts.MountDirs))
+	for _, node := range nm.Nodes {
+		if node.IsVirtual() || cfg.IsSwitchNode(node) {
+			continue
+		}
+		generated := make(map[string]bool)
+		for _, name := range node.FilesToGenerate(cfg) {
+			generated[name] = true
+		}
+		for _, filedef := range cfg.FileDefinitions {
+			if filedef.Path == "" || !generated[filedef.Name] {
+				continue
+			}
+			if filedef.GetProvide() != types.ProvideMount {
+				continue
+			}
+			if dir, ok := owningDir(opts.MountDirs, filedef.Path); ok {
+				used[dir] = true
+			}
+		}
+	}
+
+	for _, dir := range opts.MountDirs {
+		if !used[path.Clean(dir)] {
+			return fmt.Errorf(
+				"module_config.kathara.mount_dirs names %s, but no file is generated into it; "+
+					"a directory is mounted so that the files below it reach the device, so this "+
+					"one either is misspelled or is left over", dir)
+		}
+	}
 	return nil
 }

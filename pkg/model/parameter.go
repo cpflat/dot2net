@@ -480,24 +480,16 @@ func generateValueParamsFromGenerator(cfg *types.Config, nm *types.NetworkModel,
 
 // matchesModuleName checks if a module matches the given short name
 func matchesModuleName(mod types.Module, shortName string) bool {
-	// Map short names to module type names
-	// This is a simple approach; could be enhanced with module registration
-	switch shortName {
-	case "clab":
-		// Check if module is containerlab
-		_, ok := mod.(interface{ GetClabModuleName() string })
-		if !ok {
-			// Fallback: check by type name
-			typeName := fmt.Sprintf("%T", mod)
-			return strings.Contains(strings.ToLower(typeName), "clab")
+	// containerlab calls itself clab in generator names, so it is the one module
+	// whose short name is not its type name. Every other module is found by its
+	// type name, which is what keeps a new module from having to be listed here.
+	if shortName == "clab" {
+		if _, ok := mod.(interface{ GetClabModuleName() string }); ok {
+			return true
 		}
-		return true
-	case "tinet":
-		typeName := fmt.Sprintf("%T", mod)
-		return strings.Contains(strings.ToLower(typeName), "tinet")
-	default:
-		return false
 	}
+	typeName := strings.ToLower(fmt.Sprintf("%T", mod))
+	return strings.Contains(typeName, shortName)
 }
 
 // attachValuesToOwner creates Values and attaches them to a ValueOwner

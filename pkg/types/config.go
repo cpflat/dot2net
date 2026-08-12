@@ -31,7 +31,32 @@ const (
 	// the far side. On by default: the alternative is for the author to work the
 	// same replacement out by hand for every such segment.
 	DefaultAggregateCrossingLinks = true
+
+	// DefaultProvide is how a file reaches its node when the file definition
+	// says nothing. Mount is the default because it is the simpler of the two -
+	// the platform is shown the file and that is all - and because the files
+	// scenarios generate are mostly read while the container boots, which only
+	// mount can serve.
+	DefaultProvide = ProvideMount
 )
+
+// The ways a generated file can reach the node's container. See
+// FileDefinition.Provide for what each one means.
+const (
+	ProvideMount string = "mount"
+	ProvideCopy  string = "copy"
+)
+
+// StagingDirName is where a file provided by copy waits, both in the output
+// (r1/staging/etc/motd) and in the container (/staging/etc/motd, mounted read
+// only). A copy is made from there to the file's own path once the container is
+// up.
+//
+// The name says what the files are rather than what is done to them: on the
+// host the copy has not happened yet, inside the container it already has, and
+// a name like to_copy would be wrong on one side or the other. The directory
+// does not exist in any image, so mounting it hides nothing.
+const StagingDirName = "staging"
 
 func defaultGlobalSettings() GlobalSettings {
 	return GlobalSettings{
@@ -590,6 +615,22 @@ type FileDefinition struct {
 	// Path is the path that the generated file is placed on the node.
 	// If empty, the file is generated but not placed on the node.
 	Path string `yaml:"path" mapstructure:"path"`
+	// Provide says how the file reaches the node's container. The two ways are
+	// not one better than the other:
+	//
+	//   - "mount" (the default): the container is shown the generated file
+	//     itself. It is there before the container's first process runs, which
+	//     is the only way to reach software that reads its configuration while
+	//     booting. What the container writes reaches the generated file, and
+	//     what the container's own startup does to ownership and permissions
+	//     reaches it too.
+	//   - "copy": the container gets its own copy, placed once the container is
+	//     up. Nothing the container does comes back, so the generated file stays
+	//     as it was generated - which is what a file the software rewrites in
+	//     the course of a run needs. It cannot serve a file read while booting.
+	//
+	// Empty means "mount".
+	Provide string `yaml:"provide" mapstructure:"provide"`
 	// Format is used to determine the way to format lines in generated config text.
 	Format  string   `yaml:"format" mapstructure:"format"`
 	Formats []string `yaml:"formats,flow" mapstructure:"formats,flow"`
@@ -654,6 +695,32 @@ func (fd *FileDefinition) GetFileName(objectName string) string {
 //   - "network" -> "root"
 //   - "group" -> "group"
 //   - "node" or "" -> "node"
+// GetProvide returns how the file reaches its node, filling in the default.
+func (fd *FileDefinition) GetProvide() string {
+	if fd.Provide == "" {
+		return DefaultProvide
+	}
+	return fd.Provide
+}
+
+// checkProvide rejects a value the config does not know, and a file that says
+// how it should reach a node without saying where it goes.
+func (fd *FileDefinition) checkProvide() error {
+	switch fd.Provide {
+	case "", ProvideMount, ProvideCopy:
+	default:
+		return fmt.Errorf(
+			"file %s: provide is %q, but the ways a file can reach a node are %q and %q",
+			fd.Name, fd.Provide, ProvideMount, ProvideCopy)
+	}
+	if fd.Provide != "" && fd.Path == "" {
+		return fmt.Errorf(
+			"file %s sets provide but no path, so there is nowhere for it to reach; "+
+				"a file without path is generated and left in the output", fd.Name)
+	}
+	return nil
+}
+
 func (fd *FileDefinition) GetOutputLocation() string {
 	if fd.Output != "" {
 		return fd.Output
@@ -1466,6 +1533,9 @@ func LoadConfig(path string) (*Config, error) {
 	cfg.localDir = filepath.Dir(path)
 	cfg.fileDefinitionMap = map[string]*FileDefinition{}
 	for _, filedef := range cfg.FileDefinitions {
+		if err := filedef.checkProvide(); err != nil {
+			return nil, err
+		}
 		cfg.fileDefinitionMap[filedef.Name] = filedef
 	}
 	cfg.formatStyleMap = map[string]*FormatStyle{}
