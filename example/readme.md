@@ -39,10 +39,9 @@ Kathara as well; the ones that do not say why where their modules are listed:
 
 ## Elsewhere
 
-`basic_mpls`, `large_clos` and `large_ring` were moved to
-[dot2net-examples](https://github.com/cpflat/dot2net-examples) when v0.4.0 broke
-compatibility with the configuration format they were written for. They are
-still written for v0.3.6 and do not run on this version.
+`basic_mpls`, `large_clos` and `large_ring` left when v0.4.0 changed the
+configuration format under them. They are written for v0.3.6 and do not run on
+this version, and are kept outside this repository.
 
 
 ## Other TIPS
