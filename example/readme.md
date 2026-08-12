@@ -11,7 +11,6 @@
 
 - basic_bgp
 - basic_clos
-- basic_mpls
 - basic_ospfv2_frr
 - basic_ospfv3_frr
 
@@ -24,6 +23,26 @@
 - aggregate_crossing — one shared segment reaching two machines, drawn once.
   Shows what a link leaving a machine costs and how the count is brought down.
 - kathara_basic — a shared medium and a point-to-point link on Kathara.
+
+
+## Platforms
+
+Every scenario here generates for containerlab and TiNET. Most generate for
+Kathara as well; the ones that do not say why where their modules are listed:
+
+- `address_reservation`, `basic_clos`, `bgp_evpn_vxlan_topo1` name their own
+  interfaces, and Kathara derives an interface's name from its index in
+  lab.conf
+- `ospf_multihost`, `vlan_multihost`, `aggregate_crossing` place nodes on more
+  than one machine, which a lab.conf cannot express
+
+
+## Elsewhere
+
+`basic_mpls`, `large_clos` and `large_ring` were moved to
+[dot2net-examples](https://github.com/cpflat/dot2net-examples) when v0.4.0 broke
+compatibility with the configuration format they were written for. They are
+still written for v0.3.6 and do not run on this version.
 
 
 ## Other TIPS
