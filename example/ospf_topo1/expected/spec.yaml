@@ -43,19 +43,23 @@ nodes:
 node_configs:
   - name: r1
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: r2
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: r3
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: r4
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: s1
     cmds:

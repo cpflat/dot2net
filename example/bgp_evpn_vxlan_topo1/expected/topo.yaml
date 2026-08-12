@@ -10,7 +10,8 @@ topology:
       - host1/etc/frr/daemons:/etc/frr/daemons
       - host1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
-      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     host2:
       kind: linux
@@ -21,7 +22,8 @@ topology:
       - host2/etc/frr/daemons:/etc/frr/daemons
       - host2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
-      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     p1:
       kind: linux
@@ -33,7 +35,8 @@ topology:
       - p1/etc/frr/daemons:/etc/frr/daemons
       - p1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
-      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - sysctl -w net.ipv4.ip_forward=1
     pe1:
@@ -47,7 +50,8 @@ topology:
       - pe1/etc/frr/daemons:/etc/frr/daemons
       - pe1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
-      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - sysctl -w net.ipv4.ip_forward=1
       - ip link add name br101 type bridge stp_state 0
@@ -68,7 +72,8 @@ topology:
       - pe2/etc/frr/daemons:/etc/frr/daemons
       - pe2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
-      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - sysctl -w net.ipv4.ip_forward=1
       - ip link add name br101 type bridge stp_state 0
@@ -89,7 +94,8 @@ topology:
       - pe3/etc/frr/daemons:/etc/frr/daemons
       - pe3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
-      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - sysctl -w net.ipv4.ip_forward=1
     s1:

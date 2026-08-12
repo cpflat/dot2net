@@ -1,1 +1,2 @@
-mkdir -p {{ .dir }} && cp {{ .source }} {{ .target }}
+mkdir -p {{ .dir }}
+cp {{ .source }} {{ .target }}

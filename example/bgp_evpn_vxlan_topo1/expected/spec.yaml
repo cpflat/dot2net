@@ -43,20 +43,24 @@ nodes:
 node_configs:
   - name: host1
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: host2
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: p1
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - cmd: sysctl -w net.ipv4.ip_forward=1
   - name: pe1
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - cmd: sysctl -w net.ipv4.ip_forward=1
       - cmd: ip link add name br101 type bridge stp_state 0
@@ -68,7 +72,8 @@ node_configs:
       - cmd: ip link set dev eth0 master br101
   - name: pe2
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - cmd: sysctl -w net.ipv4.ip_forward=1
       - cmd: ip link add name br101 type bridge stp_state 0
@@ -80,7 +85,8 @@ node_configs:
       - cmd: ip link set dev eth1 master br101
   - name: pe3
     cmds:
-      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
       - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - cmd: sysctl -w net.ipv4.ip_forward=1
   - name: s1
