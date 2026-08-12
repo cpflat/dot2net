@@ -31,6 +31,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
   All bundled scenarios already pass; a config that does not will name what to
   fix.
+- **Entry point scripts** (`module_config.<module>.generate_scripts: true`): a
+  `containerlab.sh`, `tinet.sh` or `kathara.sh` beside the lab, taking
+  `deploy`, `destroy` and `exec <node> <command>...`. Each finds its own files,
+  so it can be run from anywhere.
+
+  What it carries is the part that differs between platforms and is easy to get
+  wrong: TiNET brings a lab up in two steps and its output is a shell script to
+  be piped, with one line in it that is not a command; Kathara reads its files
+  from the directory it runs in, and its `exec` cannot pass a command containing
+  `-c`; and the three name their containers differently, which `exec` hides.
+
+  Off by default, and chosen per module.
+- **`global.split_module_output: true`** puts each module's own files in a
+  directory named after it — `containerlab/topo.yaml`, `tinet/spec.yaml` —
+  while the files the scenario defines stay where they are, since more than one
+  platform may read them. Bind and mount paths follow. Off by default; it is for
+  a lab whose output is large enough that the platforms get in each other's way.
+
+  Kathara is not split: its lab *is* the directory, holding `lab.conf` and every
+  `<device>.startup`, and those startup files are written by the scenario.
 - **`module_config`**: a section per module, for settings that belong to one
   platform rather than to the topology.
 

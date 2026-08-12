@@ -8,7 +8,11 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
+const ModuleName = "tinet"
+
 const TinetOutputFile = "spec.yaml"
+const ScriptFile = "tinet.sh"
+const ScriptClassName = "_tinetScript"
 
 const TinetNetworkNameParamName = "_tn_networkName"
 const TinetImageParamName = "image"
@@ -90,10 +94,15 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	if perWorker {
 		scope = types.ClassTypeGroup
 	}
+	subdir := ""
+	if cfg.GlobalSettings.SplitModuleOutput {
+		subdir = ModuleName
+	}
 	fileDef := &types.FileDefinition{
-		Name:  TinetOutputFile,
-		Path:  "",
-		Scope: scope,
+		Name:   TinetOutputFile,
+		Path:   "",
+		Scope:  scope,
+		Subdir: subdir,
 	}
 	cfg.AddFileDefinition(fileDef)
 
@@ -137,6 +146,16 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 			Name:            NetworkClassName,
 			ConfigTemplates: []*types.ConfigTemplate{ctSwitches, ct1},
 		})
+	}
+
+	var opts Options
+	if _, err := cfg.DecodeModuleConfig(ModuleName, &opts); err != nil {
+		return err
+	}
+	if opts.GenerateScripts {
+		if err := addEntryScript(cfg, scope, subdir); err != nil {
+			return err
+		}
 	}
 
 	// add node class
@@ -324,6 +343,11 @@ func (m *TinetModule) generateFilemountParams(
 		// expanded there, against the directory the lab is brought up from.
 		// That is where the spec file sits, which is what the paths above are
 		// relative to.
+		// $PWD is where the lab is brought up from, which is where the spec
+		// file sits - one level down when the output is split.
+		if cfg.GlobalSettings.SplitModuleOutput {
+			srcPath = "../" + srcPath
+		}
 		srcPath = "$PWD/" + srcPath
 		dstPath := fileDef.Path
 
@@ -407,6 +431,49 @@ func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 		if _, err := node.GetParamValue(TinetImageParamName); err != nil {
 			return fmt.Errorf("every (non-virtual) node must have {{ .image }} parameter (none for %s)", node.Name)
 		}
+	}
+	return nil
+}
+
+// Options are the TiNET module's own settings, written under
+// module_config.tinet.
+type Options struct {
+	// GenerateScripts writes an entry point script beside the lab. It carries
+	// what a person otherwise has to remember: TiNET brings a lab up in two
+	// steps, its output is a shell script to be piped, and one of its lines is
+	// not a command.
+	GenerateScripts bool `yaml:"generate_scripts"`
+}
+
+// addEntryScript registers the script that stands in front of TiNET's own
+// commands. It sits where the lab is operated from, even when the spec file has
+// moved into a directory of its own.
+func addEntryScript(cfg *types.Config, scope, subdir string) error {
+	cfg.AddFileDefinition(&types.FileDefinition{
+		Name:  ScriptFile,
+		Path:  "",
+		Scope: scope,
+	})
+	bytes, err := templates.ReadFile("templates/tinet.sh.entry")
+	if err != nil {
+		return err
+	}
+	path := TinetOutputFile
+	if subdir != "" {
+		path = subdir + "/" + TinetOutputFile
+	}
+	script := strings.ReplaceAll(string(bytes), "%%SPEC%%", path)
+	ct := &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}
+	if scope == types.ClassTypeGroup {
+		cfg.AddGroupClass(&types.GroupClass{
+			Name:            ScriptClassName,
+			ConfigTemplates: []*types.ConfigTemplate{ct},
+		})
+	} else {
+		cfg.AddNetworkClass(&types.NetworkClass{
+			Name:            ScriptClassName,
+			ConfigTemplates: []*types.ConfigTemplate{ct},
+		})
 	}
 	return nil
 }

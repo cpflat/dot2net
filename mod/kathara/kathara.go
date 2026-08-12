@@ -10,7 +10,11 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
+const ModuleName = "kathara"
+
 const KatharaOutputFile = "lab.conf"
+const ScriptFile = "kathara.sh"
+const ScriptClassName = "_katharaScript"
 
 // InterfaceNamePrefix is not a default but a requirement. Kathara names a
 // device's interfaces after the index written in lab.conf - r1[0] becomes eth0
@@ -82,6 +86,16 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		Name:            NetworkClassName,
 		ConfigTemplates: []*types.ConfigTemplate{ct},
 	})
+
+	var opts Options
+	if _, err := cfg.DecodeModuleConfig(ModuleName, &opts); err != nil {
+		return err
+	}
+	if opts.GenerateScripts {
+		if err := addEntryScript(cfg); err != nil {
+			return err
+		}
+	}
 
 	ct, err = templateFrom("templates/lab.conf.node_kathara_device", &types.ConfigTemplate{
 		Name:   "kathara_device",
@@ -240,5 +254,37 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 			}
 		}
 	}
+	return nil
+}
+
+// Options are the Kathara module's own settings, written under
+// module_config.kathara.
+type Options struct {
+	// GenerateScripts writes an entry point script beside the lab. It carries
+	// that Kathara reads its files from the directory it runs in, and that
+	// kathara exec cannot pass a command containing -c.
+	GenerateScripts bool `yaml:"generate_scripts"`
+}
+
+// addEntryScript registers the script that stands in front of Kathara's own
+// commands. Kathara is not split by GlobalSettings.SplitModuleOutput: its lab
+// is the directory itself, holding lab.conf and every <device>.startup, and
+// those startup files are written by the scenario rather than by this module.
+func addEntryScript(cfg *types.Config) error {
+	cfg.AddFileDefinition(&types.FileDefinition{
+		Name:  ScriptFile,
+		Path:  "",
+		Scope: types.ClassTypeNetwork,
+	})
+	bytes, err := templates.ReadFile("templates/kathara.sh.entry")
+	if err != nil {
+		return err
+	}
+	cfg.AddNetworkClass(&types.NetworkClass{
+		Name: ScriptClassName,
+		ConfigTemplates: []*types.ConfigTemplate{
+			{File: ScriptFile, Template: []string{string(bytes)}},
+		},
+	})
 	return nil
 }

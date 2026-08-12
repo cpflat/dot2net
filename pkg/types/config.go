@@ -528,6 +528,16 @@ type GlobalSettings struct {
 	// silently skipped (useful when e.g. a subgraph label is meant for display
 	// rather than as a group class).
 	IgnoreUndefinedClass bool `yaml:"ignore_undefined_class" mapstructure:"ignore_undefined_class"`
+	// SplitModuleOutput puts each module's own files in a directory named after
+	// it - containerlab/topo.yaml, tinet/spec.yaml - instead of side by side at
+	// the output root. Files the scenario defines stay where they are: they are
+	// often read by more than one platform, and splitting them would mean
+	// copying them.
+	//
+	// Off by default. It is for a lab whose output is large enough that the
+	// platforms get in each other's way, or where two of them would otherwise
+	// want the same file name.
+	SplitModuleOutput bool `yaml:"split_module_output" mapstructure:"split_module_output"`
 	// AggregateCrossingLinks cuts the number of links that leave a machine.
 	//
 	// A shared segment with members on several machines has to reach all of
@@ -569,6 +579,10 @@ type FileDefinition struct {
 	// If empty and NamePrefix/NameSuffix are specified, filename is generated as:
 	//   {NamePrefix}{object_name}{NameSuffix}
 	Name string `yaml:"name" mapstructure:"name"`
+	// Subdir places the file in a directory below where it would otherwise go.
+	// A module sets it to its own name when GlobalSettings.SplitModuleOutput is
+	// on; it is not something a scenario writes.
+	Subdir string `yaml:"-" mapstructure:"-"`
 	// NamePrefix is prepended to the object name when Name is empty.
 	NamePrefix string `yaml:"name_prefix" mapstructure:"name_prefix"`
 	// NameSuffix is appended to the object name when Name is empty.

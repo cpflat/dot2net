@@ -942,6 +942,7 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 		// root even when groups split the output directory.
 		// For network scope, object name is empty (use Name directly)
 		filename = filedef.GetFileName("")
+		dirname = filedef.Subdir
 	case *types.Group:
 		if filedef.Scope != types.ClassTypeGroup {
 			return fmt.Errorf("group has a template for file %s, but its scope is %q, not group", filedef.Name, filedef.Scope)
@@ -954,7 +955,7 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 			// When the group is also the output directory of its member nodes
 			// (GlobalSettings.OutputGroupClass), this is the very directory
 			// their files land under, so the host packs as one directory.
-			dirname = obj.Name
+			dirname = filepath.Join(obj.Name, filedef.Subdir)
 		}
 	case *types.Node:
 		if filedef.Scope != "" && filedef.Scope != types.ClassTypeNode {
@@ -1367,7 +1368,7 @@ func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 			// For network scope, object name is empty
 			filename := fileDef.GetFileName("")
 			if contains(nm.FilesToGenerate(cfg), fileDef.Name) {
-				files = append(files, filename)
+				files = append(files, filepath.Join(fileDef.Subdir, filename))
 			}
 		case types.ClassTypeGroup:
 			outputLocation := fileDef.GetOutputLocation()
@@ -1375,7 +1376,7 @@ func ListGeneratedFiles(cfg *types.Config, nm *types.NetworkModel, verbose bool)
 				if !group.IsVirtual() && contains(group.FilesToGenerate(cfg), fileDef.Name) {
 					dirname := ""
 					if outputLocation != "root" {
-						dirname = group.Name
+						dirname = filepath.Join(group.Name, fileDef.Subdir)
 					}
 					files = append(files, filepath.Join(dirname, fileDef.GetFileName(group.Name)))
 				}

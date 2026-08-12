@@ -8,7 +8,11 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
+const ModuleName = "containerlab"
+
 const ClabOutputFile = "topo.yaml"
+const ScriptFile = "containerlab.sh"
+const ScriptClassName = "_clabScript"
 
 const ClabNetworkNameParamName = "_clab_networkName"
 const ClabImageParamName = "image"
@@ -62,6 +66,11 @@ type Options struct {
 	//
 	// Turn it on for clab exec and the clab-* names.
 	ManagementNetwork bool `yaml:"management_network"`
+	// GenerateScripts writes an entry point script beside the lab, so that it
+	// can be brought up without knowing this platform's invocation. Off by
+	// default: the commands are short enough to type, and a scenario that does
+	// not want the extra file should not get one.
+	GenerateScripts bool `yaml:"generate_scripts"`
 }
 
 //go:embed templates/*
@@ -127,10 +136,19 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	if perWorker {
 		scope = types.ClassTypeGroup
 	}
+	// With the output split per module the topology file moves into a directory
+	// of its own. containerlab resolves a relative bind against the directory
+	// holding the topology file, so what has to change with it is the bind
+	// paths - see generateBindMountParams.
+	subdir := ""
+	if cfg.GlobalSettings.SplitModuleOutput {
+		subdir = ModuleName
+	}
 	cfg.AddFileDefinition(&types.FileDefinition{
-		Name:  ClabOutputFile,
-		Path:  "",
-		Scope: scope,
+		Name:   ClabOutputFile,
+		Path:   "",
+		Scope:  scope,
+		Subdir: subdir,
 	})
 
 	// The topology file is owned by whichever object it is scoped to: the
@@ -162,6 +180,12 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 			Name:            NetworkClassName,
 			ConfigTemplates: []*types.ConfigTemplate{ct1},
 		})
+	}
+
+	if opts.GenerateScripts {
+		if err := addEntryScript(cfg, scope, subdir); err != nil {
+			return err
+		}
 	}
 
 	// add node class
@@ -398,6 +422,11 @@ func (m *ClabModule) generateFilemountParams(
 				srcPath = strings.TrimPrefix(srcPath, dir+"/")
 			}
 		}
+		// The topology file sits one level down when the output is split, and
+		// containerlab resolves binds against its directory.
+		if cfg.GlobalSettings.SplitModuleOutput {
+			srcPath = "../" + srcPath
+		}
 		dstPath := fileDef.Path
 
 		params := map[string]string{
@@ -478,6 +507,44 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 		if _, err := node.GetParamValue(ClabKindParamName); err != nil {
 			return fmt.Errorf("every (non-virtual) node must have {{ .kind }} parameter (none for %s)", node.Name)
 		}
+	}
+	return nil
+}
+
+// addEntryScript registers the script that stands in front of this platform's
+// own command. It sits where the lab is operated from - the output root, or a
+// machine's directory - even when the topology file itself has moved into a
+// directory of its own, because the point of it is to be reachable without
+// knowing that layout.
+func addEntryScript(cfg *types.Config, scope, subdir string) error {
+	cfg.AddFileDefinition(&types.FileDefinition{
+		Name:  ScriptFile,
+		Path:  "",
+		Scope: scope,
+	})
+	bytes, err := templates.ReadFile("templates/containerlab.sh.entry")
+	if err != nil {
+		return err
+	}
+	// %%TOPO%% is filled in here rather than by the template engine: the path is
+	// known at registration and the script is otherwise the same for every lab,
+	// so there is nothing for the engine to do.
+	path := ClabOutputFile
+	if subdir != "" {
+		path = subdir + "/" + ClabOutputFile
+	}
+	script := strings.ReplaceAll(string(bytes), "%%TOPO%%", path)
+	ct := &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}
+	if scope == types.ClassTypeGroup {
+		cfg.AddGroupClass(&types.GroupClass{
+			Name:            ScriptClassName,
+			ConfigTemplates: []*types.ConfigTemplate{ct},
+		})
+	} else {
+		cfg.AddNetworkClass(&types.NetworkClass{
+			Name:            ScriptClassName,
+			ConfigTemplates: []*types.ConfigTemplate{ct},
+		})
 	}
 	return nil
 }
