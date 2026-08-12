@@ -50,8 +50,6 @@ file:
     scope: group
   - name: segments.txt
     scope: network
-  - name: setup-bridges.sh
-    scope: group
   - name: inter-host-links.txt
     scope: network
   - name: frr.conf
@@ -159,10 +157,6 @@ groupclass:
     config:
       # The bridges belong to a machine, so this script lands in the machine's
       # own directory and holds only its own bridges.
-      - file: setup-bridges.sh
-        template:
-          - "#!/bin/sh"
-          - "{{ .nodes_clab_bridge_setup }}"
       - file: host.yaml
         template:
           - "host: {{ .name }}"

@@ -40,12 +40,6 @@ file:
     path: /etc/frr/daemons
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
-  # The two files an operator needs. The bridges belong to a machine, so that
-  # script is scoped to the group and lands in the machine's own directory,
-  # holding only its own bridges; the link between the machines belongs to
-  # neither, so it stays at the output root.
-  - name: setup-bridges.sh
-    scope: group
   - name: inter-host-links.txt
     scope: network
 
@@ -103,11 +97,11 @@ nodeclass:
     deploy: platform
     values:
       kind: ovs-bridge
-    # containerlab refuses to deploy when the bridge does not already exist, so
-    # the script below has to create it. clabOvsBridgeSetup is a ready-made
-    # class the containerlab module offers; a lab whose bridges are provisioned
-    # by Ansible, or need sudo, or live in another OVS database, drops the use:
-    # line and writes its own clab_bridge_setup template.
+    # containerlab refuses to deploy when the bridge does not already exist.
+    # clabOvsBridgeSetup is a ready-made class the containerlab module offers:
+    # with it, the module writes setup-bridges.sh itself. A lab whose bridges
+    # are provisioned by Ansible, or need sudo, or live in another OVS
+    # database, leaves the use: line out and gets no script.
     use: [clabOvsBridgeSetup]
 
 interfaceclass:
@@ -145,11 +139,6 @@ groupclass:
     # those are follows from the subgraphs, so the edges carry no annotation
     # saying it a second time.
     boundary_crossing_connection_class: crosses_host
-    config:
-      - file: setup-bridges.sh
-        template:
-          - "#!/bin/sh"
-          - "{{ .nodes_clab_bridge_setup }}"
 
 networkclass:
   - name: _default

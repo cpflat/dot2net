@@ -2,23 +2,23 @@ nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: sw0#eth0}, {name: eth1, type: direct, args: sw2#eth0}, {name: eth2, type: direct, args: sw4#eth0}, {name: eth3, type: direct, args: sw6#eth0}]
-    mounts: [$PWD/r1/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r1/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r1/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r1/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r1/etc/frr/daemons:/etc/frr/daemons, $PWD/r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r1/var/log/frr.log:/var/log/frr.log]
+    mounts: [$PWD/r1/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r1/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r1/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r1/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r1/etc/frr/daemons:/etc/frr/daemons, $PWD/r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: sw0#eth1}, {name: eth1, type: direct, args: sw1#eth0}, {name: eth2, type: direct, args: sw5#eth0}, {name: eth3, type: direct, args: sw7#eth0}]
-    mounts: [$PWD/r2/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r2/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r2/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r2/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r2/etc/frr/daemons:/etc/frr/daemons, $PWD/r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r2/var/log/frr.log:/var/log/frr.log]
+    mounts: [$PWD/r2/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r2/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r2/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r2/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r2/etc/frr/daemons:/etc/frr/daemons, $PWD/r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: sw1#eth1}, {name: eth1, type: direct, args: sw2#eth1}, {name: eth2, type: direct, args: sw8#eth0}]
-    mounts: [$PWD/r3/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r3/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r3/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r3/etc/frr/daemons:/etc/frr/daemons, $PWD/r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r3/var/log/frr.log:/var/log/frr.log]
+    mounts: [$PWD/r3/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r3/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r3/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r3/etc/frr/daemons:/etc/frr/daemons, $PWD/r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r4
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: sw4#eth1}, {name: eth1, type: direct, args: sw9#eth0}]
-    mounts: [$PWD/r4/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r4/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r4/etc/frr/daemons:/etc/frr/daemons, $PWD/r4/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r4/var/log/frr.log:/var/log/frr.log]
+    mounts: [$PWD/r4/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r4/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r4/etc/frr/daemons:/etc/frr/daemons, $PWD/r4/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r5
     image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: sw10#eth0}, {name: eth1, type: direct, args: sw5#eth1}]
-    mounts: [$PWD/r5/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r5/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r5/etc/frr/daemons:/etc/frr/daemons, $PWD/r5/etc/frr/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r5/var/log/frr.log:/var/log/frr.log]
+    mounts: [$PWD/r5/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r5/etc/frr/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r5/etc/frr/daemons:/etc/frr/daemons, $PWD/r5/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: sw0
     image: nicolaka/netshoot
     interfaces: [{name: eth0, type: direct, args: r1#eth0}, {name: eth1, type: direct, args: r2#eth0}]
@@ -63,19 +63,24 @@ nodes:
 node_configs:
   - name: r1
     cmds:
-      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: r2
     cmds:
-      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: r3
     cmds:
-      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: r4
     cmds:
-      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: r5
     cmds:
-      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: sw0
     cmds:
       - cmd: ip link add br0 type bridge

@@ -1203,19 +1203,42 @@ func applyPolicies(t *tieredValues, cfg *Config, set func(*Layer, *IPPolicy)) {
 // template under the same name. Left to config generation, the clash surfaces
 // as a duplicated namespace parameter that names neither class - hard to trace
 // when one of them arrived through use:.
-func recordConfigNames(seen map[string]string, objType, objName, className string, cts []*ConfigTemplate) error {
+// configNameOrigin remembers who defined a config template name on an object,
+// and whether that was a module - which is what decides if a second definition
+// of the same name is a meeting or a collision.
+type configNameOrigin struct {
+	className      string
+	moduleProvided bool
+}
+
+func recordConfigNames(seen map[string]configNameOrigin, objType, objName, className string, cts []*ConfigTemplate) error {
 	for _, ct := range cts {
 		if ct.Name == "" {
 			continue
 		}
-		if other, ok := seen[ct.Name]; ok {
-			return fmt.Errorf(
-				"%s %s: classes %s and %s both define a config template named %q. "+
-					"use: attaches a class rather than letting it be overridden, so rename one of them "+
-					"or drop the use:",
-				objType, objName, other, className, ct.Name)
+		prev, ok := seen[ct.Name]
+		if !ok {
+			seen[ct.Name] = configNameOrigin{className: className, moduleProvided: ct.ModuleProvided}
+			continue
 		}
-		seen[ct.Name] = className
+		// A hook name is the one place a module and the scenario are meant to
+		// meet: the module adds what it has to do, the scenario says what it
+		// wants, and the two are merged in that order. Two scenario classes
+		// naming one hook is still the accident this check is here for.
+		if HookConfigNames[ct.Name] && (ct.ModuleProvided || prev.moduleProvided) {
+			// Keep the scenario's own class in the record, so that a third
+			// definition from the scenario is still reported against it.
+			if prev.moduleProvided && !ct.ModuleProvided {
+				seen[ct.Name] = configNameOrigin{className: className}
+			}
+			continue
+		}
+		other := prev.className
+		return fmt.Errorf(
+			"%s %s: classes %s and %s both define a config template named %q. "+
+				"use: attaches a class rather than letting it be overridden, so rename one of them "+
+				"or drop the use:",
+			objType, objName, other, className, ct.Name)
 	}
 	return nil
 }
@@ -1302,7 +1325,7 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 	single := newTieredValues()
 	nodePolicies := newTieredValues()
 	ifacePolicies := newTieredValues()
-	configNames := map[string]string{}
+	configNames := map[string]configNameOrigin{}
 
 	// set defaults for nodes without class
 	n.NamePrefix = DefaultNodePrefix
@@ -1872,7 +1895,7 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 
 	// set defaults for interfaces without class
 	iface.NamePrefix = DefaultInterfacePrefix
-	configNames := map[string]string{}
+	configNames := map[string]configNameOrigin{}
 	// Connection and interface classes are resolved separately, and the
 	// interface's own classes are applied last so that they stay the more
 	// specific of the two. Tiers only order classes of the same kind.
@@ -2307,7 +2330,7 @@ func (conn *Connection) SetClasses(cfg *Config, nm *NetworkModel) error {
 	}
 
 	// check connectionclass flags to connections and their interfaces
-	configNames := map[string]string{}
+	configNames := map[string]configNameOrigin{}
 	for _, cls := range conn.GetClasses() {
 		cc := cls.(*ConnectionClass)
 		if err := recordConfigNames(configNames, "connection", conn.Name, cc.Name, cc.ConfigTemplates); err != nil {
@@ -2716,7 +2739,7 @@ func (seg *NetworkSegment) SetSegmentLabelsFromRelationalLabels(cfg *Config, lay
 func (seg *NetworkSegment) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// set defaults for segments without class
 	seg.NamePrefix = DefaultSegmentPrefix
-	configNames := map[string]string{}
+	configNames := map[string]configNameOrigin{}
 
 	// Resolve attributes contributed by several classes (see tieredValues).
 	single := newTieredValues()
@@ -3038,7 +3061,7 @@ func (g *Group) SetClasses(cfg *Config, nm *NetworkModel) error {
 	// Resolve attributes contributed by several classes (see tieredValues).
 	values := newTieredValues()
 
-	configNames := map[string]string{}
+	configNames := map[string]configNameOrigin{}
 	for _, cls := range g.GetClasses() {
 		gc := cls.(*GroupClass)
 		if err := recordConfigNames(configNames, "group", g.Name, gc.Name, gc.ConfigTemplates); err != nil {

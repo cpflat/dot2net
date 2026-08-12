@@ -6,6 +6,7 @@ class_policy:
     default: [default]
 
 module:
+  - frr
   - tinet
   - containerlab
 
@@ -20,8 +21,6 @@ file:
     path: /etc/frr/daemons
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
-  - name: frr.log
-    path: /var/log/frr.log
 
 layer:
   - name: ip
@@ -46,26 +45,21 @@ nodeclass:
           - "ip link set br0 up"
           - "{{ .interfaces_link }}"
   - name: router
+    use: [frrLogFile]
     params: [lo]
     interface_policy: [ip]
     values:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - template:
-          - chown frr:frr /var/log/frr.log 
       - file: daemons
         sourcefile: ./daemons
         raw: true
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
         raw: true
-      - file: frr.log
-        sourcefile: ./frr.log
-        raw: true
       - file: zebra.conf
         template:
-          - "log file /var/log/frr.log"
           - "ip forwarding"
           - "ipv6 forwarding"
           - "!"

@@ -11,9 +11,9 @@ topology:
       - r1/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf
       - r1/etc/frr/daemons:/etc/frr/daemons
       - r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
-      - r1/var/log/frr.log:/var/log/frr.log
       exec:
-      - chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     r2:
       kind: linux
       image: nicolaka/netshoot
@@ -24,9 +24,9 @@ topology:
       - r2/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf
       - r2/etc/frr/daemons:/etc/frr/daemons
       - r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
-      - r2/var/log/frr.log:/var/log/frr.log
       exec:
-      - chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     r3:
       kind: linux
       image: nicolaka/netshoot
@@ -37,9 +37,9 @@ topology:
       - r3/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf
       - r3/etc/frr/daemons:/etc/frr/daemons
       - r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
-      - r3/var/log/frr.log:/var/log/frr.log
       exec:
-      - chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     r4:
       kind: linux
       image: nicolaka/netshoot
@@ -50,9 +50,9 @@ topology:
       - r4/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf
       - r4/etc/frr/daemons:/etc/frr/daemons
       - r4/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
-      - r4/var/log/frr.log:/var/log/frr.log
       exec:
-      - chown frr:frr /var/log/frr.log
+      - touch /var/log/frr.log && chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     s1:
       kind: linux
       image: nicolaka/netshoot

@@ -64,6 +64,22 @@ func defaultGlobalSettings() GlobalSettings {
 	}
 }
 
+// HookConfigNames are the names dot2net itself owns, and the only names a
+// scenario and a module may both use for a config template on one object.
+//
+// This is where the line between the two is drawn. A scenario says what it
+// wants by writing a template under one of these names; a module reads it and
+// puts it where its own platform expects it, and may add what it has to do
+// itself. Every other name belongs to whoever defined it: a module's own block
+// names are its business, and a scenario naming one of them would be reaching
+// into a module's insides, which is how the ways the two can talk to each other
+// multiply until nobody can say what they are.
+var HookConfigNames = map[string]bool{
+	// startup: commands to run once the node is up. containerlab puts them in
+	// exec:, TiNET in cmds:, Kathara in <device>.startup.
+	"startup": true,
+}
+
 const ClassTypeNetwork string = "network"
 const ClassTypeNode string = "node"
 const ClassTypeInterface string = "interface"
@@ -480,7 +496,19 @@ func (cfg *Config) AddFileDefinition(filedef *FileDefinition) {
 	cfg.fileDefinitionMap[filedef.Name] = filedef
 }
 
+// markModuleTemplates records that these templates came from a module, which is
+// what lets a hook name carry a module's part ahead of the scenario's.
+func markModuleTemplates(cfg *Config, cts []*ConfigTemplate) {
+	if !cfg.registeringModule {
+		return
+	}
+	for _, ct := range cts {
+		ct.ModuleProvided = true
+	}
+}
+
 func (cfg *Config) AddNetworkClass(nc *NetworkClass) {
+	markModuleTemplates(cfg, nc.ConfigTemplates)
 	cfg.NetworkClasses = append(cfg.NetworkClasses, nc)
 }
 
@@ -494,24 +522,28 @@ func (cfg *Config) LoadModuleConfig(m Module) error {
 }
 
 func (cfg *Config) AddNodeClass(nc *NodeClass) {
+	markModuleTemplates(cfg, nc.ConfigTemplates)
 	nc.ModuleProvided = cfg.registeringModule
 	cfg.NodeClasses = append(cfg.NodeClasses, nc)
 	cfg.nodeClassMap[nc.Name] = nc
 }
 
 func (cfg *Config) AddInterfaceClass(nc *InterfaceClass) {
+	markModuleTemplates(cfg, nc.ConfigTemplates)
 	nc.ModuleProvided = cfg.registeringModule
 	cfg.InterfaceClasses = append(cfg.InterfaceClasses, nc)
 	cfg.interfaceClassMap[nc.Name] = nc
 }
 
 func (cfg *Config) AddConnectionClass(nc *ConnectionClass) {
+	markModuleTemplates(cfg, nc.ConfigTemplates)
 	nc.ModuleProvided = cfg.registeringModule
 	cfg.ConnectionClasses = append(cfg.ConnectionClasses, nc)
 	cfg.connectionClassMap[nc.Name] = nc
 }
 
 func (cfg *Config) AddGroupClass(gc *GroupClass) {
+	markModuleTemplates(cfg, gc.ConfigTemplates)
 	gc.ModuleProvided = cfg.registeringModule
 	cfg.GroupClasses = append(cfg.GroupClasses, gc)
 	cfg.groupClassMap[gc.Name] = gc
@@ -695,6 +727,7 @@ func (fd *FileDefinition) GetFileName(objectName string) string {
 //   - "network" -> "root"
 //   - "group" -> "group"
 //   - "node" or "" -> "node"
+//
 // GetProvide returns how the file reaches its node, filling in the default.
 func (fd *FileDefinition) GetProvide() string {
 	if fd.Provide == "" {
@@ -1219,6 +1252,11 @@ type ConfigTemplate struct {
 	// Name is used by parent objects to specify as childs in templates
 	// Config templates with name will form a parameter that can be embeded in other hierarchy templates
 	Name string `yaml:"name" mapstructure:"name"`
+	// ModuleProvided marks a template registered by a module rather than
+	// written by the scenario. It decides the order when a module and the
+	// scenario both contribute to one of the hook names below: what the module
+	// has to do comes first.
+	ModuleProvided bool `yaml:"-" mapstructure:"-"`
 	// Group is used for sort config templates
 	// A sort config template will aggregate all config blocks generated in child (or grandchild) objects of the same group
 	Group string `yaml:"group" mapstructure:"group"`

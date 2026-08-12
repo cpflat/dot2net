@@ -20,8 +20,6 @@ file:
     path: /etc/frr/daemons
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
-  - name: frr.log
-    path: /var/log/frr.log
 
 layer:
   - name: provider
@@ -50,6 +48,7 @@ nodeclass:
           - "ip link set br0 up"
           - "{{ .interfaces_link }}"
   - name: router
+    use: [frrLogFile]
     values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
@@ -60,13 +59,10 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
         raw: true
-      - file: frr.log
-        sourcefile: ./frr.log
-        raw: true
       - name: startup
         depends: [ospf_startup]
-        template: 
-          - "chown frr:frr /var/log/frr.log{{ .self_ospf_startup }}"
+        template:
+          - "{{ .self_ospf_startup }}"
   - name: bgp
     config:
       - file: bgpd.conf

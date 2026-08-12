@@ -575,7 +575,7 @@ func setEmptyAggregationParams(cfg *types.Config, ns types.NameSpacer, depClass 
 		if ns.HasRelativeParam(name) {
 			continue
 		}
-		if err := setConfigParamForNameSpace(ns, name, EmptyOutput, verbose); err != nil {
+		if err := setConfigParamForNameSpace(ns, name, EmptyOutput, nil, verbose); err != nil {
 			return err
 		}
 	}
@@ -647,7 +647,7 @@ func integrateConfigsFromDependencies(cfg *types.Config, ca *ConfigAggregator, n
 				return fmt.Errorf("error merging configs from %s: %w", depClass, err)
 			}
 
-			err = setConfigParamForNameSpace(ns, relativeName, mergedConfig, verbose)
+			err = setConfigParamForNameSpace(ns, relativeName, mergedConfig, nil, verbose)
 			if err != nil {
 				return fmt.Errorf("error adding configs to namespace: %w", err)
 			}
@@ -872,7 +872,7 @@ func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf strin
 	// }
 
 	relativeName := types.SelfConfigHeader + ct.Name
-	err = setConfigParamForNameSpace(ns, relativeName, formattedConf, verbose)
+	err = setConfigParamForNameSpace(ns, relativeName, formattedConf, ct, verbose)
 	if err != nil {
 		return "", err
 	}
@@ -880,7 +880,14 @@ func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf strin
 	return formattedConf, nil
 }
 
-func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, verbose bool) error {
+// joinHookBlocks puts one hook block after another on a line of its own. The
+// seam is trimmed because each block already stands on its own: leaving their
+// edges in place would put an empty command between them.
+func joinHookBlocks(first, second string) string {
+	return strings.TrimRight(first, "\n") + "\n" + strings.TrimLeft(second, "\n")
+}
+
+func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, ct *types.ConfigTemplate, verbose bool) error {
 	if new == EmptyOutput {
 		// if new config is empty, set "" only when no previous parameter
 		if !ns.HasRelativeParam(name) {
@@ -894,6 +901,17 @@ func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, ve
 		if ns.HasRelativeParam(name) {
 			prev, _ := ns.GetParamValue(name)
 			if prev != "" {
+				// A hook name carries both a module's part and the scenario's.
+				// The module's comes first whichever is rendered first, so that
+				// what a scenario asked for runs after the ground is prepared.
+				if ct != nil && types.HookConfigNames[strings.TrimPrefix(name, types.SelfConfigHeader)] {
+					if ct.ModuleProvided {
+						ns.SetRelativeParam(name, joinHookBlocks(new, prev))
+					} else {
+						ns.SetRelativeParam(name, joinHookBlocks(prev, new))
+					}
+					return nil
+				}
 				// if neither is empty (duplicated configuration), raise error
 				return fmt.Errorf(
 					// "parameter name %s of object %s duplicated (existing parameter: %s)",

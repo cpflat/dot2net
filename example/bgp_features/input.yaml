@@ -5,6 +5,7 @@ class_policy:
     base: [all]
 
 module:
+  - frr
   - tinet
   - containerlab
 
@@ -21,8 +22,6 @@ file:
     path: /etc/frr/daemons
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
-  - name: frr.log
-    path: /var/log/frr.log
 
 layer:
   - name: ipv4
@@ -56,6 +55,7 @@ nodeclass:
           - "ip link set br0 up"
           - "{{ .interfaces_link }}"
   - name: router
+    use: [frrLogFile]
     params: [ipv4lo, ipv6lo]
     interface_policy: [ipv4, ipv6]
     values:
@@ -68,15 +68,8 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
         raw: true
-      - file: frr.log
-        sourcefile: ./frr.log
-        raw: true
-      - name: startup
-        template:
-          - "chown frr:frr /var/log/frr.log"
       - file: zebra.conf
         template:
-          - "log file /var/log/frr.log"
           - "!"
           - "interface lo"
           - " ip address {{ .ipv4_loopback }}/32"
@@ -87,7 +80,6 @@ nodeclass:
     config:
       - name: bgp_header
         template:
-          - "log file /var/log/frr.log"
           - "!"
           - "router bgp {{ .as }}"
           - " timers bgp 3 10"
@@ -117,7 +109,6 @@ nodeclass:
     config:
       - file: ospfd.conf
         template:
-          - "log file /var/log/frr.log"
           - "!"
           - "{{ .interfaces_ospf_ifconf }}"
           - "router ospf"
@@ -131,7 +122,6 @@ nodeclass:
           - "!"
       - file: ospf6d.conf
         template:
-          - "log file /var/log/frr.log"
           - "!"
           - "interface lo"
           - "!"

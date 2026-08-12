@@ -8,6 +8,7 @@ global:
   path: local
 
 module:
+  - frr
   - tinet
   - containerlab
 
@@ -22,8 +23,6 @@ file:
     path: /etc/frr/daemons
   - name: vtysh.conf
     path: /etc/frr/vtysh.conf
-  - name: frr.log
-    path: /var/log/frr.log
 
 layer:
   - name: ip
@@ -49,6 +48,7 @@ nodeclass:
           - "ip link add br0 type bridge"
           - "ip link set br0 up"
   - name: router
+    use: [frrLogFile]
     params: [lo]
     interface_policy: [ip]
     values:
@@ -61,18 +61,11 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
         raw: true
-      - file: frr.log
-        sourcefile: ./frr.log
-        raw: true
-      - name: startup
-        template:
-          - chown frr:frr /var/log/frr.log 
       - file: zebra.conf
         style: sort
         sort_group: zebra.conf
         priority: -1
         template:
-          - "log file /var/log/frr.log"
           - "!"
           - "interface lo"
           - "ipv6 forwarding"
@@ -92,7 +85,6 @@ nodeclass:
       - group: ospf6d.conf
         priority: -2
         template:
-          - "log file /var/log/frr.log"
           - "!"
       - file: staticd.conf
         style: sort

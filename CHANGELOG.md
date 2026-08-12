@@ -296,6 +296,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`values: {kind: ovs-bridge}`). Conflicting values from two classes of the same
   tier are rejected, as they are for the other class types.
 
+- **A module can add to a node's `startup`, and a scenario reaches modules only
+  through `use:`.** Which names cross between a module and a scenario is now a
+  short list rather than a growing one:
+
+  - the **class names and value names a module publishes** — a scenario writes
+    them in `use:` and `values:`
+  - the **hook names dot2net itself owns** — a scenario writes them in
+    `config: - name:`. There is one so far, `startup`, and a module reads it and
+    puts it where its own platform expects it
+
+  A module's own block names are its business. A scenario naming one would be
+  reaching into a module's insides, and the ways the two can talk to each other
+  would multiply with every module and every feature until nobody could say what
+  they are.
+
+  What this makes possible: a module class pulled in with `use:` can define a
+  template under a hook name, and what it has to do is merged ahead of what the
+  scenario asked for there. Two classes of the scenario's own naming one hook is
+  still rejected — nothing would say which of them wins.
+
+  ```yaml
+  nodeclass:
+    - name: router
+      use: [frrLogFile]     # the module adds its commands to this node's startup
+      config:
+        - name: startup
+          template: ["whatever the scenario wants, running after"]
+  ```
+- **`frrLogFile`**: a class from the FRR module that makes the log file and names
+  it to a running FRR. FRR cannot do it itself — its daemons run as the frr user
+  and `/var/log` belongs to root, so a log file named in a configuration read at
+  boot is one FRR reports it cannot open, and mounting the file in was the old
+  answer. That answer does not survive Kathara, which mounts directories and
+  would have to replace `/var/log` wholesale. Doing it from `startup` costs the
+  messages FRR logged before it runs, and nothing after.
+
+  `example/ospf_topo1`, `ospf6_topo1`, `rip_topo1`, `bgp_features` and
+  `bgp_evpn_vxlan_topo1` use it and no longer generate a log file of their own.
+- **containerlab writes `setup-bridges.sh` itself** when a scenario pulls in
+  `clabOvsBridgeSetup` or `clabLinuxBridgeSetup`, instead of a scenario
+  declaring the file and assembling it from a module's blocks. A lab whose
+  bridges are provisioned some other way leaves the `use:` line out and gets no
+  script.
 - **`provide` on a file definition**: says how the file reaches its node's
   container, `mount` (the default) or `copy`. Neither is the better one, and
   which to use follows from what the file is for:

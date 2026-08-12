@@ -58,6 +58,12 @@ const LinuxBridgeSetupClassName = "clabLinuxBridgeSetup"
 // and the one a scenario overrides or supplies itself. Aggregate it with
 // {{ .nodes_clab_bridge_setup }}.
 const BridgeSetupConfigName = "clab_bridge_setup"
+
+// BridgeSetupFile is where those blocks end up. The module writes the script
+// itself rather than leaving a scenario to assemble it: what goes in it is the
+// module's own doing, and a scenario that says use: [clabOvsBridgeSetup] has
+// said everything it needs to.
+const BridgeSetupFile = "setup-bridges.sh"
 const InterfaceClassName = "_clabInterface"
 const ConnectionClassName = "_clabConnection"
 
@@ -181,18 +187,41 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct1.Template = []string{string(bytes)}
 
+	// The bridges a topology names have to exist before containerlab will
+	// deploy it, so a scenario that asks for one gets a script that makes them.
+	// The module writes it rather than leaving a scenario to assemble it, and
+	// only when some node class pulls in one of the bridge setup classes -
+	// which is knowable here, from the scenario's own configuration.
+	owns := []*types.ConfigTemplate{ct1}
+	if usesBridgeSetup(cfg) {
+		cfg.AddFileDefinition(&types.FileDefinition{
+			Name:   BridgeSetupFile,
+			Path:   "",
+			Scope:  scope,
+			Subdir: subdir,
+		})
+		bridgeScript, err := templates.ReadFile("templates/setup-bridges.sh.clab_bridge_script")
+		if err != nil {
+			return err
+		}
+		owns = append(owns, &types.ConfigTemplate{
+			File:     BridgeSetupFile,
+			Template: []string{string(bridgeScript)},
+		})
+	}
+
 	if perWorker {
 		// Not AddModuleGroupClassLabel: that would give the topology file to
 		// every group, including the ones that only share parameters.
 		// ClassifyObjects picks the worker groups out.
 		cfg.AddGroupClass(&types.GroupClass{
 			Name:            WorkerGroupClassName,
-			ConfigTemplates: []*types.ConfigTemplate{ct1},
+			ConfigTemplates: owns,
 		})
 	} else {
 		cfg.AddNetworkClass(&types.NetworkClass{
 			Name:            NetworkClassName,
-			ConfigTemplates: []*types.ConfigTemplate{ct1},
+			ConfigTemplates: owns,
 		})
 	}
 
@@ -673,4 +702,19 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 		})
 	}
 	return results, nil
+}
+
+// usesBridgeSetup reports whether any node class in the scenario pulls in one of
+// the bridge setup classes. It reads the scenario's own configuration, which is
+// loaded before the modules are, so the answer is available while the module is
+// still deciding what to register.
+func usesBridgeSetup(cfg *types.Config) bool {
+	for _, nc := range cfg.NodeClasses {
+		for _, used := range nc.Use {
+			if used == OvsBridgeSetupClassName || used == LinuxBridgeSetupClassName {
+				return true
+			}
+		}
+	}
+	return false
 }
