@@ -420,10 +420,11 @@ type Options struct {
 // those startup files are written by the scenario rather than by this module.
 func addEntryScript(cfg *types.Config) error {
 	cfg.AddFileDefinition(&types.FileDefinition{
-		Name:   ScriptFile,
-		Path:   "",
-		Scope:  types.ClassTypeNetwork,
-		Subdir: ModuleName,
+		Name:       ScriptFile,
+		Path:       "",
+		Scope:      types.ClassTypeNetwork,
+		Subdir:     ModuleName,
+		Executable: true,
 	})
 	bytes, err := templates.ReadFile("templates/kathara.sh.entry")
 	if err != nil {

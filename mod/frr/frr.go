@@ -69,6 +69,9 @@ func (m *FRRModule) UpdateConfig(cfg *types.Config) error {
 	}
 	cfg.AddNodeClass(&types.NodeClass{
 		Name: LogFileClassName,
+		// The log is the module's to make, so it is the module's to bring back:
+		// a scenario that never named the file should not have to name it here.
+		Collect: []string{"{{ ." + LogPathParamName + " }}"},
 		Values: map[string]string{
 			LogPathParamName:  DefaultLogPath,
 			LogLevelParamName: DefaultLogLevel,

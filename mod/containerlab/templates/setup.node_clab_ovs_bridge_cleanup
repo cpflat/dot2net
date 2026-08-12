@@ -1,0 +1,1 @@
+  ovs-vsctl --if-exists del-br {{ .name }} || note_failure "delete bridge {{ .name }}"

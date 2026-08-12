@@ -64,6 +64,10 @@ const BridgeSetupConfigName = "clab_bridge_setup"
 // module's own doing, and a scenario that says use: [clabOvsBridgeSetup] has
 // said everything it needs to.
 const BridgeSetupFile = "setup-bridges.sh"
+
+// BridgeCleanupConfigName is the same block the other way round: what the entry
+// script runs once the lab is down.
+const BridgeCleanupConfigName = "clab_bridge_cleanup"
 const InterfaceClassName = "_clabInterface"
 const ConnectionClassName = "_clabConnection"
 
@@ -195,10 +199,11 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	owns := []*types.ConfigTemplate{ct1}
 	if usesBridgeSetup(cfg) {
 		cfg.AddFileDefinition(&types.FileDefinition{
-			Name:   BridgeSetupFile,
-			Path:   "",
-			Scope:  scope,
-			Subdir: subdir,
+			Name:       BridgeSetupFile,
+			Path:       "",
+			Scope:      scope,
+			Subdir:     subdir,
+			Executable: true,
 		})
 		bridgeScript, err := templates.ReadFile("templates/setup-bridges.sh.clab_bridge_script")
 		if err != nil {
@@ -318,10 +323,29 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct4.Template = []string{nodeTopo}
 
+	// What the entry script needs from each node: the lab's own teardown
+	// commands, and the files to copy out. Both are aggregated by the script,
+	// which is the module's own file - a scenario never names these blocks.
+	ctTeardown, err := readTemplate("templates/teardown.node_clab_teardown", &types.ConfigTemplate{
+		Name:           "clab_teardown",
+		Depends:        []string{"teardown"},
+		RequiredParams: []string{"self_teardown"},
+	})
+	if err != nil {
+		return err
+	}
+	ctCollect, err := readTemplate("templates/collect.node_clab_collect", &types.ConfigTemplate{
+		Name:           "clab_collect",
+		RequiredParams: []string{"values_clab_collect_entry"},
+	})
+	if err != nil {
+		return err
+	}
+
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
-		Parameters:      []string{"clab_binds", "clab_copies"},
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4, ctCopies, ctExecBody},
+		Parameters:      []string{"clab_binds", "clab_copies", "clab_collects"},
+		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4, ctCopies, ctExecBody, ctTeardown, ctCollect},
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: which of the two node classes a node gets is
@@ -342,11 +366,18 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		ConfigTemplates: []*types.ConfigTemplate{ct6},
 	})
 
-	for _, setup := range []struct{ className, file string }{
-		{OvsBridgeSetupClassName, "templates/setup.node_clab_ovs_bridge"},
-		{LinuxBridgeSetupClassName, "templates/setup.node_clab_linux_bridge"},
+	// A bridge the module made is a bridge the module takes away: the setup
+	// script had no counterpart, so a lab that was destroyed left its bridges
+	// behind.
+	for _, setup := range []struct{ className, file, cleanupFile string }{
+		{OvsBridgeSetupClassName, "templates/setup.node_clab_ovs_bridge", "templates/setup.node_clab_ovs_bridge_cleanup"},
+		{LinuxBridgeSetupClassName, "templates/setup.node_clab_linux_bridge", "templates/setup.node_clab_linux_bridge_cleanup"},
 	} {
 		bytes, err = templates.ReadFile(setup.file)
+		if err != nil {
+			return err
+		}
+		cleanup, err := templates.ReadFile(setup.cleanupFile)
 		if err != nil {
 			return err
 		}
@@ -354,6 +385,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 			Name: setup.className,
 			ConfigTemplates: []*types.ConfigTemplate{
 				{Name: BridgeSetupConfigName, Template: []string{string(bytes)}},
+				{Name: BridgeCleanupConfigName, Template: []string{string(cleanup)}},
 			},
 		})
 	}
@@ -389,6 +421,19 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		},
 	}
 	cfg.AddParameterRule(bindsParamRule)
+
+	collectEntry, err := templates.ReadFile("templates/collect.value_clab_collect_entry")
+	if err != nil {
+		return err
+	}
+	cfg.AddParameterRule(&types.ParameterRule{
+		Name:      "clab_collects",
+		Mode:      types.ParameterRuleModeAttach,
+		Generator: "clab.collectfiles",
+		ConfigTemplates: []*types.ConfigTemplate{
+			{Name: "clab_collect_entry", Template: []string{string(collectEntry)}},
+		},
+	})
 
 	copiesEntry, err := templates.ReadFile("templates/topo.yaml.value_clab_copy_entry")
 	if err != nil {
@@ -462,6 +507,8 @@ func (m *ClabModule) GenerateValueParameters(
 		return m.generateFilemountParams(target, cfg, nm)
 	case "copyfiles":
 		return copyFileParams(target, cfg)
+	case "collectfiles":
+		return generateCollectParams(target, cfg, nm)
 	default:
 		return nil, fmt.Errorf("unknown generator: %s", generatorName)
 	}
@@ -647,9 +694,10 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 // knowing that layout.
 func addEntryScript(cfg *types.Config, scope, subdir string) error {
 	cfg.AddFileDefinition(&types.FileDefinition{
-		Name:  ScriptFile,
-		Path:  "",
-		Scope: scope,
+		Name:       ScriptFile,
+		Path:       "",
+		Scope:      scope,
+		Executable: true,
 	})
 	bytes, err := templates.ReadFile("templates/containerlab.sh.entry")
 	if err != nil {
@@ -663,6 +711,7 @@ func addEntryScript(cfg *types.Config, scope, subdir string) error {
 		path = subdir + "/" + ClabOutputFile
 	}
 	script := strings.ReplaceAll(string(bytes), "%%TOPO%%", path)
+	script = strings.ReplaceAll(script, "%%COLLECT%%", types.CollectDirName)
 	ct := &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}
 	if scope == types.ClassTypeGroup {
 		cfg.AddGroupClass(&types.GroupClass{
@@ -717,4 +766,34 @@ func usesBridgeSetup(cfg *types.Config) bool {
 		}
 	}
 	return false
+}
+
+// readTemplate fills a config template in from the module's own files.
+func readTemplate(path string, ct *types.ConfigTemplate) (*types.ConfigTemplate, error) {
+	bytes, err := templates.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	ct.Template = []string{string(bytes)}
+	return ct, nil
+}
+
+// generateCollectParams names the files to copy out of a node.
+func generateCollectParams(target types.ValueOwner, cfg *types.Config, nm *types.NetworkModel) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("collectfiles generator requires Node target, got %T", target)
+	}
+	targets, err := types.CollectTargets(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+	var results []map[string]string
+	for _, t := range targets {
+		if t.Node != node.Name {
+			continue
+		}
+		results = append(results, map[string]string{"device": t.Node, "path": t.ContainerPath})
+	}
+	return results, nil
 }

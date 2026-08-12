@@ -993,7 +993,11 @@ func outputConfigFile(cfg *types.Config, ns types.NameSpacer, conf string, ct *t
 	if err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, []byte(conf), 0644); err != nil {
+	perm := os.FileMode(0644)
+	if filedef.Executable {
+		perm = 0755
+	}
+	if err := os.WriteFile(path, []byte(conf), perm); err != nil {
 		return err
 	}
 	if verbose {

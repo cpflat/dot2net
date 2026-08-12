@@ -78,6 +78,10 @@ var HookConfigNames = map[string]bool{
 	// startup: commands to run once the node is up. containerlab puts them in
 	// exec:, TiNET in cmds:, Kathara in <device>.startup.
 	"startup": true,
+	// teardown: commands to run in the node while it is still up, before the
+	// lab is destroyed. Dumping state, flushing what a program buffers, putting
+	// a mounted file's permissions back. The entry script runs them.
+	"teardown": true,
 }
 
 const ClassTypeNetwork string = "network"
@@ -647,6 +651,9 @@ type FileDefinition struct {
 	// Path is the path that the generated file is placed on the node.
 	// If empty, the file is generated but not placed on the node.
 	Path string `yaml:"path" mapstructure:"path"`
+	// Executable marks a file meant to be run. A generated script that has to
+	// be chmod'ed before it works is a script that will be run wrong once.
+	Executable bool `yaml:"executable" mapstructure:"executable"`
 	// Provide says how the file reaches the node's container. The two ways are
 	// not one better than the other:
 	//
@@ -1037,10 +1044,15 @@ type NodeClass struct {
 	// What each form looks like is up to the platform module: containerlab
 	// writes a bridge node, TiNET a switches: entry, Kathara a collision domain.
 	// dot2net itself only knows the node is not a container of its own.
-	Deploy            string            `yaml:"deploy" mapstructure:"deploy"`
-	IPPolicy          []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
-	Parameters        []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
-	Values            map[string]string `yaml:"values" mapstructure:"values"`
+	Deploy     string            `yaml:"deploy" mapstructure:"deploy"`
+	IPPolicy   []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
+	Parameters []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
+	Values     map[string]string `yaml:"values" mapstructure:"values"`
+	// Collect names files inside the node to copy out before the lab is
+	// destroyed. Each is a template, so a path that follows a value stays right
+	// when the value is changed. The entry script does the copying, which is
+	// why a scenario that collects anything needs one.
+	Collect           []string          `yaml:"collect,flow" mapstructure:"collect,flow"`
 	InterfaceIPPolicy []string          `yaml:"interface_policy,flow" mapstructure:"interface_policy,flow"`
 	ConfigTemplates   []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
 	MemberClasses     []*MemberClass    `yaml:"classmembers,flow" mapstructure:"classmembers,flow"`

@@ -5,6 +5,7 @@ import (
 	"path"
 	"sort"
 	"strings"
+	"text/template"
 
 	mapset "github.com/deckarep/golang-set/v2"
 )
@@ -3360,4 +3361,65 @@ func (v *Value) BuildRelativeNameSpace(globalParams map[string]map[string]string
 	}
 
 	return nil
+}
+
+// CollectTarget is one file to copy out of a node before the lab is destroyed:
+// where it is inside the container, and where it lands in the output.
+type CollectTarget struct {
+	Node          string
+	ContainerPath string
+	OutputPath    string
+}
+
+// CollectDirName is where collected files land, mirroring the container's own
+// paths under a directory per node: collected/r1/var/log/frr.log. It stands
+// beside the generated tree rather than in it - what was generated and what
+// came back from a run are not the same kind of thing.
+const CollectDirName = "collected"
+
+// CollectTargets lists what the lab is asked to bring back, in node order so
+// that two runs produce the same script. The paths are templates, rendered with
+// the node's own parameters.
+func CollectTargets(cfg *Config, nm *NetworkModel) ([]CollectTarget, error) {
+	var targets []CollectTarget
+	for _, node := range nm.Nodes {
+		if node.IsVirtual() || cfg.IsSwitchNode(node) {
+			continue
+		}
+		for _, cls := range node.GetClasses() {
+			nc, ok := cls.(*NodeClass)
+			if !ok {
+				continue
+			}
+			for _, raw := range nc.Collect {
+				target, err := renderWithNodeParams(raw, node)
+				if err != nil {
+					return nil, fmt.Errorf("collect path %q of class %s: %w", raw, nc.Name, err)
+				}
+				targets = append(targets, CollectTarget{
+					Node:          node.Name,
+					ContainerPath: target,
+					OutputPath:    path.Join(CollectDirName, node.Name, strings.TrimPrefix(target, "/")),
+				})
+			}
+		}
+	}
+	return targets, nil
+}
+
+// renderWithNodeParams fills a collect path in with the node's parameters, the
+// same way a config template is filled in.
+func renderWithNodeParams(raw string, node *Node) (string, error) {
+	tpl, err := template.New("collect").Option("missingkey=error").Parse(raw)
+	if err != nil {
+		return "", err
+	}
+	var sb strings.Builder
+	// The node's own parameters, which is where a class's values land. The
+	// relative ones (self_*, and the rest) are filled in later, when config
+	// blocks are rendered, and a path does not need them.
+	if err := tpl.Execute(&sb, node.GetParams()); err != nil {
+		return "", err
+	}
+	return sb.String(), nil
 }

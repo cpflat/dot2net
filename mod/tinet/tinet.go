@@ -517,9 +517,10 @@ type Options struct {
 // moved into a directory of its own.
 func addEntryScript(cfg *types.Config, scope, subdir string) error {
 	cfg.AddFileDefinition(&types.FileDefinition{
-		Name:  ScriptFile,
-		Path:  "",
-		Scope: scope,
+		Name:       ScriptFile,
+		Path:       "",
+		Scope:      scope,
+		Executable: true,
 	})
 	bytes, err := templates.ReadFile("templates/tinet.sh.entry")
 	if err != nil {
