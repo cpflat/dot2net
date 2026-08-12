@@ -5,6 +5,7 @@ class_policy:
     default: [default]
 
 module:
+  - kathara
   - tinet
   - containerlab
 

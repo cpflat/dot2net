@@ -1,0 +1,7 @@
+/usr/lib/frr/frr start
+ip addr add 10.0.0.1/30 dev eth0
+ip addr add 10.0.0.5/30 dev eth1
+ip addr add 10.0.0.10/30 dev eth2
+vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.0/30 area 0"
+vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.4/30 area 0"
+vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.8/30 area 0"

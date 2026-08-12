@@ -40,6 +40,8 @@ global:
   # per machine would be written the same way.
   output_group_class: worker
 
+# Kathara is not among the modules below: a lab.conf describes one machine,
+# and this scenario places its nodes on more than one.
 module:
   - assert
   - tinet

@@ -1,0 +1,3 @@
+touch /var/log/frr.log
+chown frr:frr /var/log/frr.log
+vtysh -c "conf t" -c "log file /var/log/frr.log informational"

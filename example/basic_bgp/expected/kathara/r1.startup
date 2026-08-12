@@ -1,0 +1,2 @@
+vtysh -c "conf t" -c "router bgp 65000" -c "bgp router-id 10.255.0.1"
+vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.1/24" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65001"

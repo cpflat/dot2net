@@ -180,11 +180,13 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	if err != nil {
 		return err
 	}
+	// The file is written for every device, even when there is nothing to put
+	// in it: Kathara reads an empty startup file without complaint, and a file
+	// that appears only sometimes is one that dot2net files cannot promise.
 	ctStartup, err := templateFrom("templates/startup.node_kathara_startup", &types.ConfigTemplate{
-		Name:           "kathara_startup",
-		File:           StartupFile,
-		RequiredParams: []string{"self_kathara_startup_body"},
-		Depends:        []string{"kathara_startup_body"},
+		Name:    "kathara_startup",
+		File:    StartupFile,
+		Depends: []string{"kathara_startup_body"},
 	})
 	if err != nil {
 		return err
@@ -377,6 +379,19 @@ func interfaceIndex(iface *types.Interface) (int, error) {
 }
 
 func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
+	// A Kathara lab is one lab.conf and one machine. A scenario that declares
+	// placement units is describing a topology spread over several, and there
+	// is nothing in lab.conf that says which device goes where - so the file
+	// would name every device as if they shared a machine, and the paths it
+	// points at would be wrong as well. Say so rather than write it.
+	if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
+		return fmt.Errorf(
+			"this scenario places nodes on machines with %s groups, which Kathara has no way to "+
+				"express: a lab.conf describes one machine. Drop the kathara module, or the placement "+
+				"units if the lab is meant for one machine after all",
+			types.WorkerGroupClassName)
+	}
+
 	if err := checkMountDirsUsed(cfg, nm); err != nil {
 		return err
 	}

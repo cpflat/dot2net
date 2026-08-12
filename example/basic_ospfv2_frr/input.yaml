@@ -4,7 +4,15 @@ class_policy:
   interface:
     default: [default]
 
+module_config:
+  kathara:
+    # Kathara mounts directories rather than files, and the mount replaces
+    # what the image had there. Naming /etc/frr says the scenario supplies
+    # everything FRR needs in it.
+    mount_dirs: [/etc/frr]
+
 module:
+  - kathara
   - frr
   - tinet
   - containerlab
