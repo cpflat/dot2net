@@ -1,29 +1,29 @@
 nodes:
   - name: sv1
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: sw1#net0}]
+    interfaces: [{name: eth0, type: direct, args: sw1#eth0}]
     mounts: []
   - name: sv2
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: sw1#net1}]
+    interfaces: [{name: eth0, type: direct, args: sw1#eth1}]
     mounts: []
   - name: sw1
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: sv1#net0}, {name: net1, type: direct, args: sv2#net0}]
+    interfaces: [{name: eth0, type: direct, args: sv1#eth0}, {name: eth1, type: direct, args: sv2#eth0}]
     mounts: []
 
 node_configs:
   - name: sv1
     cmds:
-      - cmd: ip addr add 10.0.0.1/24 dev net0
+      - cmd: ip addr add 10.0.0.1/24 dev eth0
   - name: sv2
     cmds:
-      - cmd: ip addr add 10.0.0.2/24 dev net0
+      - cmd: ip addr add 10.0.0.2/24 dev eth0
   - name: sw1
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0

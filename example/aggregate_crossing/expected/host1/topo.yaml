@@ -23,6 +23,6 @@ topology:
       kind: ovs-bridge
 
   links:
-  - endpoints: [r1:net0, sw1:net0]
-  - endpoints: [r2:net0, sw1:net1]
+  - endpoints: [r1:eth0, sw1:eth0]
+  - endpoints: [r2:eth0, sw1:eth1]
 

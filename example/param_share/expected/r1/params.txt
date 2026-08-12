@@ -1,1 +1,1 @@
-connection name conn0 for vlan 100 (r1.net0)
+connection name conn0 for vlan 100 (r1.eth0)

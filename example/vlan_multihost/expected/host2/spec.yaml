@@ -4,18 +4,18 @@ switches:
 nodes:
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: bridge, args: br2}, {name: net1, type: direct, args: r4#net0}]
+    interfaces: [{name: eth0, type: bridge, args: br2}, {name: eth1, type: direct, args: r4#eth0}]
     mounts: [$PWD/r3/frr.conf:/etc/frr/frr.conf]
   - name: r4
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r3#net1}]
+    interfaces: [{name: eth0, type: direct, args: r3#eth1}]
     mounts: [$PWD/r4/frr.conf:/etc/frr/frr.conf]
 
 node_configs:
   - name: r3
     cmds:
-      - cmd: ip addr add 10.0.0.2/24 dev net0
-      - cmd: ip addr add 10.0.2.1/24 dev net1
+      - cmd: ip addr add 10.0.0.2/24 dev eth0
+      - cmd: ip addr add 10.0.2.1/24 dev eth1
   - name: r4
     cmds:
-      - cmd: ip addr add 10.0.2.2/24 dev net0
+      - cmd: ip addr add 10.0.2.2/24 dev eth0

@@ -1,63 +1,63 @@
 nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: sw0#net0}, {name: net1, type: direct, args: sw2#net0}, {name: net2, type: direct, args: sw4#net0}, {name: net3, type: direct, args: sw6#net0}]
+    interfaces: [{name: eth0, type: direct, args: sw0#eth0}, {name: eth1, type: direct, args: sw2#eth0}, {name: eth2, type: direct, args: sw4#eth0}, {name: eth3, type: direct, args: sw6#eth0}]
     mounts: [$PWD/r1/zebra.conf:/etc/frr/zebra.conf, $PWD/r1/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r1/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r1/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r1/daemons:/etc/frr/daemons, $PWD/r1/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r1/frr.log:/var/log/frr.log]
   - name: r2
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: sw0#net1}, {name: net1, type: direct, args: sw1#net0}, {name: net2, type: direct, args: sw5#net0}, {name: net3, type: direct, args: sw7#net0}]
+    interfaces: [{name: eth0, type: direct, args: sw0#eth1}, {name: eth1, type: direct, args: sw1#eth0}, {name: eth2, type: direct, args: sw5#eth0}, {name: eth3, type: direct, args: sw7#eth0}]
     mounts: [$PWD/r2/zebra.conf:/etc/frr/zebra.conf, $PWD/r2/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r2/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r2/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r2/daemons:/etc/frr/daemons, $PWD/r2/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r2/frr.log:/var/log/frr.log]
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: sw1#net1}, {name: net1, type: direct, args: sw2#net1}, {name: net2, type: direct, args: sw8#net0}]
+    interfaces: [{name: eth0, type: direct, args: sw1#eth1}, {name: eth1, type: direct, args: sw2#eth1}, {name: eth2, type: direct, args: sw8#eth0}]
     mounts: [$PWD/r3/zebra.conf:/etc/frr/zebra.conf, $PWD/r3/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r3/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r3/daemons:/etc/frr/daemons, $PWD/r3/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r3/frr.log:/var/log/frr.log]
   - name: r4
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: sw4#net1}, {name: net1, type: direct, args: sw9#net0}]
+    interfaces: [{name: eth0, type: direct, args: sw4#eth1}, {name: eth1, type: direct, args: sw9#eth0}]
     mounts: [$PWD/r4/zebra.conf:/etc/frr/zebra.conf, $PWD/r4/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r4/daemons:/etc/frr/daemons, $PWD/r4/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r4/frr.log:/var/log/frr.log]
   - name: r5
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: sw10#net0}, {name: net1, type: direct, args: sw5#net1}]
+    interfaces: [{name: eth0, type: direct, args: sw10#eth0}, {name: eth1, type: direct, args: sw5#eth1}]
     mounts: [$PWD/r5/zebra.conf:/etc/frr/zebra.conf, $PWD/r5/bgpd.conf:/etc/frr/bgpd.conf, $PWD/r5/daemons:/etc/frr/daemons, $PWD/r5/vtysh.conf:/etc/frr/vtysh.conf, $PWD/r5/frr.log:/var/log/frr.log]
   - name: sw0
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r1#net0}, {name: net1, type: direct, args: r2#net0}]
+    interfaces: [{name: eth0, type: direct, args: r1#eth0}, {name: eth1, type: direct, args: r2#eth0}]
     mounts: []
   - name: sw1
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r2#net1}, {name: net1, type: direct, args: r3#net0}]
+    interfaces: [{name: eth0, type: direct, args: r2#eth1}, {name: eth1, type: direct, args: r3#eth0}]
     mounts: []
   - name: sw10
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r5#net0}]
+    interfaces: [{name: eth0, type: direct, args: r5#eth0}]
     mounts: []
   - name: sw2
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r1#net1}, {name: net1, type: direct, args: r3#net1}]
+    interfaces: [{name: eth0, type: direct, args: r1#eth1}, {name: eth1, type: direct, args: r3#eth1}]
     mounts: []
   - name: sw4
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r1#net2}, {name: net1, type: direct, args: r4#net0}]
+    interfaces: [{name: eth0, type: direct, args: r1#eth2}, {name: eth1, type: direct, args: r4#eth0}]
     mounts: []
   - name: sw5
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r2#net2}, {name: net1, type: direct, args: r5#net1}]
+    interfaces: [{name: eth0, type: direct, args: r2#eth2}, {name: eth1, type: direct, args: r5#eth1}]
     mounts: []
   - name: sw6
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r1#net3}]
+    interfaces: [{name: eth0, type: direct, args: r1#eth3}]
     mounts: []
   - name: sw7
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r2#net3}]
+    interfaces: [{name: eth0, type: direct, args: r2#eth3}]
     mounts: []
   - name: sw8
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r3#net2}]
+    interfaces: [{name: eth0, type: direct, args: r3#eth2}]
     mounts: []
   - name: sw9
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r4#net1}]
+    interfaces: [{name: eth0, type: direct, args: r4#eth1}]
     mounts: []
 
 node_configs:
@@ -80,69 +80,69 @@ node_configs:
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
   - name: sw1
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
   - name: sw10
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
   - name: sw2
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
   - name: sw4
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
   - name: sw5
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
   - name: sw6
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
   - name: sw7
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
   - name: sw8
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
   - name: sw9
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0

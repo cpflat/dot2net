@@ -1,1 +1,1 @@
-conn0 br1:net0 br2:net0
+conn0 br1:eth0 br2:eth0

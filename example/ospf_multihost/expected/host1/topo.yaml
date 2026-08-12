@@ -23,6 +23,6 @@ topology:
 
 
   links:
-  - endpoints: [r2:net0, br1:net1]
-  - endpoints: [r1:net0, r2:net1]
+  - endpoints: [r2:eth0, br1:eth1]
+  - endpoints: [r1:eth0, r2:eth1]
 

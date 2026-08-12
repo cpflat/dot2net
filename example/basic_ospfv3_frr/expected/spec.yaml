@@ -1,31 +1,31 @@
 nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r2#net0}, {name: net1, type: direct, args: r3#net0}, {name: net2, type: direct, args: s1#net0}]
+    interfaces: [{name: eth0, type: direct, args: r2#eth0}, {name: eth1, type: direct, args: r3#eth0}, {name: eth2, type: direct, args: s1#eth0}]
     mounts: [$PWD/r1/daemons:/etc/frr/daemons, $PWD/r1/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r1#net0}, {name: net1, type: direct, args: r4#net0}]
+    interfaces: [{name: eth0, type: direct, args: r1#eth0}, {name: eth1, type: direct, args: r4#eth0}]
     mounts: [$PWD/r2/daemons:/etc/frr/daemons, $PWD/r2/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r1#net1}, {name: net1, type: direct, args: r4#net1}, {name: net2, type: direct, args: s3#net0}]
+    interfaces: [{name: eth0, type: direct, args: r1#eth1}, {name: eth1, type: direct, args: r4#eth1}, {name: eth2, type: direct, args: s3#eth0}]
     mounts: [$PWD/r3/daemons:/etc/frr/daemons, $PWD/r3/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r4
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r2#net1}, {name: net1, type: direct, args: r3#net1}, {name: net2, type: direct, args: s4#net0}]
+    interfaces: [{name: eth0, type: direct, args: r2#eth1}, {name: eth1, type: direct, args: r3#eth1}, {name: eth2, type: direct, args: s4#eth0}]
     mounts: [$PWD/r4/daemons:/etc/frr/daemons, $PWD/r4/vtysh.conf:/etc/frr/vtysh.conf]
   - name: s1
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r1#net2}]
+    interfaces: [{name: eth0, type: direct, args: r1#eth2}]
     mounts: []
   - name: s3
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r3#net2}]
+    interfaces: [{name: eth0, type: direct, args: r3#eth2}]
     mounts: []
   - name: s4
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r4#net2}]
+    interfaces: [{name: eth0, type: direct, args: r4#eth2}]
     mounts: []
 
 node_configs:
@@ -39,22 +39,22 @@ node_configs:
       - cmd: sysctl -w net.ipv6.conf.default.disable_ipv6=0
       - cmd: sysctl -w net.ipv6.conf.default.seg6_enabled=1
       - cmd: sysctl -w net.ipv4.conf.default.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net0.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net0.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net0.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net1.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net1.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net1.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net2.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net2.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net2.rp_filter=0
-      - cmd: ip -6 addr add fd00:1234::1/64 dev net0
-      - cmd: ip -6 addr add fd00:1234:0:1::1/64 dev net1
-      - cmd: ip -6 addr add fd00:1234:0:2::2/64 dev net2
+      - cmd: sysctl -w net.ipv6.conf.eth0.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth0.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth0.rp_filter=0
+      - cmd: sysctl -w net.ipv6.conf.eth1.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth1.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth1.rp_filter=0
+      - cmd: sysctl -w net.ipv6.conf.eth2.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth2.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth2.rp_filter=0
+      - cmd: ip -6 addr add fd00:1234::1/64 dev eth0
+      - cmd: ip -6 addr add fd00:1234:0:1::1/64 dev eth1
+      - cmd: ip -6 addr add fd00:1234:0:2::2/64 dev eth2
       - cmd: vtysh -c "conf t" -c "router ospf6" -c "ospf6 router-id 10.255.0.1"
-      - cmd: vtysh -c "conf t" -c "interface net0" -c "ipv6 ospf6 area 0.0.0.0"
-      - cmd: vtysh -c "conf t" -c "interface net1" -c "ipv6 ospf6 area 0.0.0.0"
-      - cmd: vtysh -c "conf t" -c "interface net2" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth0" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth1" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth2" -c "ipv6 ospf6 area 0.0.0.0"
   - name: r2
     cmds:
       - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
@@ -65,17 +65,17 @@ node_configs:
       - cmd: sysctl -w net.ipv6.conf.default.disable_ipv6=0
       - cmd: sysctl -w net.ipv6.conf.default.seg6_enabled=1
       - cmd: sysctl -w net.ipv4.conf.default.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net0.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net0.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net0.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net1.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net1.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net1.rp_filter=0
-      - cmd: ip -6 addr add fd00:1234::2/64 dev net0
-      - cmd: ip -6 addr add fd00:1234:0:3::1/64 dev net1
+      - cmd: sysctl -w net.ipv6.conf.eth0.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth0.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth0.rp_filter=0
+      - cmd: sysctl -w net.ipv6.conf.eth1.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth1.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth1.rp_filter=0
+      - cmd: ip -6 addr add fd00:1234::2/64 dev eth0
+      - cmd: ip -6 addr add fd00:1234:0:3::1/64 dev eth1
       - cmd: vtysh -c "conf t" -c "router ospf6" -c "ospf6 router-id 10.255.0.2"
-      - cmd: vtysh -c "conf t" -c "interface net0" -c "ipv6 ospf6 area 0.0.0.0"
-      - cmd: vtysh -c "conf t" -c "interface net1" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth0" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth1" -c "ipv6 ospf6 area 0.0.0.0"
   - name: r3
     cmds:
       - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
@@ -86,22 +86,22 @@ node_configs:
       - cmd: sysctl -w net.ipv6.conf.default.disable_ipv6=0
       - cmd: sysctl -w net.ipv6.conf.default.seg6_enabled=1
       - cmd: sysctl -w net.ipv4.conf.default.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net0.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net0.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net0.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net1.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net1.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net1.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net2.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net2.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net2.rp_filter=0
-      - cmd: ip -6 addr add fd00:1234:0:1::2/64 dev net0
-      - cmd: ip -6 addr add fd00:1234:0:4::1/64 dev net1
-      - cmd: ip -6 addr add fd00:1234:0:5::2/64 dev net2
+      - cmd: sysctl -w net.ipv6.conf.eth0.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth0.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth0.rp_filter=0
+      - cmd: sysctl -w net.ipv6.conf.eth1.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth1.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth1.rp_filter=0
+      - cmd: sysctl -w net.ipv6.conf.eth2.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth2.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth2.rp_filter=0
+      - cmd: ip -6 addr add fd00:1234:0:1::2/64 dev eth0
+      - cmd: ip -6 addr add fd00:1234:0:4::1/64 dev eth1
+      - cmd: ip -6 addr add fd00:1234:0:5::2/64 dev eth2
       - cmd: vtysh -c "conf t" -c "router ospf6" -c "ospf6 router-id 10.255.0.3"
-      - cmd: vtysh -c "conf t" -c "interface net0" -c "ipv6 ospf6 area 0.0.0.0"
-      - cmd: vtysh -c "conf t" -c "interface net1" -c "ipv6 ospf6 area 0.0.0.0"
-      - cmd: vtysh -c "conf t" -c "interface net2" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth0" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth1" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth2" -c "ipv6 ospf6 area 0.0.0.0"
   - name: r4
     cmds:
       - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
@@ -112,22 +112,22 @@ node_configs:
       - cmd: sysctl -w net.ipv6.conf.default.disable_ipv6=0
       - cmd: sysctl -w net.ipv6.conf.default.seg6_enabled=1
       - cmd: sysctl -w net.ipv4.conf.default.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net0.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net0.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net0.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net1.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net1.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net1.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net2.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net2.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net2.rp_filter=0
-      - cmd: ip -6 addr add fd00:1234:0:3::2/64 dev net0
-      - cmd: ip -6 addr add fd00:1234:0:4::2/64 dev net1
-      - cmd: ip -6 addr add fd00:1234:0:6::2/64 dev net2
+      - cmd: sysctl -w net.ipv6.conf.eth0.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth0.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth0.rp_filter=0
+      - cmd: sysctl -w net.ipv6.conf.eth1.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth1.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth1.rp_filter=0
+      - cmd: sysctl -w net.ipv6.conf.eth2.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth2.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth2.rp_filter=0
+      - cmd: ip -6 addr add fd00:1234:0:3::2/64 dev eth0
+      - cmd: ip -6 addr add fd00:1234:0:4::2/64 dev eth1
+      - cmd: ip -6 addr add fd00:1234:0:6::2/64 dev eth2
       - cmd: vtysh -c "conf t" -c "router ospf6" -c "ospf6 router-id 10.255.0.4"
-      - cmd: vtysh -c "conf t" -c "interface net0" -c "ipv6 ospf6 area 0.0.0.0"
-      - cmd: vtysh -c "conf t" -c "interface net1" -c "ipv6 ospf6 area 0.0.0.0"
-      - cmd: vtysh -c "conf t" -c "interface net2" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth0" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth1" -c "ipv6 ospf6 area 0.0.0.0"
+      - cmd: vtysh -c "conf t" -c "interface eth2" -c "ipv6 ospf6 area 0.0.0.0"
   - name: s1
     cmds:
       - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
@@ -138,10 +138,10 @@ node_configs:
       - cmd: sysctl -w net.ipv6.conf.default.disable_ipv6=0
       - cmd: sysctl -w net.ipv6.conf.default.seg6_enabled=1
       - cmd: sysctl -w net.ipv4.conf.default.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net0.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net0.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net0.rp_filter=0
-      - cmd: ip -6 addr add fd00:1234:0:2::1/64 dev net0
+      - cmd: sysctl -w net.ipv6.conf.eth0.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth0.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth0.rp_filter=0
+      - cmd: ip -6 addr add fd00:1234:0:2::1/64 dev eth0
       - cmd: ip -6 route replace default via fd00:1234:0:2::2
   - name: s3
     cmds:
@@ -153,10 +153,10 @@ node_configs:
       - cmd: sysctl -w net.ipv6.conf.default.disable_ipv6=0
       - cmd: sysctl -w net.ipv6.conf.default.seg6_enabled=1
       - cmd: sysctl -w net.ipv4.conf.default.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net0.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net0.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net0.rp_filter=0
-      - cmd: ip -6 addr add fd00:1234:0:5::1/64 dev net0
+      - cmd: sysctl -w net.ipv6.conf.eth0.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth0.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth0.rp_filter=0
+      - cmd: ip -6 addr add fd00:1234:0:5::1/64 dev eth0
       - cmd: ip -6 route replace default via fd00:1234:0:5::2
   - name: s4
     cmds:
@@ -168,8 +168,8 @@ node_configs:
       - cmd: sysctl -w net.ipv6.conf.default.disable_ipv6=0
       - cmd: sysctl -w net.ipv6.conf.default.seg6_enabled=1
       - cmd: sysctl -w net.ipv4.conf.default.rp_filter=0
-      - cmd: sysctl -w net.ipv6.conf.net0.disable_ipv6=0
-      - cmd: sysctl -w net.ipv6.conf.net0.seg6_enabled=1
-      - cmd: sysctl -w net.ipv4.conf.net0.rp_filter=0
-      - cmd: ip -6 addr add fd00:1234:0:6::1/64 dev net0
+      - cmd: sysctl -w net.ipv6.conf.eth0.disable_ipv6=0
+      - cmd: sysctl -w net.ipv6.conf.eth0.seg6_enabled=1
+      - cmd: sysctl -w net.ipv4.conf.eth0.rp_filter=0
+      - cmd: ip -6 addr add fd00:1234:0:6::1/64 dev eth0
       - cmd: ip -6 route replace default via fd00:1234:0:6::2

@@ -1,1 +1,1 @@
-conn4 sw1:net2 sw1_host2:net2
+conn4 sw1:eth2 sw1_host2:eth2

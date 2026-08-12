@@ -58,9 +58,9 @@ nodeclass:
 
 interfaceclass:
   - name: default
-    # Not a choice: Kathara derives the interface name from the index in
-    # lab.conf. Writing anything else here is rejected by the module.
-    prefix: eth
+    # The interfaces are named ethN, which is dot2net's default and the only
+    # thing Kathara accepts: it derives the name from the index in lab.conf and
+    # offers no way to change it. Naming another prefix here is rejected.
     config:
       - name: ifconf
         node: router

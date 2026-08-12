@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Interfaces are named `eth0`, `eth1`, ... by default** instead of `net0`,
+  `net1`. The old prefix followed TiNET's examples; `eth` is what a Linux
+  container calls its interfaces and what Kathara requires — it derives the name
+  from the index in `lab.conf` and offers no way to change it — so this is the
+  one prefix every platform accepts, and a scenario can now load all three
+  modules at once.
+
+  The exception is containerlab's management network, which keeps `eth0` for
+  itself. Turning it back on with
+  `module_config.containerlab.management_network` means naming the interfaces
+  something else through an interface class `prefix`; dot2net says so while
+  generating rather than letting containerlab refuse at deploy time.
 - **An unknown or duplicate key in the config file is now an error.** A key the
   config does not know used to be dropped without a word, which looks exactly
   like a setting that had no effect: `example/address_reservation` wrote

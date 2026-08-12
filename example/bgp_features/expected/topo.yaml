@@ -73,10 +73,10 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
-      - ip link set dev net1 promisc on
-      - ip link set dev net1 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
+      - ip link set dev eth1 promisc on
+      - ip link set dev eth1 master br0
     sw1:
       kind: linux
       image: nicolaka/netshoot
@@ -84,10 +84,10 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
-      - ip link set dev net1 promisc on
-      - ip link set dev net1 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
+      - ip link set dev eth1 promisc on
+      - ip link set dev eth1 master br0
     sw10:
       kind: linux
       image: nicolaka/netshoot
@@ -95,8 +95,8 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
     sw2:
       kind: linux
       image: nicolaka/netshoot
@@ -104,10 +104,10 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
-      - ip link set dev net1 promisc on
-      - ip link set dev net1 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
+      - ip link set dev eth1 promisc on
+      - ip link set dev eth1 master br0
     sw4:
       kind: linux
       image: nicolaka/netshoot
@@ -115,10 +115,10 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
-      - ip link set dev net1 promisc on
-      - ip link set dev net1 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
+      - ip link set dev eth1 promisc on
+      - ip link set dev eth1 master br0
     sw5:
       kind: linux
       image: nicolaka/netshoot
@@ -126,10 +126,10 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
-      - ip link set dev net1 promisc on
-      - ip link set dev net1 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
+      - ip link set dev eth1 promisc on
+      - ip link set dev eth1 master br0
     sw6:
       kind: linux
       image: nicolaka/netshoot
@@ -137,8 +137,8 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
     sw7:
       kind: linux
       image: nicolaka/netshoot
@@ -146,8 +146,8 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
     sw8:
       kind: linux
       image: nicolaka/netshoot
@@ -155,8 +155,8 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
     sw9:
       kind: linux
       image: nicolaka/netshoot
@@ -164,22 +164,22 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
 
   links:
-  - endpoints: [r1:net0, sw0:net0]
-  - endpoints: [r1:net1, sw2:net0]
-  - endpoints: [r1:net2, sw4:net0]
-  - endpoints: [r1:net3, sw6:net0]
-  - endpoints: [r2:net0, sw0:net1]
-  - endpoints: [r2:net1, sw1:net0]
-  - endpoints: [r2:net2, sw5:net0]
-  - endpoints: [r2:net3, sw7:net0]
-  - endpoints: [r3:net0, sw1:net1]
-  - endpoints: [r3:net1, sw2:net1]
-  - endpoints: [r3:net2, sw8:net0]
-  - endpoints: [r4:net0, sw4:net1]
-  - endpoints: [r4:net1, sw9:net0]
-  - endpoints: [r5:net0, sw10:net0]
-  - endpoints: [r5:net1, sw5:net1]
+  - endpoints: [r1:eth0, sw0:eth0]
+  - endpoints: [r1:eth1, sw2:eth0]
+  - endpoints: [r1:eth2, sw4:eth0]
+  - endpoints: [r1:eth3, sw6:eth0]
+  - endpoints: [r2:eth0, sw0:eth1]
+  - endpoints: [r2:eth1, sw1:eth0]
+  - endpoints: [r2:eth2, sw5:eth0]
+  - endpoints: [r2:eth3, sw7:eth0]
+  - endpoints: [r3:eth0, sw1:eth1]
+  - endpoints: [r3:eth1, sw2:eth1]
+  - endpoints: [r3:eth2, sw8:eth0]
+  - endpoints: [r4:eth0, sw4:eth1]
+  - endpoints: [r4:eth1, sw9:eth0]
+  - endpoints: [r5:eth0, sw10:eth0]
+  - endpoints: [r5:eth1, sw5:eth1]

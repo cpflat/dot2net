@@ -10,8 +10,8 @@ topology:
       binds:
       - r3/frr.conf:/etc/frr/frr.conf
       exec:
-      - ip addr add 10.0.0.2/24 dev net0
-      - ip addr add 10.0.2.1/24 dev net1
+      - ip addr add 10.0.0.2/24 dev eth0
+      - ip addr add 10.0.2.1/24 dev eth1
     r4:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
@@ -19,9 +19,9 @@ topology:
       binds:
       - r4/frr.conf:/etc/frr/frr.conf
       exec:
-      - ip addr add 10.0.2.2/24 dev net0
+      - ip addr add 10.0.2.2/24 dev eth0
 
   links:
-  - endpoints: [r3:net0, br2:net1]
-  - endpoints: [r3:net1, r4:net0]
+  - endpoints: [r3:eth0, br2:eth1]
+  - endpoints: [r3:eth1, r4:eth0]
 

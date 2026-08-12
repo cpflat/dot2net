@@ -60,8 +60,8 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
     sw2:
       kind: linux
       image: nicolaka/netshoot
@@ -69,8 +69,8 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
     sw3:
       kind: linux
       image: nicolaka/netshoot
@@ -78,8 +78,8 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
     sw4:
       kind: linux
       image: nicolaka/netshoot
@@ -87,8 +87,8 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
     sw5:
       kind: linux
       image: nicolaka/netshoot
@@ -96,12 +96,12 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
-      - ip link set dev net1 promisc on
-      - ip link set dev net1 master br0
-      - ip link set dev net2 promisc on
-      - ip link set dev net2 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
+      - ip link set dev eth1 promisc on
+      - ip link set dev eth1 master br0
+      - ip link set dev eth2 promisc on
+      - ip link set dev eth2 master br0
     sw6:
       kind: linux
       image: nicolaka/netshoot
@@ -109,18 +109,18 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
-      - ip link set dev net1 promisc on
-      - ip link set dev net1 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
+      - ip link set dev eth1 promisc on
+      - ip link set dev eth1 master br0
 
   links:
-  - endpoints: [r1:net0, sw1:net0]
-  - endpoints: [r1:net1, sw5:net0]
-  - endpoints: [r2:net0, sw2:net0]
-  - endpoints: [r2:net1, sw5:net1]
-  - endpoints: [r3:net0, sw3:net0]
-  - endpoints: [r3:net1, sw5:net2]
-  - endpoints: [r3:net2, sw6:net0]
-  - endpoints: [r4:net0, sw4:net0]
-  - endpoints: [r4:net1, sw6:net1]
+  - endpoints: [r1:eth0, sw1:eth0]
+  - endpoints: [r1:eth1, sw5:eth0]
+  - endpoints: [r2:eth0, sw2:eth0]
+  - endpoints: [r2:eth1, sw5:eth1]
+  - endpoints: [r3:eth0, sw3:eth0]
+  - endpoints: [r3:eth1, sw5:eth2]
+  - endpoints: [r3:eth2, sw6:eth0]
+  - endpoints: [r4:eth0, sw4:eth0]
+  - endpoints: [r4:eth1, sw6:eth1]

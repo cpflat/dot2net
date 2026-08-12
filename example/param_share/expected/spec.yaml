@@ -1,23 +1,23 @@
 nodes:
   - name: r1
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r2#net0}]
+    interfaces: [{name: eth0, type: direct, args: r2#eth0}]
     mounts: [$PWD/r1/frr.conf:/etc/frr/frr.conf, $PWD/r1/daemons:/etc/frr/daemons, $PWD/r1/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: r1#net0}, {name: net1, type: direct, args: sw1#net0}]
+    interfaces: [{name: eth0, type: direct, args: r1#eth0}, {name: eth1, type: direct, args: sw1#eth0}]
     mounts: [$PWD/r2/frr.conf:/etc/frr/frr.conf, $PWD/r2/daemons:/etc/frr/daemons, $PWD/r2/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r3
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: sw1#net1}, {name: net1, type: direct, args: sw2#net0}]
+    interfaces: [{name: eth0, type: direct, args: sw1#eth1}, {name: eth1, type: direct, args: sw2#eth0}]
     mounts: [$PWD/r3/frr.conf:/etc/frr/frr.conf, $PWD/r3/daemons:/etc/frr/daemons, $PWD/r3/vtysh.conf:/etc/frr/vtysh.conf]
   - name: sw1
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r2#net1}, {name: net1, type: direct, args: r3#net0}]
+    interfaces: [{name: eth0, type: direct, args: r2#eth1}, {name: eth1, type: direct, args: r3#eth0}]
     mounts: []
   - name: sw2
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: r3#net1}]
+    interfaces: [{name: eth0, type: direct, args: r3#eth1}]
     mounts: []
 
 node_configs:
@@ -34,13 +34,13 @@ node_configs:
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
   - name: sw2
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0

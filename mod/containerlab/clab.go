@@ -411,6 +411,30 @@ func (m *ClabModule) generateFilemountParams(
 }
 
 func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
+	// containerlab keeps eth0 for the management network and refuses a data
+	// interface by that name. It says so at deploy time; saying it here means
+	// the scenario hears about it while it can still be changed.
+	var opts Options
+	if _, err := cfg.DecodeModuleConfig("containerlab", &opts); err != nil {
+		return err
+	}
+	if opts.ManagementNetwork {
+		for _, node := range nm.Nodes {
+			if node.IsVirtual() || cfg.IsSwitchNode(node) {
+				continue
+			}
+			for _, iface := range node.Interfaces {
+				if iface.Name == "eth0" {
+					return fmt.Errorf(
+						"node %s has an interface named eth0, which containerlab keeps for the "+
+							"management network that module_config.containerlab.management_network "+
+							"turns on; name the interfaces something else (interfaceclass prefix) "+
+							"or leave the management network off", node.Name)
+				}
+			}
+		}
+	}
+
 	// A machine is deployed from its own directory, so everything its topology
 	// file refers to has to live under that directory. Splitting the output by
 	// some other grouping would scatter the node files elsewhere and leave no

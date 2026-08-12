@@ -30,5 +30,5 @@ topology:
 
 
   links:
-  - endpoints: [r1:net0, r2:net0]
-  - endpoints: [r2:net1, r3:net0]
+  - endpoints: [r1:eth0, r2:eth0]
+  - endpoints: [r2:eth1, r3:eth0]

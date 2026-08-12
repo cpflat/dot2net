@@ -4,11 +4,11 @@ switches:
 nodes:
   - name: r3
     image: quay.io/frrouting/frr:8.5.4
-    interfaces: [{name: net0, type: bridge, args: sw1_host2}]
+    interfaces: [{name: eth0, type: bridge, args: sw1_host2}]
     mounts: [$PWD/r3/frr.conf:/etc/frr/frr.conf, $PWD/r3/daemons:/etc/frr/daemons, $PWD/r3/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r4
     image: quay.io/frrouting/frr:8.5.4
-    interfaces: [{name: net0, type: bridge, args: sw1_host2}]
+    interfaces: [{name: eth0, type: bridge, args: sw1_host2}]
     mounts: [$PWD/r4/frr.conf:/etc/frr/frr.conf, $PWD/r4/daemons:/etc/frr/daemons, $PWD/r4/vtysh.conf:/etc/frr/vtysh.conf]
 
 node_configs:

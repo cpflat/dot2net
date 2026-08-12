@@ -6,13 +6,13 @@ topology:
       image: nicolaka/netshoot
       network-mode: none
       exec:
-      - ip addr add 10.0.0.1/24 dev net0
+      - ip addr add 10.0.0.1/24 dev eth0
     sv2:
       kind: linux
       image: nicolaka/netshoot
       network-mode: none
       exec:
-      - ip addr add 10.0.0.2/24 dev net0
+      - ip addr add 10.0.0.2/24 dev eth0
     sw1:
       kind: linux
       image: nicolaka/netshoot
@@ -20,11 +20,11 @@ topology:
       exec:
       - ip link add br0 type bridge
       - ip link set br0 up
-      - ip link set dev net0 promisc on
-      - ip link set dev net0 master br0
-      - ip link set dev net1 promisc on
-      - ip link set dev net1 master br0
+      - ip link set dev eth0 promisc on
+      - ip link set dev eth0 master br0
+      - ip link set dev eth1 promisc on
+      - ip link set dev eth1 master br0
 
   links:
-  - endpoints: [sv1:net0, sw1:net0]
-  - endpoints: [sv2:net0, sw1:net1]
+  - endpoints: [sv1:eth0, sw1:eth0]
+  - endpoints: [sv2:eth0, sw1:eth1]

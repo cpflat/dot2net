@@ -10,7 +10,17 @@ import (
 )
 
 const DefaultNodePrefix string = "node"
-const DefaultInterfacePrefix string = "net"
+
+// DefaultInterfacePrefix names the interfaces a scenario does not name itself.
+// eth is what a Linux container calls them and what Kathara requires - it
+// derives the name from the index in lab.conf and offers no way to change it -
+// so this is the one prefix every platform accepts.
+//
+// The exception is containerlab's management network, which takes eth0 for
+// itself and refuses a data interface by that name. A scenario that turns it on
+// (module_config.containerlab.management_network) has to name its interfaces
+// something else.
+const DefaultInterfacePrefix string = "eth"
 const DefaultConnectionPrefix string = "conn"
 const DefaultSegmentPrefix string = "seg"
 

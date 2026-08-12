@@ -1,43 +1,43 @@
 nodes:
   - name: host1
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: s1#net0}]
+    interfaces: [{name: eth0, type: direct, args: s1#eth0}]
     mounts: [$PWD/host1/zebra.conf:/etc/frr/zebra.conf, $PWD/host1/daemons:/etc/frr/daemons, $PWD/host1/vtysh.conf:/etc/frr/vtysh.conf, $PWD/host1/frr.log:/var/log/frr.log]
   - name: host2
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: s4#net0}]
+    interfaces: [{name: eth0, type: direct, args: s4#eth0}]
     mounts: [$PWD/host2/zebra.conf:/etc/frr/zebra.conf, $PWD/host2/daemons:/etc/frr/daemons, $PWD/host2/vtysh.conf:/etc/frr/vtysh.conf, $PWD/host2/frr.log:/var/log/frr.log]
   - name: p1
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: s2#net0}, {name: net1, type: direct, args: s3#net0}]
+    interfaces: [{name: eth0, type: direct, args: s2#eth0}, {name: eth1, type: direct, args: s3#eth0}]
     mounts: [$PWD/p1/zebra.conf:/etc/frr/zebra.conf, $PWD/p1/ospfd.conf:/etc/frr/ospfd.conf, $PWD/p1/daemons:/etc/frr/daemons, $PWD/p1/vtysh.conf:/etc/frr/vtysh.conf, $PWD/p1/frr.log:/var/log/frr.log]
   - name: pe1
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: s1#net1}, {name: net1, type: direct, args: s2#net1}]
+    interfaces: [{name: eth0, type: direct, args: s1#eth1}, {name: eth1, type: direct, args: s2#eth1}]
     mounts: [$PWD/pe1/zebra.conf:/etc/frr/zebra.conf, $PWD/pe1/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe1/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe1/daemons:/etc/frr/daemons, $PWD/pe1/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe1/frr.log:/var/log/frr.log]
   - name: pe2
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: s3#net1}, {name: net1, type: direct, args: s4#net1}]
+    interfaces: [{name: eth0, type: direct, args: s3#eth1}, {name: eth1, type: direct, args: s4#eth1}]
     mounts: [$PWD/pe2/zebra.conf:/etc/frr/zebra.conf, $PWD/pe2/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe2/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe2/daemons:/etc/frr/daemons, $PWD/pe2/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe2/frr.log:/var/log/frr.log]
   - name: pe3
     image: quay.io/frrouting/frr:8.5.0
-    interfaces: [{name: net0, type: direct, args: s2#net2}]
+    interfaces: [{name: eth0, type: direct, args: s2#eth2}]
     mounts: [$PWD/pe3/zebra.conf:/etc/frr/zebra.conf, $PWD/pe3/bgpd.conf:/etc/frr/bgpd.conf, $PWD/pe3/ospfd.conf:/etc/frr/ospfd.conf, $PWD/pe3/daemons:/etc/frr/daemons, $PWD/pe3/vtysh.conf:/etc/frr/vtysh.conf, $PWD/pe3/frr.log:/var/log/frr.log]
   - name: s1
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: host1#net0}, {name: net1, type: direct, args: pe1#net0}]
+    interfaces: [{name: eth0, type: direct, args: host1#eth0}, {name: eth1, type: direct, args: pe1#eth0}]
     mounts: []
   - name: s2
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: p1#net0}, {name: net1, type: direct, args: pe1#net1}, {name: net2, type: direct, args: pe3#net0}]
+    interfaces: [{name: eth0, type: direct, args: p1#eth0}, {name: eth1, type: direct, args: pe1#eth1}, {name: eth2, type: direct, args: pe3#eth0}]
     mounts: []
   - name: s3
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: p1#net1}, {name: net1, type: direct, args: pe2#net0}]
+    interfaces: [{name: eth0, type: direct, args: p1#eth1}, {name: eth1, type: direct, args: pe2#eth0}]
     mounts: []
   - name: s4
     image: nicolaka/netshoot
-    interfaces: [{name: net0, type: direct, args: host2#net0}, {name: net1, type: direct, args: pe2#net1}]
+    interfaces: [{name: eth0, type: direct, args: host2#eth0}, {name: eth1, type: direct, args: pe2#eth1}]
     mounts: []
 
 node_configs:
@@ -61,7 +61,7 @@ node_configs:
       - cmd: ip link add vxlan101 type vxlan id 101 dstport 4789 local 10.255.0.2 nolearning
       - cmd: ip link set dev vxlan101 master br101
       - cmd: ip link set up dev vxlan101
-      - cmd: ip link set dev net0 master br101
+      - cmd: ip link set dev eth0 master br101
   - name: pe2
     cmds:
       - cmd: chown frr:frr /var/log/frr.log
@@ -72,7 +72,7 @@ node_configs:
       - cmd: ip link add vxlan101 type vxlan id 101 dstport 4789 local 10.255.0.3 nolearning
       - cmd: ip link set dev vxlan101 master br101
       - cmd: ip link set up dev vxlan101
-      - cmd: ip link set dev net1 master br101
+      - cmd: ip link set dev eth1 master br101
   - name: pe3
     cmds:
       - cmd: chown frr:frr /var/log/frr.log
@@ -81,33 +81,33 @@ node_configs:
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
   - name: s2
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
-      - cmd: ip link set dev net2 promisc on
-      - cmd: ip link set dev net2 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
+      - cmd: ip link set dev eth2 promisc on
+      - cmd: ip link set dev eth2 master br0
   - name: s3
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
   - name: s4
     cmds:
       - cmd: ip link add br0 type bridge
       - cmd: ip link set br0 up
-      - cmd: ip link set dev net0 promisc on
-      - cmd: ip link set dev net0 master br0
-      - cmd: ip link set dev net1 promisc on
-      - cmd: ip link set dev net1 master br0
+      - cmd: ip link set dev eth0 promisc on
+      - cmd: ip link set dev eth0 master br0
+      - cmd: ip link set dev eth1 promisc on
+      - cmd: ip link set dev eth1 master br0
