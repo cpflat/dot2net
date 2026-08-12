@@ -366,6 +366,46 @@ further down.
   declaring the file and assembling it from a module's blocks. A lab whose
   bridges are provisioned some other way leaves the `use:` line out and gets no
   script.
+- **`teardown`**, a second name dot2net owns: commands to run in a node while it
+  is still up, before the lab is destroyed. Dumping state, flushing what a
+  program buffers, putting a mounted file's permissions back. Written the same
+  way as `startup`, and merged the same way when a module has something to add.
+- **`collect` on a node class**: files to copy out of a node before the lab is
+  destroyed. Each entry is a template, so a path that follows a value stays
+  right when the value is changed:
+
+  ```yaml
+  nodeclass:
+    - name: router
+      collect: ["{{ .frr_log_path }}"]
+  ```
+
+  Collected files land in `collected/<node>/<the path inside the container>`,
+  beside the generated tree rather than in it: what was generated and what came
+  back from a run are not the same kind of thing. They are handed to whoever ran
+  the lab — `docker cp` keeps the ownership a file had inside the container, and
+  the entry script runs under sudo, so without this the collection could not be
+  read or deleted without sudo either.
+
+  A module declares what it needs back: `frrLogFile` collects its own log, so a
+  scenario that never named the file does not have to name it to get it back.
+
+  The entry script does the copying, which is why a scenario that collects
+  anything needs one. Declaring `collect` with `generate_scripts` off is an
+  error that says which class asked for it.
+- **`destroy` in an entry script now takes the lab down in four steps**: the
+  lab's `teardown` commands, the files to collect, the platform's own destroy,
+  and — for containerlab — deleting the bridges `setup-bridges.sh` made, which
+  nothing did before. A step that fails is named and the rest still run: a lab
+  left standing because something could not be copied is worse than the missing
+  file. The script ends non-zero so that whatever called it knows.
+
+  `collect [<dir>]` runs the collection on its own. `DOT2NET_COLLECT_DIR` and
+  `DOT2NET_LAB_NAME` set where files go and which lab name to deploy under, so
+  the same topology can be brought up more than once at a time.
+- **`executable` on a file definition** writes the file with the executable bit
+  set. The generated entry scripts and `setup-bridges.sh` use it: a script that
+  has to be `chmod`'ed before it works is one that will be run wrong once.
 - **`provide` on a file definition**: says how the file reaches its node's
   container, `mount` (the default) or `copy`. Neither is the better one, and
   which to use follows from what the file is for:
@@ -423,7 +463,19 @@ further down.
   filesystem for the files to land anywhere useful. containerlab and TiNET only
   see a different source path in their mounts.
 
-### Fixed
+- **`example/ospf_topo1`, `ospf6_topo1` and `rip_topo1` ran no routing software.**
+  Every node was `nicolaka/netshoot`, which has no FRR, while the scenarios
+  generated `zebra.conf`, `ospfd.conf` and the rest for it to read. They had
+  been that way since a golden test gave every node an image; before that they
+  named none. Their routers now run FRR, and all three do what their names say
+  when deployed: OSPF and OSPFv3 reach Full, RIP learns its neighbours'
+  networks. The switches stay on netshoot — they are bridges made with
+  `ip link`, which FRR's image cannot do.
+- **`example/three_platforms` is gone**, and `example/readme.md` says which
+  scenarios generate for Kathara, why six cannot, and where `basic_mpls`,
+  `large_clos` and `large_ring` went when v0.4.0 changed the format under them.
+
+### Fixed### Fixed
 
 - **IP policies ignored the class tiers**: a policy was applied as each class
   was visited, and classes are visited strongest first, so the last write won —
