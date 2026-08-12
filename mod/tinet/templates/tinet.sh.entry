@@ -15,6 +15,9 @@
 cd "$(dirname "$0")"
 SPEC="%%SPEC%%"
 COLLECT_DIR="${DOT2NET_COLLECT_DIR:-%%COLLECT%%}"
+# Who the collected files should belong to: the user who ran this, whether or
+# not they went through sudo.
+OWNER="${SUDO_USER:-$(id -un)}"
 
 run() { tinet "$1" -c "$SPEC" | grep -v '<->' | sudo sh; }
 
@@ -44,6 +47,11 @@ collect_file() {
   dest="$COLLECT_DIR/$node$path"
   mkdir -p "$(dirname "$dest")"
   sudo docker cp "$(container_id "$node"):$path" "$dest" || note_failure "collect $node:$path"
+  # docker cp keeps the ownership the file had in the container, and this
+  # script runs under sudo, so both what came back and the directories holding
+  # it belong to root - unreadable and undeletable by the person who asked for
+  # them. Hand the whole lot over.
+  sudo chown -R "$OWNER" "$COLLECT_DIR" 2>/dev/null || true
 }
 
 run_teardown() {
