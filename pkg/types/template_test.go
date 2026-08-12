@@ -179,3 +179,50 @@ nodeclass:
 		t.Fatal("raw together with delimiters must be rejected")
 	}
 }
+
+// TestUnknownKeyIsRejected is the accident this guards against: example/
+// address_reservation wrote management_layer where the key is mgmt_layer, and
+// went a year with its management network quietly switched off.
+func TestUnknownKeyIsRejected(t *testing.T) {
+	_, err := loadConfigFrom(t, "name: typo\nglobal:\n  pathh: local\n", nil)
+	if err == nil {
+		t.Fatal("a key the config does not know must be rejected")
+	}
+	if !strings.Contains(err.Error(), "pathh") {
+		t.Errorf("the message should name the offending key: %v", err)
+	}
+}
+
+// TestDuplicateKeyIsRejected covers the other quiet loss: the later value wins
+// and the earlier one is gone without a word.
+func TestDuplicateKeyIsRejected(t *testing.T) {
+	_, err := loadConfigFrom(t, "name: first\nname: second\n", nil)
+	if err == nil {
+		t.Fatal("a duplicate key must be rejected")
+	}
+	if !strings.Contains(err.Error(), "duplicate") {
+		t.Errorf("the message should say what is wrong: %v", err)
+	}
+}
+
+// TestUnknownKeyInModuleConfigIsRejected: a module's own settings get the same
+// care as the rest of the file.
+func TestUnknownKeyInModuleConfigIsRejected(t *testing.T) {
+	cfg, err := loadConfigFrom(t, `
+name: mc_typo
+module:
+  - containerlab
+module_config:
+  containerlab:
+    managment_network: true
+`, nil)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	var opts struct {
+		ManagementNetwork bool `yaml:"management_network"`
+	}
+	if _, err := cfg.DecodeModuleConfig("containerlab", &opts); err == nil {
+		t.Fatal("a misspelled key inside module_config must be rejected")
+	}
+}

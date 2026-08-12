@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **An unknown or duplicate key in the config file is now an error.** A key the
+  config does not know used to be dropped without a word, which looks exactly
+  like a setting that had no effect: `example/address_reservation` wrote
+  `management_layer` where the key is `mgmt_layer`, and spent a year with its
+  management network quietly switched off. A duplicate key was the same kind of
+  quiet loss, with the later value winning. The message names the key and the
+  line. Settings inside `module_config` are checked the same way.
+
+  All bundled scenarios already pass; a config that does not will name what to
+  fix.
 - **`module_config`**: a section per module, for settings that belong to one
   platform rather than to the topology.
 

@@ -1397,7 +1397,9 @@ func (cfg *Config) DecodeModuleConfig(name string, dst any) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("module_config %s: %w", name, err)
 	}
-	if err := yaml.Unmarshal(bytes, dst); err != nil {
+	// Same reasoning as LoadConfig: a module's own settings are worth no less
+	// care than the rest of the file.
+	if err := yaml.UnmarshalWithOptions(bytes, dst, yaml.DisallowUnknownField()); err != nil {
 		return false, fmt.Errorf("module_config %s: %w", name, err)
 	}
 	return true, nil
@@ -1433,7 +1435,13 @@ func LoadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = yaml.Unmarshal(bytes, &cfg)
+	// A key this does not know is a key that would be dropped in silence, and a
+	// setting that is dropped in silence looks exactly like one that had no
+	// effect: example/address_reservation wrote management_layer for mgmt_layer
+	// and went a year with its management network switched off. A duplicate key
+	// is the same kind of quiet loss, with the later one winning.
+	err = yaml.UnmarshalWithOptions(bytes, &cfg,
+		yaml.DisallowUnknownField(), yaml.DisallowDuplicateKey())
 	if err != nil {
 		return nil, err
 	}
