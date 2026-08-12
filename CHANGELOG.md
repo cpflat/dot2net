@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking changes
+
+Read these before upgrading a scenario from 0.7.x. Each is described in full
+further down.
+
+- **Generated files move.** A file declared with `path: /etc/frr/frr.conf` is
+  written to `r1/etc/frr/frr.conf`, not `r1/frr.conf`. Anything reading
+  generated files by path has to follow.
+- **Interfaces are named `eth0`, `eth1`, ...** instead of `net0`, `net1`. A
+  template naming an interface literally has to be updated.
+- **containerlab nodes get no management network.** A lab that relied on
+  `clab exec`, the `clab-*` container names, or reachability through the
+  management network has to turn it back on with
+  `module_config.containerlab.management_network: true`.
+- **A shared segment reaching across machines is replaced with one bridge per
+  machine.** A multi-host scenario that drew such a segment gets a different
+  topology than before; `global.aggregate_crossing_links: false` restores it.
+- **An unknown or duplicate key in the config file is an error.** A scenario
+  with a typo that used to run will now say so.
+- **Two file definitions writing the same file is an error**, as is a config
+  entry naming both `template` and `sourcefile`.
+- **The Kathara module owns `<device>.startup`.** The pattern documented in
+  0.7.0 — a scenario declaring the file itself with `name_suffix: .startup` and
+  `output: root` — still works on its own, but collides once the Kathara module
+  is loaded. Drop the scenario's declaration and write a `startup` template
+  instead, as containerlab and TiNET already expect.
+
 ### Added
 
 - **Interfaces are named `eth0`, `eth1`, ... by default** instead of `net0`,
