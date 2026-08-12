@@ -3,7 +3,7 @@ topology:
   nodes:
     r1:
       kind: linux
-      image: nicolaka/netshoot
+      image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
       - r1/etc/frr/zebra.conf:/etc/frr/zebra.conf
@@ -17,7 +17,7 @@ topology:
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     r2:
       kind: linux
-      image: nicolaka/netshoot
+      image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
       - r2/etc/frr/zebra.conf:/etc/frr/zebra.conf
@@ -31,7 +31,7 @@ topology:
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     r3:
       kind: linux
-      image: nicolaka/netshoot
+      image: quay.io/frrouting/frr:8.5.0
       network-mode: none
       binds:
       - r3/etc/frr/zebra.conf:/etc/frr/zebra.conf

@@ -58,7 +58,7 @@ nodeclass:
     interface_policy: [ip]
     values:
       kind: linux
-      image: nicolaka/netshoot
+      image: quay.io/frrouting/frr:8.5.0
     config:
       - file: daemons
         sourcefile: ./daemons

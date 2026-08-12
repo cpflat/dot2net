@@ -1,18 +1,18 @@
 nodes:
   - name: r1
-    image: nicolaka/netshoot
+    image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s1#eth0}, {name: eth1, type: direct, args: s3#eth0}]
     mounts: [$PWD/r1/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r1/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r1/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r1/etc/frr/daemons:/etc/frr/daemons, $PWD/r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r2
-    image: nicolaka/netshoot
+    image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s2#eth0}, {name: eth1, type: direct, args: s3#eth1}]
     mounts: [$PWD/r2/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r2/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r2/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r2/etc/frr/daemons:/etc/frr/daemons, $PWD/r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r3
-    image: nicolaka/netshoot
+    image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s3#eth2}, {name: eth1, type: direct, args: s4#eth0}, {name: eth2, type: direct, args: s5#eth0}]
     mounts: [$PWD/r3/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r3/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r3/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r3/etc/frr/daemons:/etc/frr/daemons, $PWD/r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: r4
-    image: nicolaka/netshoot
+    image: quay.io/frrouting/frr:8.5.0
     interfaces: [{name: eth0, type: direct, args: s5#eth1}, {name: eth1, type: direct, args: s6#eth0}]
     mounts: [$PWD/r4/etc/frr/zebra.conf:/etc/frr/zebra.conf, $PWD/r4/etc/frr/ospfd.conf:/etc/frr/ospfd.conf, $PWD/r4/etc/frr/ospf6d.conf:/etc/frr/ospf6d.conf, $PWD/r4/etc/frr/daemons:/etc/frr/daemons, $PWD/r4/etc/frr/vtysh.conf:/etc/frr/vtysh.conf]
   - name: s1
