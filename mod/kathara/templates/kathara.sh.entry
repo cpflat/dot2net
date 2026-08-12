@@ -3,26 +3,91 @@
 # anywhere, it works out where its files are.
 #
 # Kathara reads lab.conf and <device>.startup from the directory it runs in, so
-# this script changes into it first. exec goes through docker: kathara exec
-# cannot pass a command containing -c (see doc/active/TESTBED_NOTES.md).
-set -e
+# this script changes into it first. Everything that reaches into a device goes
+# through docker: kathara exec cannot pass a command containing -c (see
+# doc/active/TESTBED_NOTES.md).
+#
+# destroy does more than Kathara's own: it runs the lab's teardown commands,
+# copies out what the lab was asked to bring back, and only then takes the lab
+# down. A step that fails is named and the rest still runs, and the script ends
+# non-zero so that whatever called it knows.
 cd "$(dirname "$0")"
+COLLECT_DIR="${DOT2NET_COLLECT_DIR:-%%COLLECT%%}"
+
+failed=""
+note_failure() {
+  failed="$failed
+  $1"
+  echo "dot2net: FAILED $1" >&2
+}
+report() {
+  [ -n "$failed" ] || return 0
+  echo "dot2net: these steps failed:$failed" >&2
+  exit 1
+}
+
+# Kathara builds a container name out of the user, the lab and the device, so
+# the device name is looked for rather than spelled out.
+container_id() { sudo docker ps -q --filter name="_$1_" | head -1; }
+
+teardown_node() {
+  node="$1"
+  cid=$(container_id "$node")
+  if [ -z "$cid" ]; then
+    note_failure "teardown $node: no container"
+    cat >/dev/null
+    return
+  fi
+  sudo docker exec -i "$cid" sh -s || note_failure "teardown $node"
+}
+
+collect_file() {
+  node="$1"
+  path="$2"
+  cid=$(container_id "$node")
+  if [ -z "$cid" ]; then
+    note_failure "collect $node:$path: no container"
+    return
+  fi
+  dest="$COLLECT_DIR/$node$path"
+  mkdir -p "$(dirname "$dest")"
+  sudo docker cp "$cid:$path" "$dest" || note_failure "collect $node:$path"
+}
+
+run_teardown() {
+  :
+{{ .nodes_kathara_teardown }}
+}
+
+run_collect() {
+  :
+{{ .nodes_kathara_collect }}
+}
 
 case "${1:-deploy}" in
   deploy)
     exec sudo kathara lstart --noterminals
     ;;
   destroy)
-    exec sudo kathara lclean
+    run_teardown
+    run_collect
+    sudo kathara lclean || note_failure "destroy"
+    report
+    ;;
+  collect)
+    [ -n "$2" ] && COLLECT_DIR="$2"
+    run_collect
+    report
     ;;
   exec)
     shift
     [ $# -ge 2 ] || { echo "usage: $0 exec <node> <command>..." >&2; exit 2; }
     node="$1"; shift
-    exec sudo docker exec "$(sudo docker ps --filter name="$node" -q | head -1)" "$@"
+    exec sudo docker exec "$(container_id "$node")" "$@"
     ;;
   *)
-    echo "usage: $0 {deploy|destroy|exec <node> <command>...}" >&2
+    echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2
+    echo "  DOT2NET_COLLECT_DIR where collected files go" >&2
     exit 2
     ;;
 esac

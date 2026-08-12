@@ -215,10 +215,41 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	if err != nil {
 		return err
 	}
+	// What the entry script needs from each node: the lab's own teardown
+	// commands, and the files to copy out. Both are aggregated by the script,
+	// which is the module's own file - a scenario never names these blocks.
+	ctTeardown, err := readEntryTemplate("templates/teardown.node_kathara_teardown", &types.ConfigTemplate{
+		Name:           "kathara_teardown",
+		Depends:        []string{"teardown"},
+		RequiredParams: []string{"self_teardown"},
+	})
+	if err != nil {
+		return err
+	}
+	ctCollect, err := readEntryTemplate("templates/collect.node_kathara_collect", &types.ConfigTemplate{
+		Name:           "kathara_collect",
+		RequiredParams: []string{"values_kathara_collect_entry"},
+	})
+	if err != nil {
+		return err
+	}
+	collectEntry, err := templates.ReadFile("templates/collect.value_kathara_collect_entry")
+	if err != nil {
+		return err
+	}
+	cfg.AddParameterRule(&types.ParameterRule{
+		Name:      "kathara_collects",
+		Mode:      types.ParameterRuleModeAttach,
+		Generator: "kathara.collectfiles",
+		ConfigTemplates: []*types.ConfigTemplate{
+			{Name: "kathara_collect_entry", Template: []string{string(collectEntry)}},
+		},
+	})
+
 	cfg.AddNodeClass(&types.NodeClass{
 		Name:            NodeClassName,
-		Parameters:      []string{VolumeParamRuleName, CopyParamRuleName},
-		ConfigTemplates: []*types.ConfigTemplate{ct, ctImage, ctStartup, ctStartupBody, ctCopies, ctVolumes},
+		Parameters:      []string{VolumeParamRuleName, CopyParamRuleName, "kathara_collects"},
+		ConfigTemplates: []*types.ConfigTemplate{ct, ctImage, ctStartup, ctStartupBody, ctCopies, ctVolumes, ctTeardown, ctCollect},
 	})
 
 	entry, err := templateFrom("templates/lab.conf.value_kathara_volume_entry", &types.ConfigTemplate{
@@ -433,7 +464,7 @@ func addEntryScript(cfg *types.Config) error {
 	cfg.AddNetworkClass(&types.NetworkClass{
 		Name: ScriptClassName,
 		ConfigTemplates: []*types.ConfigTemplate{
-			{File: ScriptFile, Template: []string{string(bytes)}},
+			{File: ScriptFile, Template: []string{strings.ReplaceAll(string(bytes), "%%COLLECT%%", "../"+types.CollectDirName)}},
 		},
 	})
 	return nil
@@ -451,6 +482,8 @@ func (m *KatharaModule) GenerateValueParameters(
 		return m.generateFilemountParams(target, cfg)
 	case "copyfiles":
 		return copyFileParams(target, cfg)
+	case "collectfiles":
+		return generateCollectParams(target, cfg, nm)
 	default:
 		return nil, fmt.Errorf("unknown generator: %s", generatorName)
 	}
@@ -618,4 +651,34 @@ func checkMountDirsUsed(cfg *types.Config, nm *types.NetworkModel) error {
 		}
 	}
 	return nil
+}
+
+// readEntryTemplate fills a config template in from the module's own files.
+func readEntryTemplate(path string, ct *types.ConfigTemplate) (*types.ConfigTemplate, error) {
+	bytes, err := templates.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	ct.Template = []string{string(bytes)}
+	return ct, nil
+}
+
+// generateCollectParams names the files to copy out of a node.
+func generateCollectParams(target types.ValueOwner, cfg *types.Config, nm *types.NetworkModel) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("collectfiles generator requires Node target, got %T", target)
+	}
+	targets, err := types.CollectTargets(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+	var results []map[string]string
+	for _, t := range targets {
+		if t.Node != node.Name {
+			continue
+		}
+		results = append(results, map[string]string{"device": t.Node, "path": t.ContainerPath})
+	}
+	return results, nil
 }

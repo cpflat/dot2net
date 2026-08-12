@@ -1,0 +1,3 @@
+teardown_node {{ .name }} <<'DOT2NET_TEARDOWN'
+{{ .self_teardown }}
+DOT2NET_TEARDOWN

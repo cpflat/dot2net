@@ -7,10 +7,54 @@
 # to be piped to a shell. It also prints a line that is not a command when an
 # interface attaches to a switch, which the pipe has to drop or the shell stops
 # there (see doc/active/TESTBED_NOTES.md).
-set -e
+#
+# destroy does more than TiNET's own: it runs the lab's teardown commands,
+# copies out what the lab was asked to bring back, and only then takes the lab
+# down. A step that fails is named and the rest still runs, and the script ends
+# non-zero so that whatever called it knows.
 cd "$(dirname "$0")"
 SPEC="%%SPEC%%"
+COLLECT_DIR="${DOT2NET_COLLECT_DIR:-%%COLLECT%%}"
+
 run() { tinet "$1" -c "$SPEC" | grep -v '<->' | sudo sh; }
+
+failed=""
+note_failure() {
+  failed="$failed
+  $1"
+  echo "dot2net: FAILED $1" >&2
+}
+report() {
+  [ -n "$failed" ] || return 0
+  echo "dot2net: these steps failed:$failed" >&2
+  exit 1
+}
+
+# TiNET names a container after the node, so there is nothing to look up.
+container_id() { echo "$1"; }
+
+teardown_node() {
+  node="$1"
+  sudo docker exec -i "$(container_id "$node")" sh -s || note_failure "teardown $node"
+}
+
+collect_file() {
+  node="$1"
+  path="$2"
+  dest="$COLLECT_DIR/$node$path"
+  mkdir -p "$(dirname "$dest")"
+  sudo docker cp "$(container_id "$node"):$path" "$dest" || note_failure "collect $node:$path"
+}
+
+run_teardown() {
+  :
+{{ .nodes_tn_teardown }}
+}
+
+run_collect() {
+  :
+{{ .nodes_tn_collect }}
+}
 
 case "${1:-deploy}" in
   deploy)
@@ -18,7 +62,15 @@ case "${1:-deploy}" in
     run conf
     ;;
   destroy)
-    run down
+    run_teardown
+    run_collect
+    run down || note_failure "destroy"
+    report
+    ;;
+  collect)
+    [ -n "$2" ] && COLLECT_DIR="$2"
+    run_collect
+    report
     ;;
   exec)
     shift
@@ -27,7 +79,8 @@ case "${1:-deploy}" in
     exec sudo docker exec "$node" "$@"
     ;;
   *)
-    echo "usage: $0 {deploy|destroy|exec <node> <command>...}" >&2
+    echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2
+    echo "  DOT2NET_COLLECT_DIR where collected files go" >&2
     exit 2
     ;;
 esac

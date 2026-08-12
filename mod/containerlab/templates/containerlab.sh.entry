@@ -62,10 +62,12 @@ collect_file() {
 }
 
 run_teardown() {
+  :
 {{ .nodes_clab_teardown }}
 }
 
 run_collect() {
+  :
 {{ .nodes_clab_collect }}
 }
 

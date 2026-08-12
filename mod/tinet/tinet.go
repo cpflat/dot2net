@@ -204,10 +204,41 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct3.Template = []string{string(bytes)}
 
+	// What the entry script needs from each node: the lab's own teardown
+	// commands, and the files to copy out. Both are aggregated by the script,
+	// which is the module's own file - a scenario never names these blocks.
+	ctTeardown, err := readEntryTemplate("templates/teardown.node_tn_teardown", &types.ConfigTemplate{
+		Name:           "tn_teardown",
+		Depends:        []string{"teardown"},
+		RequiredParams: []string{"self_teardown"},
+	})
+	if err != nil {
+		return err
+	}
+	ctCollect, err := readEntryTemplate("templates/collect.node_tn_collect", &types.ConfigTemplate{
+		Name:           "tn_collect",
+		RequiredParams: []string{"values_tn_collect_entry"},
+	})
+	if err != nil {
+		return err
+	}
+	collectEntry, err := templates.ReadFile("templates/collect.value_tn_collect_entry")
+	if err != nil {
+		return err
+	}
+	cfg.AddParameterRule(&types.ParameterRule{
+		Name:      "tn_collects",
+		Mode:      types.ParameterRuleModeAttach,
+		Generator: "tinet.collectfiles",
+		ConfigTemplates: []*types.ConfigTemplate{
+			{Name: "tn_collect_entry", Template: []string{string(collectEntry)}},
+		},
+	})
+
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
-		Parameters:      []string{"tinet_binds", "tinet_copies"},
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ctCopies},
+		Parameters:      []string{"tinet_binds", "tinet_copies", "tn_collects"},
+		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ctCopies, ctTeardown, ctCollect},
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: ClassifyObjects picks between this class and
@@ -314,6 +345,8 @@ func (m *TinetModule) GenerateValueParameters(
 		return m.generateFilemountParams(target, cfg, nm)
 	case "copyfiles":
 		return copyFileParams(target, cfg)
+	case "collectfiles":
+		return generateCollectParams(target, cfg, nm)
 	default:
 		return nil, fmt.Errorf("unknown generator: %s", generatorName)
 	}
@@ -531,6 +564,7 @@ func addEntryScript(cfg *types.Config, scope, subdir string) error {
 		path = subdir + "/" + TinetOutputFile
 	}
 	script := strings.ReplaceAll(string(bytes), "%%SPEC%%", path)
+	script = strings.ReplaceAll(script, "%%COLLECT%%", types.CollectDirName)
 	ct := &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}
 	if scope == types.ClassTypeGroup {
 		cfg.AddGroupClass(&types.GroupClass{
@@ -568,6 +602,36 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 			"target": c.Target,
 			"dir":    c.Dir,
 		})
+	}
+	return results, nil
+}
+
+// readEntryTemplate fills a config template in from the module's own files.
+func readEntryTemplate(path string, ct *types.ConfigTemplate) (*types.ConfigTemplate, error) {
+	bytes, err := templates.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	ct.Template = []string{string(bytes)}
+	return ct, nil
+}
+
+// generateCollectParams names the files to copy out of a node.
+func generateCollectParams(target types.ValueOwner, cfg *types.Config, nm *types.NetworkModel) ([]map[string]string, error) {
+	node, ok := target.(*types.Node)
+	if !ok {
+		return nil, fmt.Errorf("collectfiles generator requires Node target, got %T", target)
+	}
+	targets, err := types.CollectTargets(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+	var results []map[string]string
+	for _, t := range targets {
+		if t.Node != node.Name {
+			continue
+		}
+		results = append(results, map[string]string{"device": t.Node, "path": t.ContainerPath})
 	}
 	return results, nil
 }
