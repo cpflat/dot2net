@@ -1,2 +1,3 @@
-touch {{ .frr_log_path }} && chown frr:frr {{ .frr_log_path }}
+touch {{ .frr_log_path }}
+chown frr:frr {{ .frr_log_path }}
 vtysh -c "conf t" -c "log file {{ .frr_log_path }} {{ .frr_log_level }}"
