@@ -37,7 +37,7 @@ This separation enables **topology-driven configuration** where changing the net
 go build .
 # or with Docker: docker run --rm -i -v $PWD:/v -w /v golang:1.23.4 go build -buildvcs=false
 
-# 2. Navigate to a tutorial scenario
+# 2. Navigate to the tutorial topology
 cd tutorial/
 
 # 3. Generate configuration files

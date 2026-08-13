@@ -27,7 +27,7 @@
 
 ## Platforms
 
-Every scenario here generates for containerlab and TiNET. Most generate for
+Every topology here generates for containerlab and TiNET. Most generate for
 Kathara as well; the ones that do not say why where their modules are listed:
 
 - `address_reservation`, `basic_clos`, `bgp_evpn_vxlan_topo1` name their own

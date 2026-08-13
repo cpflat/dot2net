@@ -1555,7 +1555,7 @@ func (cfg *Config) CheckModuleConfigNames() error {
 	}
 	sort.Strings(names)
 	return fmt.Errorf(
-		"module_config names %s, which the scenario does not load; add it to module: or remove the section",
+		"module_config names %s, which this topology does not load; add it to module: or remove the section",
 		strings.Join(names, ", "))
 }
 

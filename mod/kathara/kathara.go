@@ -386,7 +386,7 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 	// points at would be wrong as well. Say so rather than write it.
 	if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
 		return fmt.Errorf(
-			"this scenario places nodes on machines with %s groups, which Kathara has no way to "+
+			"this topology places nodes on machines with %s groups, which Kathara has no way to "+
 				"express: a lab.conf describes one machine. Drop the kathara module, or the placement "+
 				"units if the lab is meant for one machine after all",
 			types.WorkerGroupClassName)

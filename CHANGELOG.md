@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking changes
 
-Read these before upgrading a scenario from 0.7.x. Each is described in full
+Read these before upgrading a topology from 0.7.x. Each is described in full
 further down.
 
 - **Generated files move.** A file declared with `path: /etc/frr/frr.conf` is
@@ -22,22 +22,28 @@ further down.
   management network has to turn it back on with
   `module_config.containerlab.management_network: true`.
 - **A shared segment reaching across machines is replaced with one bridge per
-  machine.** A multi-host scenario that drew such a segment gets a different
+  machine.** A multi-host topology that drew such a segment gets a different
   topology than before; `global.aggregate_crossing_links: false` restores it.
-- **An unknown or duplicate key in the config file is an error.** A scenario
+- **An unknown or duplicate key in the config file is an error.** A topology
   with a typo that used to run will now say so.
 - **Two file definitions writing the same file is an error**, as is a config
   entry naming both `template` and `sourcefile`.
+- **`virtual` on an interface no longer takes its link with it.** It used to
+  mean "leave this out of the output" and to reach the connection as well, so an
+  interface marked virtual silently removed the link it sat on. It now says what
+  it says: the interface is not deployed, and whether a link is emitted follows
+  from whether a platform is being told to make one (`required_link`). A
+  topology that used `virtual` on an interface to drop a link gets the link.
 - **The Kathara module owns `<device>.startup`.** The pattern documented in
-  0.7.0 — a scenario declaring the file itself with `name_suffix: .startup` and
+  0.7.0 — a topology declaring the file itself with `name_suffix: .startup` and
   `output: root` — still works on its own, but collides once the Kathara module
-  is loaded. Drop the scenario's declaration and write a `startup` template
+  is loaded. Drop that declaration and write a `startup` template
   instead, as containerlab and TiNET already expect.
 
 ### Added
 
 - **One containerlab topology file per machine.** A lab is deployed to a single
-  machine, so when a scenario declares worker groups the topology file becomes
+  machine, so when a topology declares worker groups the topology file becomes
   group-scoped and each machine gets one it can deploy on its own, holding its
   own nodes and the links with both ends inside it. Bind paths become relative
   to the machine's directory, since containerlab resolves them against the
@@ -49,7 +55,7 @@ further down.
   A link between two machines appears in no topology file, because nothing
   inside containerlab can create it — the machines are wired outside the lab.
   Give each machine its own bridge and join them with a link; that link is what
-  `boundary_class` marks. Address assignment still sees one segment spanning
+  `boundary_crossing_connection_class` marks. Address assignment still sees one segment spanning
   both machines, because searching for a segment passes through bridges, which
   carry no addresses. `example/vlan_multihost` is built this way.
 - **`worker` group class**: marks a placement unit, a machine that containers
@@ -89,7 +95,7 @@ further down.
   `global.aggregate_crossing_links: false` turns it off, for a platform that
   stretches a segment across machines itself or an author who wants to draw the
   split. It defaults to on.
-- **One TiNET spec file per machine.** When the scenario declares `worker` groups
+- **One TiNET spec file per machine.** When a topology declares `worker` groups
   the spec file becomes group-scoped, the same way the containerlab topology
   file does: each machine gets its own nodes and the links it can wire itself,
   and the link that leaves a machine appears in neither. Mount paths become
@@ -99,8 +105,8 @@ further down.
   as on containerlab.
 - **`example/ospf_multihost`**: `example/ospf_simple` placed on two machines —
   the same OSPF configuration, split across a machine boundary. This is the
-  scenario to copy when writing a multi-host topology; `example/vlan_multihost`
-  demonstrates the machinery (`worker`, `boundary_class`, `deploy`, `use:`) and
+  one to copy when writing a multi-host topology; `example/vlan_multihost`
+  demonstrates the machinery (`worker`, `boundary_crossing_connection_class`, `deploy`, `use:`) and
   configures no routing. Deployed on two VMs: the OSPF adjacency between the
   border routers comes up across the boundary, each machine learns the other's
   subnets, and traffic is routed between them.
@@ -115,7 +121,7 @@ further down.
 
   A mounted file reaches a device through `volume`, which is Kathara's bind
   mount. Kathara mounts directories and refuses single files, so what is mounted
-  is a directory the scenario has named in `module_config.kathara.mount_dirs` —
+  is a directory the topology has named in `module_config.kathara.mount_dirs` —
   a statement that dot2net supplies everything the software needs in it, since
   mounting a directory hides what the image kept there and dot2net cannot see
   inside an image to know whether that is safe. A file to be mounted from a
@@ -130,8 +136,8 @@ further down.
   level down, the convention finds nothing.
 
   A node config template named `startup` becomes `<device>.startup`, the same
-  template containerlab puts in `exec:` and TiNET in `cmds:`. A scenario
-  therefore writes its startup commands once and runs on all three.
+  template containerlab puts in `exec:` and TiNET in `cmds:`. You
+  therefore write the startup commands once and runs on all three.
 
   Verified by deploying `example/ospf_simple` with the Kathara module added:
   the OSPF adjacency reaches Full and the routers two hops apart reach each
@@ -201,9 +207,9 @@ further down.
   read or deleted without sudo either.
 
   A module declares what it needs back: `frrLogFile` collects its own log, so a
-  scenario that never named the file does not have to name it to get it back.
+  topology that never named the file does not have to name it to get it back.
 
-  The entry script does the copying, which is why a scenario that collects
+  The entry script does the copying, which is why a topology that collects
   anything needs one. Declaring `collect` with `generate_scripts` off is an
   error that says which class asked for it.
 - **`destroy` in an entry script now takes the lab down in four steps**: the
@@ -231,24 +237,24 @@ further down.
 - **`executable` on a file definition** writes the file with the executable bit
   set. The generated entry scripts and `setup-bridges.sh` use it: a script that
   has to be `chmod`'ed before it works is one that will be run wrong once.
-- **A module can add to a node's `startup`, and a scenario reaches modules only
-  through `use:`.** Which names cross between a module and a scenario is now a
+- **A module can add to a node's `startup`, and a topology reaches modules only
+  through `use:`.** Which names cross between a module and a topology is now a
   short list rather than a growing one:
 
-  - the **class names and value names a module publishes** — a scenario writes
+  - the **class names and value names a module publishes** — you write
     them in `use:` and `values:`
-  - the **hook names dot2net itself owns** — a scenario writes them in
+  - the **hook names dot2net itself owns** — you write them in
     `config: - name:`. There is one so far, `startup`, and a module reads it and
     puts it where its own platform expects it
 
-  A module's own block names are its business. A scenario naming one would be
+  A module's own block names are its business. Naming one from a topology would be
   reaching into a module's insides, and the ways the two can talk to each other
   would multiply with every module and every feature until nobody could say what
   they are.
 
   What this makes possible: a module class pulled in with `use:` can define a
   template under a hook name, and what it has to do is merged ahead of what the
-  scenario asked for there. Two classes of the scenario's own naming one hook is
+  topology asked for there. Two classes of the topology's own naming one hook is
   still rejected — nothing would say which of them wins.
 
   ```yaml
@@ -257,7 +263,7 @@ further down.
       use: [frrLogFile]     # the module adds its commands to this node's startup
       config:
         - name: startup
-          template: ["whatever the scenario wants, running after"]
+          template: ["whatever the topology wants, running after"]
   ```
 - **`frrLogFile`**: a class from the FRR module that makes the log file and names
   it to a running FRR. FRR cannot do it itself — its daemons run as the frr user
@@ -269,27 +275,27 @@ further down.
 
   `example/ospf_topo1`, `ospf6_topo1`, `rip_topo1`, `bgp_features` and
   `bgp_evpn_vxlan_topo1` use it and no longer generate a log file of their own.
-- **containerlab writes `setup-bridges.sh` itself** when a scenario pulls in
-  `clabOvsBridgeSetup` or `clabLinuxBridgeSetup`, instead of a scenario
+- **containerlab writes `setup-bridges.sh` itself** when a topology pulls in
+  `clabOvsBridgeSetup` or `clabLinuxBridgeSetup`, instead of a topology
   declaring the file and assembling it from a module's blocks. A lab whose
   bridges are provisioned some other way leaves the `use:` line out and gets no
   script.
 - **Ready-made bridge setup classes (containerlab)**: `clabOvsBridgeSetup` and
   `clabLinuxBridgeSetup` carry the command that creates the bridge containerlab
-  requires to exist before deploy. A scenario opts in with
+  requires to exist before deploy. A topology opts in with
   `use: [clabOvsBridgeSetup]`; both define a `clab_bridge_setup` template, so
   `{{ .nodes_clab_bridge_setup }}` collects one line per switch node.
 
   They are never applied automatically. Which command creates a bridge is not
   decided by the kind — the same `ovs-bridge` may be provisioned by Ansible,
-  need sudo, or live in another OVS database — so a scenario that does it
+  need sudo, or live in another OVS database — so a topology that does it
   differently names neither class and writes its own `clab_bridge_setup`.
 - **`use:` on class definitions**: a class may name other classes of the same
   type that an object carrying it also carries. It attaches labels only — no
   field is merged or overridden — so composition follows the ordinary
   multi-class rules. Cycles terminate; naming an undefined class is an error.
 
-  This is what lets a module offer a ready-made class that a scenario opts into,
+  This is what lets a module offer a ready-made class that a topology opts into,
   without naming that class in the topology: putting it in the DOT would tie the
   file to one platform, since the class exists only while that module is loaded.
   A used class keeps the tier of wherever it was defined rather than the tier of
@@ -317,7 +323,7 @@ further down.
   `container`. That is why a class that says nothing never collides with one that
   asks for `platform`. Claims are weighed by class tier, so a default stated by
   the base class of `class_policy` is overridden by a class the user named on the
-  node — which is how a scenario sets its own default without a dedicated global
+  node — which is how a topology sets its own default without a dedicated global
   setting.
 
   `virtual: true` is the shorthand for `deploy: none` and keeps working. Writing
@@ -326,7 +332,7 @@ further down.
   "unset"; `deploy: container` is how to say it out loud and override another
   class. Only the field name is reserved, so a class may still be *called*
   `switch` and mean an ordinary container, as eight of the bundled examples do.
-- **`assert` module**: an opt-in module that checks the expectations a scenario
+- **`assert` module**: an opt-in module that checks the expectations a topology
   states about itself. A class marked `values: {assert_used: "true"}` must be
   applied to at least one object, or the build fails. It generates no output.
   This closes a hole the golden tests cannot cover: a class that is declared but
@@ -350,20 +356,20 @@ further down.
   Kept apart from `global:`, which holds what every platform shares. What a
   module offers is its own - containerlab's management network and Kathara's
   bridged devices sound alike and are not the same thing, so a shared key would
-  be wrong. A section naming a module the scenario does not load is rejected,
+  be wrong. A section naming a module the topology does not load is rejected,
   since it does nothing and is nearly always a typo.
 
   `containerlab.management_network` is the first setting to live there: it puts
-  the management network back for a scenario that wants `clab exec` and the
+  the management network back for a topology that wants `clab exec` and the
   `clab-*` names.
 - **`global.split_module_output: true`** puts each module's own files in a
   directory named after it — `containerlab/topo.yaml`, `tinet/spec.yaml` —
-  while the files the scenario defines stay where they are, since more than one
+  while the files the topology defines stay where they are, since more than one
   platform may read them. Bind and mount paths follow. Off by default; it is for
   a lab whose output is large enough that the platforms get in each other's way.
 
   Kathara is not split: its lab *is* the directory, holding `lab.conf` and every
-  `<device>.startup`, and those startup files are written by the scenario.
+  `<device>.startup`, and those startup files are written by the topology.
 - **`global.output_group_class`**: names the group class that splits the output
   directory. Every node of such a group has its files written below that group's
   directory, so a host packs as a single directory:
@@ -396,7 +402,7 @@ further down.
   `net1`. The old prefix followed TiNET's examples; `eth` is what a Linux
   container calls its interfaces and what Kathara requires — it derives the name
   from the index in `lab.conf` and offers no way to change it — so this is the
-  one prefix every platform accepts, and a scenario can now load all three
+  one prefix every platform accepts, and a topology can now load all three
   modules at once.
 
   The exception is containerlab's management network, which keeps `eth0` for
@@ -413,7 +419,7 @@ further down.
   so this also brings the three into line.
 
   It frees `eth0` as well: containerlab refuses a data interface by that name
-  while the management network is attached, which is what kept a scenario from
+  while the management network is attached, which is what kept a topology from
   loading the Kathara module alongside the other two.
 - **`raw` on a config entry**: hands a source file through as read instead of
   reading it as a template. For a file that is material rather than a template —
@@ -430,7 +436,7 @@ further down.
   marks the downstream syntax passes through and dot2net's own values are still
   filled in, in the same file.
 - **A config entry naming both `template` and `sourcefile` is now rejected.**
-  Which came first was decided in the code and written down nowhere; no scenario
+  Which came first was decided in the code and written down nowhere; nothing
   used it. Write two entries and order them with `blocks:`.
 - **An unknown or duplicate key in the config file is now an error.** A key the
   config does not know used to be dropped without a word, which looks exactly
@@ -440,7 +446,7 @@ further down.
   quiet loss, with the later value winning. The message names the key and the
   line. Settings inside `module_config` are checked the same way.
 
-  All bundled scenarios already pass; a config that does not will name what to
+  All bundled topologies already pass; a config that does not will name what to
   fix.
 - **Two file definitions writing the same file is now an error.** A file's
   content is ordered by the config templates behind it, and two definitions
@@ -464,7 +470,7 @@ further down.
   see a different source path in their mounts.
 
 - **`example/ospf_topo1`, `ospf6_topo1` and `rip_topo1` ran no routing software.**
-  Every node was `nicolaka/netshoot`, which has no FRR, while the scenarios
+  Every node was `nicolaka/netshoot`, which has no FRR, while the topologies
   generated `zebra.conf`, `ospfd.conf` and the rest for it to read. They had
   been that way since a golden test gave every node an image; before that they
   named none. Their routers now run FRR, and all three do what their names say
@@ -472,10 +478,10 @@ further down.
   networks. The switches stay on netshoot — they are bridges made with
   `ip link`, which FRR's image cannot do.
 - **`example/three_platforms` is gone**, and `example/readme.md` says which
-  scenarios generate for Kathara, why six cannot, and where `basic_mpls`,
+  topologies generate for Kathara, why six cannot, and where `basic_mpls`,
   `large_clos` and `large_ring` went when v0.4.0 changed the format under them.
 
-### Fixed### Fixed
+### Fixed
 
 - **IP policies ignored the class tiers**: a policy was applied as each class
   was visited, and classes are visited strongest first, so the last write won —
