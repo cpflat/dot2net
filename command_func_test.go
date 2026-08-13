@@ -13,8 +13,26 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
+// topologyRoots are the directories a dot2net topology can live in: topologies/
+// holds the ones worth deploying, example/ the ones that demonstrate a notation.
+var topologyRoots = []string{"topologies", "example"}
+
+// findTopologyDir returns the directory of the named topology, whichever root it
+// sits under.
+func findTopologyDir(t *testing.T, rootDir string, topology string) string {
+	t.Helper()
+	for _, root := range topologyRoots {
+		dir := filepath.Join(rootDir, root, topology)
+		if _, err := os.Stat(filepath.Join(dir, "input.dot")); err == nil {
+			return dir
+		}
+	}
+	t.Fatalf("topology %q not found under any of %v", topology, topologyRoots)
+	return ""
+}
+
 // listGeneratedFiles computes the set of files that a build would generate for
-// the scenario in the current working directory, using the same model pipeline
+// the topology in the current working directory, using the same model pipeline
 // as CmdClean/CmdFiles.
 func listGeneratedFiles(t *testing.T, dotFile, cfgFile string) []string {
 	t.Helper()
@@ -46,19 +64,19 @@ func TestCmdClean_DeletesOnlyGeneratedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	scenarioDir := filepath.Join(wd, "example", "ospf_simple")
+	topologyDir := findTopologyDir(t, wd, "ospf_simple")
 
 	tmpDir := t.TempDir()
 	// copy top-level input files
-	entries, err := os.ReadDir(scenarioDir)
+	entries, err := os.ReadDir(topologyDir)
 	if err != nil {
-		t.Fatalf("ReadDir scenario: %v", err)
+		t.Fatalf("ReadDir topology: %v", err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(scenarioDir, e.Name()))
+		data, err := os.ReadFile(filepath.Join(topologyDir, e.Name()))
 		if err != nil {
 			t.Fatalf("read input %s: %v", e.Name(), err)
 		}
@@ -88,7 +106,7 @@ func TestCmdClean_DeletesOnlyGeneratedFiles(t *testing.T) {
 
 	generated := listGeneratedFiles(t, dotFile, cfgFile)
 	if len(generated) == 0 {
-		t.Fatalf("scenario generated no files")
+		t.Fatalf("topology generated no files")
 	}
 	// sanity: generated files actually exist on disk after build
 	for _, f := range generated {
@@ -107,7 +125,7 @@ func TestCmdClean_DeletesOnlyGeneratedFiles(t *testing.T) {
 		}
 	}
 	if len(dirsWithGenerated) < 2 {
-		t.Fatalf("scenario needs >=2 generated subdirectories, got %v", dirsWithGenerated)
+		t.Fatalf("topology needs >=2 generated subdirectories, got %v", dirsWithGenerated)
 	}
 	var keepDir, emptyDir string
 	for d := range dirsWithGenerated {
@@ -162,25 +180,25 @@ func TestCmdClean_DeletesOnlyGeneratedFiles(t *testing.T) {
 	}
 }
 
-// copyScenarioInputs copies a scenario's top-level files into a fresh temp dir
+// copyTopologyInputs copies a topology's top-level files into a fresh temp dir
 // and chdirs into it, returning to the original directory when the test ends.
-func copyScenarioInputs(t *testing.T, scenario string) {
+func copyTopologyInputs(t *testing.T, topology string) {
 	t.Helper()
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	scenarioDir := filepath.Join(wd, "example", scenario)
+	topologyDir := findTopologyDir(t, wd, topology)
 	tmpDir := t.TempDir()
-	entries, err := os.ReadDir(scenarioDir)
+	entries, err := os.ReadDir(topologyDir)
 	if err != nil {
-		t.Fatalf("ReadDir scenario: %v", err)
+		t.Fatalf("ReadDir topology: %v", err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(scenarioDir, e.Name()))
+		data, err := os.ReadFile(filepath.Join(topologyDir, e.Name()))
 		if err != nil {
 			t.Fatalf("read input %s: %v", e.Name(), err)
 		}
@@ -199,10 +217,10 @@ func copyScenarioInputs(t *testing.T, scenario string) {
 // to a worker group is assigned there, not when the module is loaded, so a
 // pipeline that stops before classification reports a short list - and `clean`,
 // which deletes exactly that list, used to leave every per-machine topo.yaml
-// behind. The single-machine scenarios cannot catch this: their topology file is
+// behind. Single-machine topologies cannot catch this: their topology file is
 // network-scoped and registered at load time.
 func TestCmdFiles_ListsPerMachineTopologyFiles(t *testing.T) {
-	copyScenarioInputs(t, "ospf_multihost")
+	copyTopologyInputs(t, "ospf_multihost")
 
 	const dotFile = "input.dot"
 	const cfgFile = "input.yaml"
@@ -241,18 +259,18 @@ func TestCmdClean_DryRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	scenarioDir := filepath.Join(wd, "example", "ospf_simple")
+	topologyDir := findTopologyDir(t, wd, "ospf_simple")
 
 	tmpDir := t.TempDir()
-	entries, err := os.ReadDir(scenarioDir)
+	entries, err := os.ReadDir(topologyDir)
 	if err != nil {
-		t.Fatalf("ReadDir scenario: %v", err)
+		t.Fatalf("ReadDir topology: %v", err)
 	}
 	for _, e := range entries {
 		if e.IsDir() {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(scenarioDir, e.Name()))
+		data, err := os.ReadFile(filepath.Join(topologyDir, e.Name()))
 		if err != nil {
 			t.Fatalf("read input: %v", err)
 		}

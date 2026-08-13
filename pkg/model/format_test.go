@@ -252,9 +252,9 @@ func TestReorderConfigTemplates(t *testing.T) {
 	}
 }
 
-// Test the specific ospf6_topo1 scenario that was failing
-func TestReorderConfigTemplates_OSPF6Scenario(t *testing.T) {
-	// Simulate the problematic ospf6_topo1 scenario
+// Test the specific ospf6_topo1 topology that was failing
+func TestReorderConfigTemplates_OSPF6Topology(t *testing.T) {
+	// Simulate the problematic ospf6_topo1 topology
 	templates := []*types.ConfigTemplate{
 		// Index 0: ospf6d.conf sorter (should come after group template)
 		{
@@ -304,7 +304,7 @@ func TestReorderConfigTemplates_OSPF6Scenario(t *testing.T) {
 	}
 
 	// Additional verification: check all dependency constraints
-	verifyDependencyConstraints(t, result, "OSPF6 Scenario")
+	verifyDependencyConstraints(t, result, "OSPF6 Topology")
 }
 
 // Test input order independence by verifying dependency constraints only

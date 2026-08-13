@@ -19,7 +19,7 @@ import (
 //
 // It runs before the classes are resolved, because a label added afterwards
 // would never become a class, and the point of attaching one is to let the
-// scenario hang a connection class off it - a VLAN id policy for the links
+// topology hang a connection class off it - a VLAN id policy for the links
 // between machines, an eBGP template for the ones between autonomous systems.
 func classifyBoundaryConnections(cfg *types.Config, nm *types.NetworkModel) error {
 	for _, gc := range cfg.GroupClasses {
@@ -37,7 +37,7 @@ func classifyBoundaryConnections(cfg *types.Config, nm *types.NetworkModel) erro
 			if groupKey(conn.Src.Node, gc.Name) == groupKey(conn.Dst.Node, gc.Name) {
 				continue
 			}
-			// Module tier: the class is derived, so anything the scenario wrote
+			// Module tier: the class is derived, so anything the topology wrote
 			// on the edge itself outranks it instead of clashing with it.
 			conn.AddModuleClassLabels(gc.BoundaryCrossingConnectionClass)
 		}

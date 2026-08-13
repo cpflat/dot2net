@@ -17,16 +17,26 @@ data/
 # Generated PDFs
 *.pdf
 
-# Example scenarios: exclude generated files, keep expected/
+# Topologies: exclude generated files, keep expected/
+# Both roots are built in place, so both need the same exclusions:
+# topologies/ holds the ones worth deploying, example/ the notation demos.
 # Subdirectories (generated router configs like r1/, node1/, etc.)
+topologies/*/*/
+!topologies/*/expected/
 example/*/*/
 !example/*/expected/
 # Generated spec/topo files
+topologies/*/spec.yaml
+topologies/*/topo.yaml
 example/*/spec.yaml
 example/*/topo.yaml
-# network-scope outputs of individual scenarios
-example/vlan_multihost/segments.txt
-example/vlan_multihost/setup-bridges.sh
+# network-scope outputs, which land beside the inputs rather than under a node
+topologies/*/segments.txt
+topologies/*/setup-bridges.sh
+topologies/*/inter-host-links.txt
+example/*/segments.txt
+example/*/setup-bridges.sh
+example/*/inter-host-links.txt
 
 # heinzel: task artifacts (symlink -> heinzel-records). not part of the repo
 /heinzel

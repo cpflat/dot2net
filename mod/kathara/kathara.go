@@ -28,7 +28,7 @@ const ScriptClassName = "_katharaScript"
 
 // InterfaceNamePrefix is not a default but a requirement. Kathara names a
 // device's interfaces after the index written in lab.conf - r1[0] becomes eth0
-// inside the container - and offers no way to change that, so a scenario asking
+// inside the container - and offers no way to change that, so a topology asking
 // for another prefix cannot be honoured. Rather than overwrite the request in
 // silence, the module reports it.
 const InterfaceNamePrefix = "eth"
@@ -46,13 +46,13 @@ const InterfaceClassName = "_katharaInterface"
 const KatharaLineFormatName = "_katharaLine"
 
 // KatharaCopyFormatName ends the copy commands with a newline so that the
-// scenario's own startup commands begin on a line of their own. A startup file
+// topology's own startup commands begin on a line of their own. A startup file
 // is a shell script, so a newline left at the end when there are no startup
 // commands costs nothing.
 const KatharaCopyFormatName = "_katharaCopy"
 
 // Kathara validates these itself and fails the whole lab, so the same rules are
-// checked here where the message can name the scenario's own object.
+// checked here where the message can name the topology's own object.
 var deviceNamePattern = regexp.MustCompile(`^[a-z0-9_]{1,30}$`)
 var collisionDomainPattern = regexp.MustCompile(`^\w+$`)
 
@@ -98,7 +98,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// files sit at the output root under exactly such names, so a lab.conf
 	// beside them would set that copying off - a second delivery nobody asked
 	// for, running after the device is up. With the lab one level down, the
-	// convention finds nothing and the only way in is the one the scenario
+	// convention finds nothing and the only way in is the one the topology
 	// chose.
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:   KatharaOutputFile,
@@ -138,9 +138,9 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	}
 	// Kathara starts a device and then copies its files in, so anything the
 	// image reads while booting is read before those files exist: an FRR
-	// container comes up with the image's own daemons file, not the scenario's.
+	// container comes up with the image's own daemons file, not the topology's.
 	// The startup file is what runs after the copy, which is why the startup
-	// commands a scenario already writes for the other platforms are carried
+	// commands a topology already writes for the other platforms are carried
 	// here rather than being left out.
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:       StartupFile,
@@ -149,7 +149,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		Output:     "root",
 		Subdir:     ModuleName,
 	})
-	// containerlab and TiNET both refuse a scenario without a startup template;
+	// containerlab and TiNET both refuse a topology without a startup template;
 	// Kathara has no reason to, so the dependency is named only when there is
 	// one to depend on.
 	var startupDepends []string
@@ -171,7 +171,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		return err
 	}
 	// What the file holds is worked out first, so that the file itself can ask
-	// whether anything came of it: either the copies or the scenario's startup
+	// whether anything came of it: either the copies or the topology's startup
 	// commands are reason enough to write it, and neither alone can say so.
 	ctStartupBody, err := templateFrom("templates/startup.node_kathara_startup_body", &types.ConfigTemplate{
 		Name:    "kathara_startup_body",
@@ -193,9 +193,9 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	}
 
 	// The image is a device option like any other, and Kathara falls back to its
-	// own base image when none is given - which is why a scenario that names one
+	// own base image when none is given - which is why a topology that names one
 	// has to have it carried through, or the lab comes up without the software
-	// it was written for. RequiredParams leaves the line out when the scenario
+	// it was written for. RequiredParams leaves the line out when the topology
 	// names no image, so a device may still take the default on purpose.
 	ctImage, err := templateFrom("templates/lab.conf.node_kathara_image", &types.ConfigTemplate{
 		Name:           "kathara_image",
@@ -219,7 +219,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	}
 	// What the entry script needs from each node: the lab's own teardown
 	// commands, and the files to copy out. Both are aggregated by the script,
-	// which is the module's own file - a scenario never names these blocks.
+	// which is the module's own file - a topology never names these blocks.
 	ctTeardown, err := readEntryTemplate("templates/teardown.node_kathara_teardown", &types.ConfigTemplate{
 		Name:           "kathara_teardown",
 		Depends:        []string{"teardown"},
@@ -379,7 +379,7 @@ func interfaceIndex(iface *types.Interface) (int, error) {
 }
 
 func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
-	// A Kathara lab is one lab.conf and one machine. A scenario that declares
+	// A Kathara lab is one lab.conf and one machine. A topology that declares
 	// placement units is describing a topology spread over several, and there
 	// is nothing in lab.conf that says which device goes where - so the file
 	// would name every device as if they shared a machine, and the paths it
@@ -396,7 +396,7 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 		return err
 	}
 
-	// The interface prefix is dictated by Kathara, so a scenario that asks for
+	// The interface prefix is dictated by Kathara, so a topology that asks for
 	// another one is telling the module to do something it cannot. Say so
 	// rather than overwrite the request without a word.
 	for _, ic := range cfg.InterfaceClasses {
@@ -451,7 +451,7 @@ type Options struct {
 	// MountDirs names the directories inside a device that dot2net supplies
 	// entirely. Kathara mounts a directory rather than a file, and the mount
 	// replaces what the image had there, so this says which directories the
-	// scenario is willing to take over.
+	// topology is willing to take over.
 	MountDirs []string `yaml:"mount_dirs"`
 
 	// GenerateScripts writes an entry point script beside the lab. It carries
@@ -463,7 +463,7 @@ type Options struct {
 // addEntryScript registers the script that stands in front of Kathara's own
 // commands. Kathara is not split by GlobalSettings.SplitModuleOutput: its lab
 // is the directory itself, holding lab.conf and every <device>.startup, and
-// those startup files are written by the scenario rather than by this module.
+// those startup files are written by the topology rather than by this module.
 func addEntryScript(cfg *types.Config) error {
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:       ScriptFile,
@@ -507,7 +507,7 @@ func (m *KatharaModule) GenerateValueParameters(
 // generateFilemountParams names the directories to mount into a device.
 //
 // Kathara mounts directories and refuses single files, so the unit is not the
-// file but a directory the scenario has declared as its own in
+// file but a directory the topology has declared as its own in
 // module_config.kathara.mount_dirs. That declaration is not a restatement of
 // what the paths already say: mounting a directory replaces the image's own, so
 // everything the image kept there is hidden, and dot2net cannot see inside an

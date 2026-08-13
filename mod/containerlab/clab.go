@@ -35,11 +35,11 @@ const NetworkClassName = "_clabNetwork"
 const NodeClassName = "_clabNode"
 const SwitchNodeClassName = "_clabSwitchNode"
 
-// WorkerGroupClassName carries the topology file when the scenario declares
+// WorkerGroupClassName carries the topology file when the topology declares
 // placement units, so that each machine gets one it can deploy on its own.
 const WorkerGroupClassName = "_clabWorkerGroup"
 
-// Ready-made classes a scenario opts into with use:. containerlab refuses to
+// Ready-made classes a topology opts into with use:. containerlab refuses to
 // deploy when a bridge node's bridge does not exist, and its deployment check
 // runs before any stage, so nothing inside the lab can create it. These spell
 // out the usual command for each kind of bridge.
@@ -47,7 +47,7 @@ const WorkerGroupClassName = "_clabWorkerGroup"
 // They are not applied automatically. Which command creates a bridge is not
 // decided by the kind - the same ovs-bridge may be provisioned by Ansible, need
 // sudo, or live in another OVS database - so the choice belongs to the
-// scenario. A scenario that provisions its bridges some other way names neither
+// topology. A topology that provisions its bridges some other way names neither
 // class and writes its own clab_bridge_setup template, or none at all.
 //
 // The names carry no underscore because they are meant to be written by users.
@@ -55,13 +55,13 @@ const OvsBridgeSetupClassName = "clabOvsBridgeSetup"
 const LinuxBridgeSetupClassName = "clabLinuxBridgeSetup"
 
 // BridgeSetupConfigName is the config template name both classes above define,
-// and the one a scenario overrides or supplies itself. Aggregate it with
+// and the one a topology overrides or supplies itself. Aggregate it with
 // {{ .nodes_clab_bridge_setup }}.
 const BridgeSetupConfigName = "clab_bridge_setup"
 
 // BridgeSetupFile is where those blocks end up. The module writes the script
-// itself rather than leaving a scenario to assemble it: what goes in it is the
-// module's own doing, and a scenario that says use: [clabOvsBridgeSetup] has
+// itself rather than leaving a topology to assemble it: what goes in it is the
+// module's own doing, and a topology that says use: [clabOvsBridgeSetup] has
 // said everything it needs to.
 const BridgeSetupFile = "setup-bridges.sh"
 
@@ -78,13 +78,13 @@ type Options struct {
 	// node, the way containerlab does on its own. It is off by default: that
 	// network is a second path between every pair of nodes, so a reachability
 	// test that should have failed can pass through it. It also takes eth0,
-	// which a scenario may want for a data interface.
+	// which a topology may want for a data interface.
 	//
 	// Turn it on for clab exec and the clab-* names.
 	ManagementNetwork bool `yaml:"management_network"`
 	// GenerateScripts writes an entry point script beside the lab, so that it
 	// can be brought up without knowing this platform's invocation. Off by
-	// default: the commands are short enough to type, and a scenario that does
+	// default: the commands are short enough to type, and a topology that does
 	// not want the extra file should not get one.
 	GenerateScripts bool `yaml:"generate_scripts"`
 }
@@ -153,7 +153,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	//
 	// The choice is made here because a FileDefinition carries a fixed scope
 	// and the model does not exist yet. What can be read at this point is the
-	// scenario's own configuration, which is loaded before the modules are.
+	// topology's own configuration, which is loaded before the modules are.
 	_, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName)
 
 	scope := types.ClassTypeNetwork
@@ -192,10 +192,10 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	ct1.Template = []string{string(bytes)}
 
 	// The bridges a topology names have to exist before containerlab will
-	// deploy it, so a scenario that asks for one gets a script that makes them.
-	// The module writes it rather than leaving a scenario to assemble it, and
+	// deploy it, so a topology that asks for one gets a script that makes them.
+	// The module writes it rather than leaving a topology to assemble it, and
 	// only when some node class pulls in one of the bridge setup classes -
-	// which is knowable here, from the scenario's own configuration.
+	// which is knowable here, from the topology's own configuration.
 	owns := []*types.ConfigTemplate{ct1}
 	if usesBridgeSetup(cfg) {
 		cfg.AddFileDefinition(&types.FileDefinition{
@@ -292,7 +292,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	ctExecBody.Template = []string{string(bytes)}
 
 	// The section appears when there is something to run, which is not the same
-	// as the scenario having written startup commands: a file provided by copy
+	// as the topology having written startup commands: a file provided by copy
 	// puts its own command here.
 	ct3 := &types.ConfigTemplate{
 		Name:           "clab_topo_exec",
@@ -325,7 +325,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 
 	// What the entry script needs from each node: the lab's own teardown
 	// commands, and the files to copy out. Both are aggregated by the script,
-	// which is the module's own file - a scenario never names these blocks.
+	// which is the module's own file - a topology never names these blocks.
 	ctTeardown, err := readTemplate("templates/teardown.node_clab_teardown", &types.ConfigTemplate{
 		Name:           "clab_teardown",
 		Depends:        []string{"teardown"},
@@ -463,7 +463,7 @@ func (m *ClabModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) 
 		}
 	}
 	// Only the groups standing for a machine get a topology file. The others
-	// group nodes for some purpose of the scenario's own - an AS, an area - and
+	// group nodes for some purpose of the topology's own - an AS, an area - and
 	// nothing is deployed to them.
 	for _, group := range nm.Groups {
 		if cfg.IsWorkerGroup(group) {
@@ -618,7 +618,7 @@ func (m *ClabModule) generateFilemountParams(
 func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
 	// containerlab keeps eth0 for the management network and refuses a data
 	// interface by that name. It says so at deploy time; saying it here means
-	// the scenario hears about it while it can still be changed.
+	// the topology hears about it while it can still be changed.
 	var opts Options
 	if _, err := cfg.DecodeModuleConfig("containerlab", &opts); err != nil {
 		return err
@@ -753,8 +753,8 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 	return results, nil
 }
 
-// usesBridgeSetup reports whether any node class in the scenario pulls in one of
-// the bridge setup classes. It reads the scenario's own configuration, which is
+// usesBridgeSetup reports whether any node class in the topology pulls in one of
+// the bridge setup classes. It reads the topology's own configuration, which is
 // loaded before the modules are, so the answer is available while the module is
 // still deciding what to register.
 func usesBridgeSetup(cfg *types.Config) bool {

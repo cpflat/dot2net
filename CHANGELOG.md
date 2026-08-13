@@ -39,6 +39,20 @@ further down.
   `output: root` — still works on its own, but collides once the Kathara module
   is loaded. Drop that declaration and write a `startup` template
   instead, as containerlab and TiNET already expect.
+- **Most topologies move from `example/` to `topologies/`.** The directory held
+  two different things: networks worth deploying, and small inputs written to
+  demonstrate a piece of notation. Both are read by users and both are
+  golden-tested, but only the first is worth running, and the shared name kept
+  drawing new demonstrations into the same pile. The 13 deployable ones are now
+  under `topologies/`; `example/` keeps the 6 that demonstrate a notation.
+  Nothing inside a topology changed. **What to do:** update any path that names
+  one: `cd example/ospf_simple` becomes `cd topologies/ospf_simple`.
+
+### Changed (repository layout)
+
+- **Topologies live under two roots.** `internal/test/example_test.go` walks
+  both `topologies/` and `example/`, so every topology is golden-tested wherever
+  it sits, and `tool/generate_expected.sh <name>` finds a topology under either.
 
 ### Added
 
@@ -81,7 +95,7 @@ further down.
   each one costs a VLAN from a finite pool. With the replacement it costs one
   per pair of machines, whatever n is.
 
-  The author draws the segment they mean, once. `example/aggregate_crossing`
+  The author draws the segment they mean, once. `topologies/aggregate_crossing`
   shows the difference: four routers on one segment, two per machine, cost four
   crossings without it and one with it. The addresses do not move either way —
   bridges carry none, so a search for a segment passes through them and all four
@@ -90,7 +104,7 @@ further down.
   A link between two such nodes is not counted as a member: it is the link
   between two sides of a segment that is already split, whether dot2net made it
   or the author wrote it out. `example/vlan_multihost` and
-  `example/ospf_multihost`, which write the split by hand, are unchanged.
+  `topologies/ospf_multihost`, which write the split by hand, are unchanged.
 
   `global.aggregate_crossing_links: false` turns it off, for a platform that
   stretches a segment across machines itself or an author who wants to draw the
@@ -103,7 +117,7 @@ further down.
   keep the single network-scoped file. Deployed on two VMs: the same DOT and
   YAML bring up an OSPF adjacency across the machine boundary on TiNET as well
   as on containerlab.
-- **`example/ospf_multihost`**: `example/ospf_simple` placed on two machines —
+- **`topologies/ospf_multihost`**: `topologies/ospf_simple` placed on two machines —
   the same OSPF configuration, split across a machine boundary. This is the
   one to copy when writing a multi-host topology; `example/vlan_multihost`
   demonstrates the machinery (`worker`, `boundary_crossing_connection_class`, `deploy`, `use:`) and
@@ -139,7 +153,7 @@ further down.
   template containerlab puts in `exec:` and TiNET in `cmds:`. You
   therefore write the startup commands once and runs on all three.
 
-  Verified by deploying `example/ospf_simple` with the Kathara module added:
+  Verified by deploying `topologies/ospf_simple` with the Kathara module added:
   the OSPF adjacency reaches Full and the routers two hops apart reach each
   other, from generated files alone and with the same image as containerlab.
 
@@ -273,7 +287,7 @@ further down.
   would have to replace `/var/log` wholesale. Doing it from `startup` costs the
   messages FRR logged before it runs, and nothing after.
 
-  `example/ospf_topo1`, `ospf6_topo1`, `rip_topo1`, `bgp_features` and
+  `topologies/ospf_topo1`, `ospf6_topo1`, `rip_topo1`, `bgp_features` and
   `bgp_evpn_vxlan_topo1` use it and no longer generate a log file of their own.
 - **containerlab writes `setup-bridges.sh` itself** when a topology pulls in
   `clabOvsBridgeSetup` or `clabLinuxBridgeSetup`, instead of a topology
@@ -469,7 +483,7 @@ further down.
   filesystem for the files to land anywhere useful. containerlab and TiNET only
   see a different source path in their mounts.
 
-- **`example/ospf_topo1`, `ospf6_topo1` and `rip_topo1` ran no routing software.**
+- **`topologies/ospf_topo1`, `ospf6_topo1` and `rip_topo1` ran no routing software.**
   Every node was `nicolaka/netshoot`, which has no FRR, while the topologies
   generated `zebra.conf`, `ospfd.conf` and the rest for it to read. They had
   been that way since a golden test gave every node an image; before that they
@@ -477,9 +491,11 @@ further down.
   when deployed: OSPF and OSPFv3 reach Full, RIP learns its neighbours'
   networks. The switches stay on netshoot — they are bridges made with
   `ip link`, which FRR's image cannot do.
-- **`example/three_platforms` is gone**, and `example/readme.md` says which
-  topologies generate for Kathara, why six cannot, and where `basic_mpls`,
-  `large_clos` and `large_ring` went when v0.4.0 changed the format under them.
+- **`example/three_platforms` is gone**, and each root's `readme.md` says what
+  its topologies are for: `topologies/readme.md` which of them generate for
+  Kathara, why some cannot, and where `basic_mpls`, `large_clos` and
+  `large_ring` went when v0.4.0 changed the format under them;
+  `example/readme.md` what each notation demonstration shows.
 
 ### Fixed
 

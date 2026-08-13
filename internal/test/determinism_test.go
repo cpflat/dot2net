@@ -11,10 +11,10 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
-// determinismScenarios are representative example scenarios exercising the
+// determinismTopologies are representative topologies exercising the
 // map-iteration-heavy paths (grouping, IP assignment, parameter distribution,
 // multi-layer config) most likely to expose non-deterministic output.
-var determinismScenarios = []string{
+var determinismTopologies = []string{
 	"vlan_multihost",
 	"basic_clos",
 	"bgp_evpn_vxlan_topo1",
@@ -22,13 +22,13 @@ var determinismScenarios = []string{
 	"param_share",
 }
 
-// TestBuildDeterminism verifies that building the same scenario twice from a
+// TestBuildDeterminism verifies that building the same topology twice from a
 // clean state produces byte-identical output (CR-079). Go randomizes map
 // iteration order on every range statement, so two independent in-process
 // builds already exercise different iteration orders; running the suite with
 // `go test -count=2` additionally covers cross-process variation.
 //
-// Unlike TestExampleScenarios (which pins output against committed golden
+// Unlike TestExampleTopologys (which pins output against committed golden
 // files), this test compares two fresh runs against *each other*, so it
 // detects determinism regressions independently of whether the golden files
 // happen to be up to date.
@@ -39,38 +39,38 @@ func TestBuildDeterminism(t *testing.T) {
 	}
 	rootDir := filepath.Join(wd, "..", "..") // project root
 
-	for _, scenarioName := range determinismScenarios {
-		scenarioName := scenarioName
-		t.Run(scenarioName, func(t *testing.T) {
-			// Skip gracefully if a scenario is renamed/removed.
-			dotFile := filepath.Join(rootDir, "example", scenarioName, TopologyFileName)
+	for _, topologyName := range determinismTopologies {
+		topologyName := topologyName
+		t.Run(topologyName, func(t *testing.T) {
+			// Skip gracefully if a topology is renamed/removed.
+			dotFile := filepath.Join(findTopologyDir(t, rootDir, topologyName), TopologyFileName)
 			if _, err := os.Stat(dotFile); err != nil {
-				t.Skipf("scenario %s not present: %v", scenarioName, err)
+				t.Skipf("topology %s not present: %v", topologyName, err)
 			}
 
-			runA := buildScenarioFiles(t, rootDir, scenarioName)
-			runB := buildScenarioFiles(t, rootDir, scenarioName)
+			runA := buildTopologyFiles(t, rootDir, topologyName)
+			runB := buildTopologyFiles(t, rootDir, topologyName)
 
 			if len(runA) == 0 {
-				t.Fatalf("scenario %s generated no files", scenarioName)
+				t.Fatalf("topology %s generated no files", topologyName)
 			}
 			if diff := cmp.Diff(runA, runB); diff != "" {
-				t.Errorf("non-deterministic output for %s (-runA +runB):\n%s", scenarioName, diff)
+				t.Errorf("non-deterministic output for %s (-runA +runB):\n%s", topologyName, diff)
 			}
 		})
 	}
 }
 
-// buildScenarioFiles runs the full DiagramFromDotFile -> LoadConfig ->
-// BuildNetworkModel -> BuildConfigFiles pipeline for a scenario in an isolated
+// buildTopologyFiles runs the full DiagramFromDotFile -> LoadConfig ->
+// BuildNetworkModel -> BuildConfigFiles pipeline for a topology in an isolated
 // temporary directory and returns a map of generated file path -> normalized
 // content. Each invocation reloads config and model from scratch so that
 // non-determinism in model construction (IP assignment, parameter
 // distribution) is exercised in addition to file formatting.
-func buildScenarioFiles(t *testing.T, rootDir, scenarioName string) map[string]string {
+func buildTopologyFiles(t *testing.T, rootDir, topologyName string) map[string]string {
 	t.Helper()
 
-	scenarioDir := filepath.Join(rootDir, "example", scenarioName)
+	topologyDir := findTopologyDir(t, rootDir, topologyName)
 
 	tmpDir, err := os.MkdirTemp("", "dot2net_determinism")
 	if err != nil {
@@ -79,15 +79,15 @@ func buildScenarioFiles(t *testing.T, rootDir, scenarioName string) map[string]s
 	defer os.RemoveAll(tmpDir)
 
 	// copy input files (top-level only) into tmp dir
-	err = filepath.WalkDir(scenarioDir, func(path string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(topologyDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && path != scenarioDir {
+		if d.IsDir() && path != topologyDir {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() {
-			relPath, err := filepath.Rel(scenarioDir, path)
+			relPath, err := filepath.Rel(topologyDir, path)
 			if err != nil {
 				return err
 			}

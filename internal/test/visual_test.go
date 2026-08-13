@@ -14,21 +14,21 @@ import (
 	"github.com/cpflat/dot2net/pkg/visual"
 )
 
-// buildModelForVisual builds a NetworkModel for a scenario without writing any
+// buildModelForVisual builds a NetworkModel for a topology without writing any
 // output files (so it can run without changing the working directory).
-func buildModelForVisual(t *testing.T, scenarioName string) (*types.Config, *types.NetworkModel) {
+func buildModelForVisual(t *testing.T, topologyName string) (*types.Config, *types.NetworkModel) {
 	t.Helper()
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	scenarioDir := filepath.Join(wd, "..", "..", "example", scenarioName)
+	topologyDir := findTopologyDir(t, filepath.Join(wd, "..", ".."), topologyName)
 
-	d, err := model.DiagramFromDotFile(filepath.Join(scenarioDir, TopologyFileName))
+	d, err := model.DiagramFromDotFile(filepath.Join(topologyDir, TopologyFileName))
 	if err != nil {
 		t.Fatalf("DiagramFromDotFile: %v", err)
 	}
-	cfg, err := types.LoadConfig(filepath.Join(scenarioDir, DefinitionFileName))
+	cfg, err := types.LoadConfig(filepath.Join(topologyDir, DefinitionFileName))
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
@@ -40,7 +40,7 @@ func buildModelForVisual(t *testing.T, scenarioName string) (*types.Config, *typ
 }
 
 // TestGraphToDot verifies that visual.GraphToDot produces a parseable DOT graph
-// that includes the scenario's nodes, and that an unknown layer is rejected.
+// that includes the topology's nodes, and that an unknown layer is rejected.
 func TestGraphToDot(t *testing.T) {
 	cfg, nm := buildModelForVisual(t, "ospf_simple")
 

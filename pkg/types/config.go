@@ -18,7 +18,7 @@ import (
 //
 // LoadConfig starts from defaultGlobalSettings rather than an empty struct, and
 // the YAML decoder leaves alone whatever the document does not mention, so a
-// setting the scenario never writes keeps the value below. Keep them together:
+// setting the topology never writes keeps the value below. Keep them together:
 // a default buried in the code that reads it cannot be found by someone asking
 // what happens when they write nothing.
 //
@@ -35,7 +35,7 @@ const (
 	// DefaultProvide is how a file reaches its node when the file definition
 	// says nothing. Mount is the default because it is the simpler of the two -
 	// the platform is shown the file and that is all - and because the files
-	// scenarios generate are mostly read while the container boots, which only
+	// topologies generate are mostly read while the container boots, which only
 	// mount can serve.
 	DefaultProvide = ProvideMount
 )
@@ -65,13 +65,13 @@ func defaultGlobalSettings() GlobalSettings {
 }
 
 // HookConfigNames are the names dot2net itself owns, and the only names a
-// scenario and a module may both use for a config template on one object.
+// topology and a module may both use for a config template on one object.
 //
-// This is where the line between the two is drawn. A scenario says what it
+// This is where the line between the two is drawn. A topology says what it
 // wants by writing a template under one of these names; a module reads it and
 // puts it where its own platform expects it, and may add what it has to do
 // itself. Every other name belongs to whoever defined it: a module's own block
-// names are its business, and a scenario naming one of them would be reaching
+// names are its business, and a topology naming one of them would be reaching
 // into a module's insides, which is how the ways the two can talk to each other
 // multiply until nobody can say what they are.
 var HookConfigNames = map[string]bool{
@@ -501,7 +501,7 @@ func (cfg *Config) AddFileDefinition(filedef *FileDefinition) {
 }
 
 // markModuleTemplates records that these templates came from a module, which is
-// what lets a hook name carry a module's part ahead of the scenario's.
+// what lets a hook name carry a module's part ahead of the topology's.
 func markModuleTemplates(cfg *Config, cts []*ConfigTemplate) {
 	if !cfg.registeringModule {
 		return
@@ -591,7 +591,7 @@ type GlobalSettings struct {
 	IgnoreUndefinedClass bool `yaml:"ignore_undefined_class" mapstructure:"ignore_undefined_class"`
 	// SplitModuleOutput puts each module's own files in a directory named after
 	// it - containerlab/topo.yaml, tinet/spec.yaml - instead of side by side at
-	// the output root. Files the scenario defines stay where they are: they are
+	// the output root. Files the topology defines stay where they are: they are
 	// often read by more than one platform, and splitting them would mean
 	// copying them.
 	//
@@ -613,10 +613,10 @@ type GlobalSettings struct {
 	AggregateCrossingLinks bool `yaml:"aggregate_crossing_links" mapstructure:"aggregate_crossing_links"`
 	// OutputGroupClass names the group class that splits the output directory.
 	//
-	// The value is an ordinary group class of the scenario's own choosing, not a
+	// The value is an ordinary group class of the topology's own choosing, not a
 	// reserved word: this setting says nothing about what the class means, only
 	// which one the layout follows. Splitting by AS is as valid as splitting by
-	// host, and a scenario whose groups are placement units still has to point
+	// host, and a topology whose groups are placement units still has to point
 	// this at them explicitly.
 	//
 	// When set, every group carrying that class gets a subdirectory, and all
@@ -642,7 +642,7 @@ type FileDefinition struct {
 	Name string `yaml:"name" mapstructure:"name"`
 	// Subdir places the file in a directory below where it would otherwise go.
 	// A module sets it to its own name when GlobalSettings.SplitModuleOutput is
-	// on; it is not something a scenario writes.
+	// on; it is not something a topology writes.
 	Subdir string `yaml:"-" mapstructure:"-"`
 	// NamePrefix is prepended to the object name when Name is empty.
 	NamePrefix string `yaml:"name_prefix" mapstructure:"name_prefix"`
@@ -1051,7 +1051,7 @@ type NodeClass struct {
 	// Collect names files inside the node to copy out before the lab is
 	// destroyed. Each is a template, so a path that follows a value stays right
 	// when the value is changed. The entry script does the copying, which is
-	// why a scenario that collects anything needs one.
+	// why a topology that collects anything needs one.
 	Collect           []string          `yaml:"collect,flow" mapstructure:"collect,flow"`
 	InterfaceIPPolicy []string          `yaml:"interface_policy,flow" mapstructure:"interface_policy,flow"`
 	ConfigTemplates   []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
@@ -1265,8 +1265,8 @@ type ConfigTemplate struct {
 	// Config templates with name will form a parameter that can be embeded in other hierarchy templates
 	Name string `yaml:"name" mapstructure:"name"`
 	// ModuleProvided marks a template registered by a module rather than
-	// written by the scenario. It decides the order when a module and the
-	// scenario both contribute to one of the hook names below: what the module
+	// written by the topology. It decides the order when a module and the
+	// topology both contribute to one of the hook names below: what the module
 	// has to do comes first.
 	ModuleProvided bool `yaml:"-" mapstructure:"-"`
 	// Group is used for sort config templates
@@ -1536,7 +1536,7 @@ func (cfg *Config) DecodeModuleConfig(name string, dst any) (bool, error) {
 	return true, nil
 }
 
-// CheckModuleConfigNames rejects a section naming a module the scenario does
+// CheckModuleConfigNames rejects a section naming a module the topology does
 // not load. Such a section does nothing, and the reason is nearly always a typo
 // or a module removed from the list while its settings stayed behind.
 func (cfg *Config) CheckModuleConfigNames() error {

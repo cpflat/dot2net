@@ -901,9 +901,9 @@ func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, ct
 		if ns.HasRelativeParam(name) {
 			prev, _ := ns.GetParamValue(name)
 			if prev != "" {
-				// A hook name carries both a module's part and the scenario's.
+				// A hook name carries both a module's part and the topology's.
 				// The module's comes first whichever is rendered first, so that
-				// what a scenario asked for runs after the ground is prepared.
+				// what a topology asked for runs after the ground is prepared.
 				if ct != nil && types.HookConfigNames[strings.TrimPrefix(name, types.SelfConfigHeader)] {
 					if ct.ModuleProvided {
 						ns.SetRelativeParam(name, joinHookBlocks(new, prev))

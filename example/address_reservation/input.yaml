@@ -6,8 +6,8 @@ class_policy:
   interface:
     default: [default]
 
-# Kathara is not among the modules below: this scenario names its interfaces (up1, dn1), and Kathara derives an
-# interface's name from its index in lab.conf, so a name of the scenario's
+# Kathara is not among the modules below: this topology names its interfaces (up1, dn1), and Kathara derives an
+# interface's name from its index in lab.conf, so a name of the topology's
 # choosing cannot be honoured.
 module:
   - assert

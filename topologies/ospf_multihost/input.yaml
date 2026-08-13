@@ -2,7 +2,7 @@
 #
 # This is example/ospf_simple placed on a multi-host lab: the same OSPF
 # configuration, split across two machines that are wired together outside the
-# lab. It is the scenario to copy when writing a multi-host topology of your
+# lab. It is the one to copy when writing a multi-host topology of your
 # own; example/vlan_multihost is the feature demonstration and configures no
 # routing at all.
 #
@@ -30,7 +30,7 @@ global:
   output_group_class: worker
 
 # Kathara is not among the modules below: a lab.conf describes one machine,
-# and this scenario places its nodes on more than one.
+# and this topology places its nodes on more than one.
 module:
   - tinet
   - containerlab

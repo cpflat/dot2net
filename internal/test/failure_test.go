@@ -34,7 +34,7 @@ func baseYAML(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("Getwd: %v", err)
 	}
-	data, err := os.ReadFile(filepath.Join(wd, "..", "..", "example", "ospf_simple", "input.yaml"))
+	data, err := os.ReadFile(filepath.Join(findTopologyDir(t, filepath.Join(wd, "..", ".."), "ospf_simple"), "input.yaml"))
 	if err != nil {
 		t.Fatalf("read base yaml: %v", err)
 	}

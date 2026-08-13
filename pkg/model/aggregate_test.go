@@ -133,7 +133,7 @@ func TestAggregateScalesWithMembersNotCrossings(t *testing.T) {
 }
 
 // TestAggregateLeavesHandSplitSegmentsAlone guards the case that broke the
-// examples: a scenario that already writes one bridge per machine and joins
+// examples: a topology that already writes one bridge per machine and joins
 // them must come out unchanged. The link between the two sides is not a member,
 // and reading it as one would split each side again.
 func TestAggregateLeavesHandSplitSegmentsAlone(t *testing.T) {
@@ -153,7 +153,7 @@ func TestAggregateLeavesHandSplitSegmentsAlone(t *testing.T) {
 	}
 }
 
-// TestAggregateCanBeTurnedOff pins the setting: the scenario keeps the topology
+// TestAggregateCanBeTurnedOff pins the setting: the topology keeps the graph
 // it drew, crossings and all.
 func TestAggregateCanBeTurnedOff(t *testing.T) {
 	yaml := "global:\n  aggregate_crossing_links: false\n" + aggregateYAML
@@ -179,7 +179,7 @@ func TestAggregateCanBeTurnedOff(t *testing.T) {
 	// The topology is left exactly as drawn: one segment belonging to no
 	// machine, reached by four links that each leave one.
 	if got := crossings(t, cfg, nm); got != 4 {
-		t.Errorf("with the setting off, crossings = %d, want the 4 the scenario drew", got)
+		t.Errorf("with the setting off, crossings = %d, want the 4 the topology drew", got)
 	}
 }
 
@@ -192,6 +192,6 @@ func TestAggregateDefaultsToOn(t *testing.T) {
 		t.Fatalf("LoadConfig: %v", err)
 	}
 	if !cfg.GlobalSettings.AggregateCrossingLinks {
-		t.Error("a scenario that says nothing must get aggregation, but it was off")
+		t.Error("a topology that says nothing must get aggregation, but it was off")
 	}
 }

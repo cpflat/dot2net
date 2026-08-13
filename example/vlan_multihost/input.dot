@@ -4,7 +4,7 @@ digraph {
 	// group that only shares parameters. The class sits in xlabel so that label
 	// stays available as a display title; a subgraph's label doubles as a class.
 	//
-	// A scenario where every cluster is a machine can leave this out entirely
+	// A topology where every cluster is a machine can leave this out entirely
 	// and write class_policy.group.default: [worker] instead.
 	subgraph host1 {
 		xlabel="worker";

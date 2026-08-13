@@ -1,18 +1,21 @@
 #!/bin/bash
 
-# Script to generate expected output directories for all dot2net example scenarios
+# Script to generate expected output directories for all dot2net topologies
 # This script is useful for updating expected test results when dot2net specifications change
+#
+# Topologies live under two roots: topologies/ holds the ones worth deploying,
+# example/ the ones that demonstrate a notation. Both are golden-tested.
 
 set -e
 
 # Get the absolute path to the dot2net project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-EXAMPLE_DIR="$PROJECT_ROOT/example"
+TOPOLOGY_ROOTS=("$PROJECT_ROOT/topologies" "$PROJECT_ROOT/example")
 DOT2NET_BIN="$PROJECT_ROOT/dot2net"
 
 echo "Project root: $PROJECT_ROOT"
-echo "Example directory: $EXAMPLE_DIR"
+echo "Topology roots: ${TOPOLOGY_ROOTS[*]}"
 
 # Check if dot2net binary exists
 if [ ! -f "$DOT2NET_BIN" ]; then
@@ -21,71 +24,67 @@ if [ ! -f "$DOT2NET_BIN" ]; then
     exit 1
 fi
 
-# Check if specific scenario is provided as argument
+# Check if a specific topology is provided as argument
 if [ $# -eq 1 ]; then
-    # Single scenario specified
-    target_scenario="$1"
-    scenario_dir="$EXAMPLE_DIR/$target_scenario"
-    
-    if [ ! -d "$scenario_dir" ]; then
-        echo "Error: Scenario directory '$scenario_dir' not found"
-        exit 1
-    fi
-    
-    dot_file="$scenario_dir/input.dot"
-    yaml_file="$scenario_dir/input.yaml"
-    
-    if [ ! -f "$dot_file" ] || [ ! -f "$yaml_file" ]; then
-        echo "Error: Scenario '$target_scenario' missing input.dot or input.yaml"
-        exit 1
-    fi
-    
-    scenarios=("$target_scenario")
-    echo "Processing single scenario: $target_scenario"
-elif [ $# -eq 0 ]; then
-    # Find all scenarios with input.dot and input.yaml
-    scenarios=()
-    for dir in "$EXAMPLE_DIR"/*; do
-        if [ -d "$dir" ]; then
-            scenario_name=$(basename "$dir")
-            dot_file="$dir/input.dot"
-            yaml_file="$dir/input.yaml"
-            
-            if [ -f "$dot_file" ] && [ -f "$yaml_file" ]; then
-                scenarios+=("$scenario_name")
-            fi
+    # Single topology specified; find which root it sits under
+    target_topology="$1"
+    topology_dirs=()
+    for root in "${TOPOLOGY_ROOTS[@]}"; do
+        candidate="$root/$target_topology"
+        if [ -f "$candidate/input.dot" ] && [ -f "$candidate/input.yaml" ]; then
+            topology_dirs=("$candidate")
+            break
         fi
     done
 
-    if [ ${#scenarios[@]} -eq 0 ]; then
-        echo "Error: No valid scenarios found with input.dot and input.yaml"
+    if [ ${#topology_dirs[@]} -eq 0 ]; then
+        echo "Error: topology '$target_topology' not found under ${TOPOLOGY_ROOTS[*]}"
         exit 1
     fi
 
-    echo "Found ${#scenarios[@]} scenarios: ${scenarios[*]}"
+    echo "Processing single topology: $target_topology"
+elif [ $# -eq 0 ]; then
+    # Find all topologies with input.dot and input.yaml
+    topology_dirs=()
+    for root in "${TOPOLOGY_ROOTS[@]}"; do
+        for dir in "$root"/*; do
+            if [ -d "$dir" ] && [ -f "$dir/input.dot" ] && [ -f "$dir/input.yaml" ]; then
+                topology_dirs+=("$dir")
+            fi
+        done
+    done
+
+    if [ ${#topology_dirs[@]} -eq 0 ]; then
+        echo "Error: No valid topologies found with input.dot and input.yaml"
+        exit 1
+    fi
+
+    echo "Found ${#topology_dirs[@]} topologies"
 else
-    echo "Usage: $0 [scenario_name]"
-    echo "  If no scenario_name is provided, all scenarios will be processed"
+    echo "Usage: $0 [topology_name]"
+    echo "  If no topology_name is provided, all topologies will be processed"
     exit 1
 fi
 echo
 
-# Process each scenario
-for scenario in "${scenarios[@]}"; do
-    echo "Processing scenario: $scenario"
-    scenario_dir="$EXAMPLE_DIR/$scenario"
-    expected_dir="$scenario_dir/expected"
+# Process each topology
+for topology_dir in "${topology_dirs[@]}"; do
+    topology=$(basename "$topology_dir")
+    echo "Processing topology: $topology"
+    expected_dir="$topology_dir/expected"
     
     # Create temporary directory for dot2net execution
-    temp_dir=$(mktemp -d)
+    # An explicit template is required: BSD mktemp with no template ignores
+    # TMPDIR and uses the Darwin per-user temp dir instead.
+    temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dot2net_expected.XXXXXX")
     trap "rm -rf $temp_dir" EXIT
     
     # Copy input files and any template files to temp directory
-    cp "$scenario_dir/input.dot" "$temp_dir/"
-    cp "$scenario_dir/input.yaml" "$temp_dir/"
+    cp "$topology_dir/input.dot" "$temp_dir/"
+    cp "$topology_dir/input.yaml" "$temp_dir/"
     
     # Copy any additional template files (but exclude subdirectories and legacy files)
-    for file in "$scenario_dir"/*; do
+    for file in "$topology_dir"/*; do
         if [ -f "$file" ]; then
             filename=$(basename "$file")
             # Skip input files (already copied) and legacy/backup files
@@ -111,8 +110,8 @@ for scenario in "${scenarios[@]}"; do
     # First, remove input files
     rm -f input.dot input.yaml
     
-    # Remove template files that were copied from scenario directory
-    for file in "$scenario_dir"/*; do
+    # Remove template files that were copied from the topology directory
+    for file in "$topology_dir"/*; do
         if [ -f "$file" ]; then
             filename=$(basename "$file")
             # Skip input files (already removed) and generated outputs
@@ -163,9 +162,9 @@ for scenario in "${scenarios[@]}"; do
     # Copy all generated files to expected directory
     if [ "$(ls -A "$temp_dir")" ]; then
         cp -r "$temp_dir"/* "$expected_dir/"
-        echo "  Generated expected files for $scenario"
+        echo "  Generated expected files for $topology"
     else
-        echo "  Warning: No output files generated for $scenario"
+        echo "  Warning: No output files generated for $topology"
     fi
     
     # Clean up temp directory for next iteration
@@ -173,5 +172,5 @@ for scenario in "${scenarios[@]}"; do
     echo
 done
 
-echo "Finished generating expected outputs for all scenarios"
+echo "Finished generating expected outputs for all topologies"
 echo "You can now run the tests with: go test ./internal/test/..."

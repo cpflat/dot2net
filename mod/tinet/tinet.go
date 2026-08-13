@@ -30,7 +30,7 @@ const SpecCmdFormatName = "tinetSpecCmd"
 
 const NetworkClassName = "_tinetNetwork"
 
-// WorkerGroupClassName carries the spec file when the scenario declares
+// WorkerGroupClassName carries the spec file when the topology declares
 // placement units, the way NetworkClassName carries it when it does not.
 const WorkerGroupClassName = "_tinetWorkerGroup"
 
@@ -86,7 +86,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	//
 	// The choice is made here because a FileDefinition carries a fixed scope
 	// and the model does not exist yet. What can be read at this point is the
-	// scenario's own configuration, which is loaded before the modules are.
+	// topology's own configuration, which is loaded before the modules are.
 	_, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName)
 
 	// add file definition
@@ -178,7 +178,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct2.Template = []string{string(bytes)}
 
-	// The copies run before the scenario's own commands: a command the author
+	// The copies run before the topology's own commands: a command the author
 	// wrote may use a file that is only there once it has been copied.
 	ctCopies := &types.ConfigTemplate{
 		Name:           "tn_copies",
@@ -206,7 +206,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 
 	// What the entry script needs from each node: the lab's own teardown
 	// commands, and the files to copy out. Both are aggregated by the script,
-	// which is the module's own file - a scenario never names these blocks.
+	// which is the module's own file - a topology never names these blocks.
 	ctTeardown, err := readEntryTemplate("templates/teardown.node_tn_teardown", &types.ConfigTemplate{
 		Name:           "tn_teardown",
 		Depends:        []string{"teardown"},
@@ -482,7 +482,7 @@ func (m TinetModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) 
 		}
 	}
 	// Only the groups standing for a machine get a spec file. The others group
-	// nodes for some purpose of the scenario's own - an AS, an area - and
+	// nodes for some purpose of the topology's own - an AS, an area - and
 	// nothing is deployed to them.
 	if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
 		for _, group := range nm.Groups {

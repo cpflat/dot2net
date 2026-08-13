@@ -15,11 +15,11 @@ const hookDot = `graph {
   r1 -- r2;
 }`
 
-// TestModuleAndScenarioShareAHook is the line between a module and a scenario:
-// a module adds what it has to do to a hook, the scenario says what it wants
+// TestModuleAndTopologyShareAHook is the line between a module and a topology:
+// a module adds what it has to do to a hook, the topology says what it wants
 // there, and neither has to know the other's names. What is pinned here is the
-// order - a scenario's commands run on ground the module has prepared.
-func TestModuleAndScenarioShareAHook(t *testing.T) {
+// order - a topology's commands run on ground the module has prepared.
+func TestModuleAndTopologyShareAHook(t *testing.T) {
 	cfg, nm := buildFullModel(t, `
 name: hook_merge
 global:
@@ -31,7 +31,7 @@ nodeclass:
     use: [frrLogFile]
     config:
       - name: startup
-        template: ["scenario-command"]
+        template: ["topology-command"]
       - file: out
         depends: [startup]
         template: ["{{ .self_startup }}"]
@@ -42,19 +42,19 @@ file:
 
 	out := generateFor(t, cfg, nm, "r1", "out")
 	moduleAt := strings.Index(out, "touch")
-	scenarioAt := strings.Index(out, "scenario-command")
-	if moduleAt < 0 || scenarioAt < 0 {
+	topologyAt := strings.Index(out, "topology-command")
+	if moduleAt < 0 || topologyAt < 0 {
 		t.Fatalf("both parts belong in the hook, got:\n%s", out)
 	}
-	if moduleAt > scenarioAt {
+	if moduleAt > topologyAt {
 		t.Errorf("the module's part comes first, got:\n%s", out)
 	}
 }
 
-// TestTwoScenarioClassesCannotShareAHook keeps the relaxation narrow: two
-// classes of the scenario's own naming one hook is still the accident the
+// TestTwoTopologyClassesCannotShareAHook keeps the relaxation narrow: two
+// classes of the topology's own naming one hook is still the accident the
 // duplicate check exists for, since nothing says which of them wins.
-func TestTwoScenarioClassesCannotShareAHook(t *testing.T) {
+func TestTwoTopologyClassesCannotShareAHook(t *testing.T) {
 	_, err := buildForProvideErr(t, `
 name: hook_clash
 global:
@@ -71,7 +71,7 @@ nodeclass:
         template: ["b"]
 `, hookDot)
 	if err == nil {
-		t.Fatal("two scenario classes naming one hook must be rejected")
+		t.Fatal("two topology classes naming one hook must be rejected")
 	}
 	if !strings.Contains(err.Error(), "startup") {
 		t.Errorf("the message should name the hook: %v", err)

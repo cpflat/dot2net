@@ -93,7 +93,7 @@ func TestBoundaryClassMarksConnectionsLeavingAGroup(t *testing.T) {
 }
 
 // TestBoundaryClassIsWeakerThanAWrittenClass keeps the derived label from
-// clashing with the scenario: the label is attached at the module tier, so a
+// clashing with the topology: the label is attached at the module tier, so a
 // class the author put on the edge decides any value they both set.
 func TestBoundaryClassIsWeakerThanAWrittenClass(t *testing.T) {
 	_, nm, err := buildForBoundary(t, `

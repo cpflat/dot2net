@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// TestSplitModuleOutputDefaultsToOff pins that a scenario saying nothing keeps
+// TestSplitModuleOutputDefaultsToOff pins that a topology saying nothing keeps
 // the flat layout it had.
 func TestSplitModuleOutputDefaultsToOff(t *testing.T) {
 	cfg, err := loadConfigFrom(t, "name: s\n", nil)
@@ -12,7 +12,7 @@ func TestSplitModuleOutputDefaultsToOff(t *testing.T) {
 		t.Fatalf("LoadConfig: %v", err)
 	}
 	if cfg.GlobalSettings.SplitModuleOutput {
-		t.Error("splitting must be something a scenario asks for")
+		t.Error("splitting must be something a topology asks for")
 	}
 }
 
@@ -39,7 +39,7 @@ func TestSubdirPlacesTheFile(t *testing.T) {
 	}
 }
 
-// TestGenerateScriptsDefaultsToOff: the scripts are opt-in, so no scenario
+// TestGenerateScriptsDefaultsToOff: the scripts are opt-in, so no topology
 // gains files it did not ask for.
 func TestGenerateScriptsDefaultsToOff(t *testing.T) {
 	cfg, err := loadConfigFrom(t, "name: s\nmodule:\n  - containerlab\n", nil)
@@ -54,7 +54,7 @@ func TestGenerateScriptsDefaultsToOff(t *testing.T) {
 		t.Fatalf("DecodeModuleConfig: %v", err)
 	}
 	if found || opts.GenerateScripts {
-		t.Error("a scenario that says nothing must get no scripts")
+		t.Error("a topology that says nothing must get no scripts")
 	}
 }
 
@@ -89,7 +89,7 @@ module_config:
 }
 
 // TestSplitAndScriptsAreIndependent pins that the two are separate choices.
-// They read well together, but a scenario may want either alone.
+// They read well together, but a topology may want either alone.
 func TestSplitAndScriptsAreIndependent(t *testing.T) {
 	cfg, err := loadConfigFrom(t, `
 name: s

@@ -1,16 +1,14 @@
-name: ospf-topo1
+name: rip-topo1
 
 class_policy:
   interface:
+    base: [all]
     default: [default]
-
-global:
-  path: local
 
 module_config:
   kathara:
     # Kathara mounts directories rather than files, and the mount replaces
-    # what the image had there. Naming /etc/frr says the scenario supplies
+    # what the image had there. Naming /etc/frr says the topology supplies
     # everything FRR needs in it.
     mount_dirs: [/etc/frr]
 
@@ -23,10 +21,10 @@ module:
 file:
   - name: zebra.conf
     path: /etc/frr/zebra.conf
-  - name: ospfd.conf
-    path: /etc/frr/ospfd.conf
-  - name: ospf6d.conf
-    path: /etc/frr/ospf6d.conf
+  - name: ripd.conf
+    path: /etc/frr/ripd.conf
+  - name: staticd.conf
+    path: /etc/frr/staticd.conf
   - name: daemons
     path: /etc/frr/daemons
   - name: vtysh.conf
@@ -42,12 +40,6 @@ layer:
       - name: lo
         type: loopback
         range: 10.0.255.0/24
-  - name: ipv6
-    default_connect: true
-    policy:
-      - name: ipv6
-        range: 2001:db8::/32
-        prefix: 64
 
 nodeclass:
   - name: switch
@@ -56,15 +48,14 @@ nodeclass:
       image: nicolaka/netshoot
     config:
       - name: startup
-        style: sort
-        sort_group: sw
         template:
           - "ip link add br0 type bridge"
           - "ip link set br0 up"
+          - "{{ .interfaces_link }}"
   - name: router
     use: [frrLogFile]
     params: [lo]
-    interface_policy: [ip, ipv6]
+    interface_policy: [ip]
     values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
@@ -76,67 +67,83 @@ nodeclass:
         sourcefile: ./vtysh.conf
         raw: true
       - file: zebra.conf
-        style: sort
-        sort_group: zebra.conf
         template:
           - "ip forwarding"
           - "ipv6 forwarding"
           - "!"
-      - file: ospfd.conf
-        style: sort
-        sort_group: ospfd.conf
+          - "{{ .interfaces_ifconf }}"
+          - "line vty"
+          - "!"
+      - file: ripd.conf
         template:
-          - "router ospf"
-          - " ospf router-id {{ .ip_loopback }}"
-          - " redistribute kernel"
+          - "router rip"
+          - " version 2"
+          - " timers basic 5 180 5"
+          - "{{ .interfaces_rip_network }}"
           - " redistribute connected"
           - " redistribute static"
           - "!"
-      - file: ospf6d.conf
-        style: sort
-        sort_group: ospf6d.conf
-        template:
-          - "router ospf6"
-          - " ospf6 router-id {{ .ip_loopback }}"
-          - " redistribute kernel"
-          - " redistribute connected"
-          - " redistribute static"
+          - "line vty"
           - "!"
+      - file: staticd.conf
+        template:
+          - "{{ .interfaces_static_route }}"
+  - name: vrouter
+    virtual: true
+    interface_policy: [ip]
 
 interfaceclass:
-  - name: default
+  - name: all
     config:
-      - group: sw
+      - name: link
         node: switch
         template:
           - "ip link set dev {{ .name }} promisc on"
           - "ip link set dev {{ .name }} master br0"
-      - group: zebra.conf
+  - name: default
+    config:
+      - name: ifconf
         node: router
-        template: 
+        template:
           - "interface {{ .name }}"
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
-          - " ipv6 address {{ .ipv6_addr}}/{{ .ipv6_plen }}"
           - "!"
-      - group: ospfd.conf
+  - name: rip
+    config:
+      - name: rip_network
         node: router
         template:
-          - "router ospf"
-          - " network {{ .ip_net }} area {{ .opp_group_area }}"
-          - "!"
-          - "interface {{ .name }}"
-          - " ip ospf hello-interval 2"
-          - " ip ospf dead-interval 10"
-          - "!"
-      - group: ospf6d.conf
+          - " network {{ .ip_net }}"
+      - name: ifconf
         node: router
         template:
-          - "router ospf6"
-          - " interface {{ .name }} area {{ .opp_group_area6 }}"
-          - "!"
           - "interface {{ .name }}"
-          - " ip ospf hello-interval 2"
-          - " ip ospf dead-interval 10"
-            #- " ipv6 ospf6 area {{ .opp_group_area6 }}"
+          - " description to {{ .opp_node_name }} - RIPv2 interface"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - " no link-detect"
           - "!"
+  - name: to_stub
+    config:
+      - name: ifconf
+        node: router
+        template:
+          - "interface {{ .name }}"
+          - " description to {{ .opp_node_name }} - Stub interface"
+          - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
+          - " no link-detect"
+          - "!"
+      - name: static_route
+        node: router
+        template:
+          - "{{ .neighbors_ip_static_route_nb }}"
+    neighbors:
+      - layer: ip
+        config:
+          - name: static_route_nb
+            node: router
+            template:
+              - "ip route {{ .n_node_stubnet }} {{ .n_ip_addr }}"
+  - name: vlink
+    virtual: true
+
 

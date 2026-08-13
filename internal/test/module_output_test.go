@@ -42,15 +42,15 @@ type tinetSpec struct {
 }
 
 // modelNodeNames returns the set of node names and the connection count for a
-// scenario, used to cross-check module output against the model.
-func modelNodeNames(t *testing.T, rootDir, scenarioName string) (map[string]bool, int) {
+// topology, used to cross-check module output against the model.
+func modelNodeNames(t *testing.T, rootDir, topologyName string) (map[string]bool, int) {
 	t.Helper()
-	scenarioDir := filepath.Join(rootDir, "example", scenarioName)
-	d, err := model.DiagramFromDotFile(filepath.Join(scenarioDir, TopologyFileName))
+	topologyDir := findTopologyDir(t, rootDir, topologyName)
+	d, err := model.DiagramFromDotFile(filepath.Join(topologyDir, TopologyFileName))
 	if err != nil {
 		t.Fatalf("DiagramFromDotFile: %v", err)
 	}
-	cfg, err := types.LoadConfig(filepath.Join(scenarioDir, DefinitionFileName))
+	cfg, err := types.LoadConfig(filepath.Join(topologyDir, DefinitionFileName))
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
@@ -75,12 +75,12 @@ func TestContainerlabModuleOutput(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	rootDir := filepath.Join(wd, "..", "..")
-	const scenario = "basic_ospfv2_frr"
+	const topology = "basic_ospfv2_frr"
 
-	files := buildScenarioFiles(t, rootDir, scenario)
+	files := buildTopologyFiles(t, rootDir, topology)
 	content, ok := files["topo.yaml"]
 	if !ok {
-		t.Fatalf("scenario %s did not generate topo.yaml (got %v)", scenario, keysOf(files))
+		t.Fatalf("topology %s did not generate topo.yaml (got %v)", topology, keysOf(files))
 	}
 
 	var topo clabTopo
@@ -92,7 +92,7 @@ func TestContainerlabModuleOutput(t *testing.T) {
 		t.Errorf("topo.yaml has empty name")
 	}
 
-	nodeNames, connCount := modelNodeNames(t, rootDir, scenario)
+	nodeNames, connCount := modelNodeNames(t, rootDir, topology)
 	if len(topo.Topology.Nodes) != len(nodeNames) {
 		t.Errorf("topo has %d nodes, model has %d", len(topo.Topology.Nodes), len(nodeNames))
 	}
@@ -133,12 +133,12 @@ func TestTinetModuleOutput(t *testing.T) {
 		t.Fatalf("Getwd: %v", err)
 	}
 	rootDir := filepath.Join(wd, "..", "..")
-	const scenario = "basic_ospfv2_frr"
+	const topology = "basic_ospfv2_frr"
 
-	files := buildScenarioFiles(t, rootDir, scenario)
+	files := buildTopologyFiles(t, rootDir, topology)
 	content, ok := files["spec.yaml"]
 	if !ok {
-		t.Fatalf("scenario %s did not generate spec.yaml (got %v)", scenario, keysOf(files))
+		t.Fatalf("topology %s did not generate spec.yaml (got %v)", topology, keysOf(files))
 	}
 
 	var spec tinetSpec
@@ -146,7 +146,7 @@ func TestTinetModuleOutput(t *testing.T) {
 		t.Fatalf("spec.yaml is not valid YAML: %v\n%s", err, content)
 	}
 
-	nodeNames, _ := modelNodeNames(t, rootDir, scenario)
+	nodeNames, _ := modelNodeNames(t, rootDir, topology)
 	if len(spec.Nodes) != len(nodeNames) {
 		t.Errorf("spec has %d nodes, model has %d", len(spec.Nodes), len(nodeNames))
 	}

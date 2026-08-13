@@ -7,7 +7,7 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
-// provideYAML is a scenario with one file of each kind: one mounted at its own
+// provideYAML is a topology with one file of each kind: one mounted at its own
 // path, one copied to a path in a directory nobody owns.
 const provideYAML = `
 name: provide_test

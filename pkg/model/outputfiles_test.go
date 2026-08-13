@@ -39,7 +39,7 @@ const twoNodes = `graph {
 
 // TestSameOutputPathIsRejected is the case this exists for: two definitions
 // whose names differ but whose files do not. The later one used to overwrite
-// the earlier without a word, which is how a scenario writing its own
+// the earlier without a word, which is how a topology writing its own
 // <node>.startup silently lost it to the Kathara module's.
 func TestSameOutputPathIsRejected(t *testing.T) {
 	err := buildForOutputFiles(t, `

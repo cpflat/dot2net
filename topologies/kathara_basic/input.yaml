@@ -4,7 +4,7 @@
 # which collision domain each of its interfaces sits on. A collision domain is a
 # shared medium, which is what dot2net calls a switch node - the same
 # deploy: platform node that containerlab emits as a bridge and TiNET as a
-# switches: entry. The scenario says nothing Kathara-specific about it.
+# switches: entry. The topology says nothing Kathara-specific about it.
 #
 # Two things are Kathara's own and the module enforces them:
 #   - interfaces are named ethN after their index in lab.conf, so no other
@@ -41,7 +41,7 @@ nodeclass:
     config:
       # startup is the name every platform module looks for: containerlab puts
       # it in exec:, TiNET in cmds:, Kathara in <device>.startup. Naming the
-      # file here instead would tie the scenario to one of them.
+      # file here instead would tie the topology to one of them.
       - name: startup
         template:
           - "{{ .interfaces_ifconf }}"

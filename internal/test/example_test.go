@@ -18,53 +18,75 @@ const TopologyFileName string = "input.dot"
 const DefinitionFileName string = "input.yaml"
 const GoldenDirName string = "expected"
 
-func TestExampleScenarios(t *testing.T) {
+// TopologyRoots are the directories a dot2net topology can live in: topologies/
+// holds the ones worth deploying, example/ the ones that demonstrate a notation.
+// Both are golden-tested, so the tests walk them the same way.
+var TopologyRoots = []string{"topologies", "example"}
+
+// findTopologyDir returns the directory of the named topology, whichever root it
+// sits under. It fails the test rather than returning an error, since a name a
+// test asks for by hand and cannot find is a broken test, not a broken topology.
+func findTopologyDir(t *testing.T, rootDir string, topologyName string) string {
+	t.Helper()
+	for _, root := range TopologyRoots {
+		dir := filepath.Join(rootDir, root, topologyName)
+		if _, err := os.Stat(filepath.Join(dir, TopologyFileName)); err == nil {
+			return dir
+		}
+	}
+	t.Fatalf("topology %q not found under any of %v", topologyName, TopologyRoots)
+	return ""
+}
+
+func TestExampleTopologies(t *testing.T) {
 	// Get absolute path to project root
 	wd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get working directory: %v", err)
 	}
 	rootDir := filepath.Join(wd, "..", "..") // project root
-	exampleDir := filepath.Join(rootDir, "example")
 
-	// Find all scenarios with input.dot and input.yaml
-	entries, err := os.ReadDir(exampleDir)
-	if err != nil {
-		t.Fatalf("failed to read example directory: %v", err)
-	}
-
-	var scenarios []string
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+	// Find all topologies with input.dot and input.yaml
+	var topologies []string
+	for _, root := range TopologyRoots {
+		dir := filepath.Join(rootDir, root)
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatalf("failed to read directory %s: %v", dir, err)
 		}
 
-		scenarioPath := filepath.Join(exampleDir, entry.Name())
-		dotFile := filepath.Join(scenarioPath, TopologyFileName)
-		yamlFile := filepath.Join(scenarioPath, DefinitionFileName)
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
 
-		if _, err := os.Stat(dotFile); err == nil {
-			if _, err := os.Stat(yamlFile); err == nil {
-				scenarios = append(scenarios, entry.Name())
+			topologyPath := filepath.Join(dir, entry.Name())
+			dotFile := filepath.Join(topologyPath, TopologyFileName)
+			yamlFile := filepath.Join(topologyPath, DefinitionFileName)
+
+			if _, err := os.Stat(dotFile); err == nil {
+				if _, err := os.Stat(yamlFile); err == nil {
+					topologies = append(topologies, entry.Name())
+				}
 			}
 		}
 	}
 
-	if len(scenarios) == 0 {
-		t.Fatalf("no valid scenarios found in %s", exampleDir)
+	if len(topologies) == 0 {
+		t.Fatalf("no valid topologies found under %v", TopologyRoots)
 	}
 
-	t.Logf("Found %d scenarios: %v", len(scenarios), scenarios)
+	t.Logf("Found %d topologies: %v", len(topologies), topologies)
 
-	for _, scenarioName := range scenarios {
-		t.Run(scenarioName, func(t *testing.T) {
-			tryScenario(t, rootDir, scenarioName)
+	for _, topologyName := range topologies {
+		t.Run(topologyName, func(t *testing.T) {
+			tryTopology(t, rootDir, topologyName)
 		})
 	}
 }
 
-func tryScenario(t *testing.T, rootDir string, scenarioName string) {
-	scenarioDir := filepath.Join(rootDir, "example", scenarioName)
+func tryTopology(t *testing.T, rootDir string, topologyName string) {
+	topologyDir := findTopologyDir(t, rootDir, topologyName)
 
 	// create tmp dir
 	tmpDir, err := os.MkdirTemp("", "dot2net_test")
@@ -74,20 +96,19 @@ func tryScenario(t *testing.T, rootDir string, scenarioName string) {
 	defer os.RemoveAll(tmpDir)
 
 	// copy input files into tmp dir
-	exampleDir := scenarioDir
-	err = filepath.WalkDir(exampleDir, func(path string, d os.DirEntry, err error) error {
+	err = filepath.WalkDir(topologyDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// skip subdirectories
-		if d.IsDir() && path != exampleDir {
+		if d.IsDir() && path != topologyDir {
 			return filepath.SkipDir
 		}
 
 		// copy only files
 		if !d.IsDir() {
-			relPath, err := filepath.Rel(exampleDir, path)
+			relPath, err := filepath.Rel(topologyDir, path)
 			if err != nil {
 				return err
 			}
@@ -103,8 +124,8 @@ func tryScenario(t *testing.T, rootDir string, scenarioName string) {
 
 	topoFile := filepath.Join(tmpDir, TopologyFileName)
 	defFile := filepath.Join(tmpDir, DefinitionFileName)
-	// copyFile(t, filepath.Join(scenarioDir, TopologyFileName), topoFile)
-	// copyFile(t, filepath.Join(scenarioDir, DefinitionFileName), defFile)
+	// copyFile(t, filepath.Join(topologyDir, TopologyFileName), topoFile)
+	// copyFile(t, filepath.Join(topologyDir, DefinitionFileName), defFile)
 
 	// execute dot2net
 	oldWd, err := os.Getwd()
@@ -204,7 +225,7 @@ func tryScenario(t *testing.T, rootDir string, scenarioName string) {
 	}
 
 	// recursively search golden files
-	goldenDir := filepath.Join(scenarioDir, GoldenDirName)
+	goldenDir := filepath.Join(topologyDir, GoldenDirName)
 	err = filepath.Walk(goldenDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err

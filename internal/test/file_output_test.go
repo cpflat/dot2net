@@ -880,7 +880,7 @@ networkclass:
 
 // TestClabBridgeSetupClasses covers the ready-made setup classes the
 // containerlab module offers. They are opt-in: which command creates a bridge
-// is not decided by the kind, so a scenario that provisions its bridges
+// is not decided by the kind, so a topology that provisions its bridges
 // differently names neither class and writes its own template.
 func TestClabBridgeSetupClasses(t *testing.T) {
 	const dot = `digraph {
@@ -948,7 +948,7 @@ networkclass:
 		},
 		{
 			// Opting out is the point: nothing is chosen from the kind.
-			name: "a scenario can write its own instead",
+			name: "a topology can write its own instead",
 			yaml: head(`    config:
       - name: clab_bridge_setup
         template:

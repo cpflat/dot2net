@@ -12,7 +12,7 @@ import (
 
 // generatedFile is one file the model will write, together with the definition
 // that asks for it. Knowing the definition is what lets a collision be reported
-// in the scenario's own words rather than as a bare path.
+// in the topology's own words rather than as a bare path.
 type generatedFile struct {
 	path    string
 	fileDef *types.FileDefinition

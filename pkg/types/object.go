@@ -12,13 +12,13 @@ import (
 
 const DefaultNodePrefix string = "node"
 
-// DefaultInterfacePrefix names the interfaces a scenario does not name itself.
+// DefaultInterfacePrefix names the interfaces a topology does not name itself.
 // eth is what a Linux container calls them and what Kathara requires - it
 // derives the name from the index in lab.conf and offers no way to change it -
 // so this is the one prefix every platform accepts.
 //
 // The exception is containerlab's management network, which takes eth0 for
-// itself and refuses a data interface by that name. A scenario that turns it on
+// itself and refuses a data interface by that name. A topology that turns it on
 // (module_config.containerlab.management_network) has to name its interfaces
 // something else.
 const DefaultInterfacePrefix string = "eth"
@@ -1222,13 +1222,13 @@ func recordConfigNames(seen map[string]configNameOrigin, objType, objName, class
 			seen[ct.Name] = configNameOrigin{className: className, moduleProvided: ct.ModuleProvided}
 			continue
 		}
-		// A hook name is the one place a module and the scenario are meant to
-		// meet: the module adds what it has to do, the scenario says what it
-		// wants, and the two are merged in that order. Two scenario classes
+		// A hook name is the one place a module and the topology are meant to
+		// meet: the module adds what it has to do, the topology says what it
+		// wants, and the two are merged in that order. Two topology classes
 		// naming one hook is still the accident this check is here for.
 		if HookConfigNames[ct.Name] && (ct.ModuleProvided || prev.moduleProvided) {
-			// Keep the scenario's own class in the record, so that a third
-			// definition from the scenario is still reported against it.
+			// Keep the topology's own class in the record, so that a third
+			// definition from the topology is still reported against it.
 			if prev.moduleProvided && !ct.ModuleProvided {
 				seen[ct.Name] = configNameOrigin{className: className}
 			}

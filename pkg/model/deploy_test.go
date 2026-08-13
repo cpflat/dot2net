@@ -76,7 +76,7 @@ nodeclass:
 }
 
 // TestDeployUserClassBeatsBaseClass is what makes class_policy usable as a
-// scenario-wide default: the base class states the default and a class the user
+// topology-wide default: the base class states the default and a class the user
 // named on the node overrides it, rather than clashing with it.
 func TestDeployUserClassBeatsBaseClass(t *testing.T) {
 	yaml := `
@@ -100,7 +100,7 @@ nodeclass:
 		t.Errorf("node r1: deploy = %q, want %q (the class the user named wins)", got, types.DeployContainer)
 	}
 
-	// The node that names no class still gets the scenario-wide default.
+	// The node that names no class still gets the topology-wide default.
 	got, err = resolveDeployFor(t, yaml, dot, "sw1")
 	if err != nil {
 		t.Fatalf("checkClasses: %v", err)

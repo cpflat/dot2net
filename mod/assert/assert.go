@@ -1,4 +1,4 @@
-// Package assert provides a module that checks the expectations a scenario
+// Package assert provides a module that checks the expectations a topology
 // declares about itself. It generates no output.
 //
 // It exists because the golden tests cannot notice a class that is declared but
@@ -7,9 +7,9 @@
 // example/vlan_multihost declared segment classes that no relational label ever
 // attached, and the breakage was released and preserved by the golden files.
 //
-// Requiring every class to be applied is not workable: scenarios legitimately
+// Requiring every class to be applied is not workable: topologies legitimately
 // define classes they do not use in every topology. So the check is opt-in, and
-// the scenario states the expectation itself.
+// the topology states the expectation itself.
 package assert
 
 import (
@@ -22,7 +22,7 @@ import (
 	"github.com/cpflat/dot2net/pkg/types"
 )
 
-// UsedValueKey is the values key that marks a class as one the scenario expects
+// UsedValueKey is the values key that marks a class as one the topology expects
 // to be applied to at least one object. It lives in values rather than in a
 // dedicated field so that no core vocabulary is spent on a checking concern.
 const UsedValueKey = "assert_used"

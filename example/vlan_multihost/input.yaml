@@ -2,7 +2,7 @@
 # belonging to a host is written below that host's directory so it can be
 # packed as a unit.
 #
-# What this scenario is here to verify:
+# What this topology is here to verify:
 #   - global.output_group_class puts node files under their group's directory
 #   - a group-scope file, and a group aggregating only its own members
 #     (the r2--r3 link crosses the boundary and appears in neither host file)
@@ -41,7 +41,7 @@ global:
   output_group_class: worker
 
 # Kathara is not among the modules below: a lab.conf describes one machine,
-# and this scenario places its nodes on more than one.
+# and this topology places its nodes on more than one.
 module:
   - assert
   - tinet

@@ -14,8 +14,8 @@ const FRRVtyshCLIFormatName = "FRRVtyshCLI"
 // LogFileClassName is a class a node class can pull in with use: to have FRR
 // write to a log file.
 //
-// A scenario writes use: [frrLogFile] and nothing else: the class adds what it
-// has to do to the node's startup, ahead of whatever the scenario asked for
+// A topology writes use: [frrLogFile] and nothing else: the class adds what it
+// has to do to the node's startup, ahead of whatever the topology asked for
 // there.
 //
 // It exists because FRR cannot make that file itself: its daemons run as the
@@ -28,7 +28,7 @@ const FRRVtyshCLIFormatName = "FRRVtyshCLI"
 // then on the log is complete.
 const LogFileClassName = "frrLogFile"
 
-// LogPathParamName is where the log is written. A node class of the scenario's
+// LogPathParamName is where the log is written. A node class of the topology's
 // own can set it to something else: a user's value outranks a module's.
 const LogPathParamName = "frr_log_path"
 
@@ -70,7 +70,7 @@ func (m *FRRModule) UpdateConfig(cfg *types.Config) error {
 	cfg.AddNodeClass(&types.NodeClass{
 		Name: LogFileClassName,
 		// The log is the module's to make, so it is the module's to bring back:
-		// a scenario that never named the file should not have to name it here.
+		// a topology that never named the file should not have to name it here.
 		Collect: []string{"{{ ." + LogPathParamName + " }}"},
 		Values: map[string]string{
 			LogPathParamName:  DefaultLogPath,

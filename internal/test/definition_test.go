@@ -645,7 +645,7 @@ func buildModel(t *testing.T, dot, yaml string) *types.NetworkModel {
 
 // TestUseClassComposition covers use:, which attaches another class of the same
 // type to whatever carries this one. It exists so that a module can offer a
-// ready-made class and a scenario can opt into it without naming that class in
+// ready-made class and a topology can opt into it without naming that class in
 // the topology, which would tie the DOT to one platform.
 func TestUseClassComposition(t *testing.T) {
 	tests := []struct {

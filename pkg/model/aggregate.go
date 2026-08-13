@@ -63,7 +63,7 @@ func aggregateCrossingLinks(cfg *types.Config, nm *types.NetworkModel) error {
 func aggregateAtSharedSegment(cfg *types.Config, nm *types.NetworkModel, seg *types.Node) error {
 	// Which machine each member sits on. A segment whose members share one
 	// machine crosses nothing and is left alone - that is every single-machine
-	// scenario, and every segment inside one machine of a multi-machine one.
+	// topology, and every segment inside one machine of a multi-machine one.
 	facing := map[string][]*types.Interface{}
 	for _, iface := range seg.Interfaces {
 		if iface.Opposite == nil {
@@ -141,7 +141,7 @@ func aggregateAtSharedSegment(cfg *types.Config, nm *types.NetworkModel, seg *ty
 
 	// Join the bridges in a chain, in name order: k-1 links for k machines, and
 	// no loop. A star costs the same and would also do; the shape between them
-	// is not something the scenario states, so the simplest deterministic one
+	// is not something the topology states, so the simplest deterministic one
 	// is used until a reason to choose appears.
 	for i := 1; i < len(machines); i++ {
 		if err := linkBridges(cfg, nm, bridges[machines[i-1]], bridges[machines[i]]); err != nil {
@@ -152,7 +152,7 @@ func aggregateAtSharedSegment(cfg *types.Config, nm *types.NetworkModel, seg *ty
 }
 
 // linkBridges wires two bridges of one segment together. The link is given
-// whatever the scenario gives a link it does not label, because that is what it
+// whatever the topology gives a link it does not label, because that is what it
 // is: the link the author would otherwise have drawn themselves.
 func linkBridges(cfg *types.Config, nm *types.NetworkModel, a, b *types.Node) error {
 	aIface := a.NewInterface("")

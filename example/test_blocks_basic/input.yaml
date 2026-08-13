@@ -1,5 +1,5 @@
-# Test scenario for blocks functionality
-# This is a feature test, not a production FRR/TiNET scenario
+# Test topology for blocks functionality
+# This is a feature test, not a deployable FRR/TiNET topology
 
 name: test_blocks_basic
 
