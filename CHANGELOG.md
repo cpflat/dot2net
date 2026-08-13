@@ -233,9 +233,16 @@ further down.
   left standing because something could not be copied is worse than the missing
   file. The script ends non-zero so that whatever called it knows.
 
-  `collect [<dir>]` runs the collection on its own. `DOT2NET_COLLECT_DIR` and
-  `DOT2NET_LAB_NAME` set where files go and which lab name to deploy under, so
-  the same topology can be brought up more than once at a time.
+  `collect [<dir>]` runs the collection on its own, and `DOT2NET_COLLECT_DIR`
+  sets where the files go.
+
+  A lab is named by the topology, and nothing offers to rename it at deploy
+  time. containerlab's `deploy --name` does rename a lab, but its `destroy`
+  takes the name from the topology file whatever `--name` says, so a renamed lab
+  cannot be taken down again — and the destroy reports success while leaving
+  every container running. containerlab's maintainer names this as a known
+  limitation. To run one topology more than once at a time, generate it more
+  than once under different names.
 - **Entry point scripts** (`module_config.<module>.generate_scripts: true`): a
   `containerlab.sh`, `tinet.sh` or `kathara.sh` beside the lab, taking
   `deploy`, `destroy` and `exec <node> <command>...`. Each finds its own files,
@@ -244,10 +251,16 @@ further down.
   What it carries is the part that differs between platforms and is easy to get
   wrong: TiNET brings a lab up in two steps and its output is a shell script to
   be piped, with one line in it that is not a command; Kathara reads its files
-  from the directory it runs in, and its `exec` cannot pass a command containing
-  `-c`; and the three name their containers differently, which `exec` hides.
+  from the directory it runs in; and the three name their containers
+  differently, which `exec` hides.
 
-  Off by default, and chosen per module.
+  `exec` reaches the container through docker on all three, so the words a
+  caller quoted stay quoted. Each platform's own exec takes the whole command as
+  one string, and `vtysh -c "show ip ospf neighbor"` does not survive that.
+
+  Off by default, and chosen per module. `topologies/ospf_simple` turns all
+  three on, so what the scripts hold is checked against `expected/` like
+  everything else.
 - **`executable` on a file definition** writes the file with the executable bit
   set. The generated entry scripts and `setup-bridges.sh` use it: a script that
   has to be `chmod`'ed before it works is one that will be run wrong once.

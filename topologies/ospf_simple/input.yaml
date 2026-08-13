@@ -8,7 +8,15 @@ global:
   path: local
 
 module_config:
+  # The entry scripts are off by default; this topology asks for all three so
+  # that what they hold is checked against expected/ like everything else, and
+  # so there is one worked example of a lab you deploy through its own script.
+  containerlab:
+    generate_scripts: true
+  tinet:
+    generate_scripts: true
   kathara:
+    generate_scripts: true
     # Kathara mounts directories rather than files, and the mount replaces
     # what the image had there. Naming /etc/frr says the topology supplies
     # everything FRR needs in it.

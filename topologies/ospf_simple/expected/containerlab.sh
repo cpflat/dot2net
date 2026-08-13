@@ -8,8 +8,8 @@
 # lab left standing because something could not be copied is worse than the
 # missing file - and the script ends non-zero so that whatever called it knows.
 cd "$(dirname "$0")"
-TOPO="%%TOPO%%"
-COLLECT_DIR="${DOT2NET_COLLECT_DIR:-%%COLLECT%%}"
+TOPO="topo.yaml"
+COLLECT_DIR="${DOT2NET_COLLECT_DIR:-collected}"
 # Who the collected files should belong to: the user who ran this, whether or
 # not they went through sudo.
 OWNER="${SUDO_USER:-$(id -un)}"
@@ -65,12 +65,12 @@ collect_file() {
 
 run_teardown() {
   :
-{{ .nodes_clab_teardown }}
+
 }
 
 run_collect() {
   :
-{{ .nodes_clab_collect }}
+
 }
 
 case "${1:-deploy}" in
@@ -81,7 +81,7 @@ case "${1:-deploy}" in
     run_teardown
     run_collect
     sudo containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
-{{ .nodes_clab_bridge_cleanup }}
+
     report
     ;;
   collect)
