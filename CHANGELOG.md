@@ -49,7 +49,7 @@ further down.
   to the machine's directory, since containerlab resolves them against the
   directory holding the topology file; this requires
   `global.output_group_class: worker` so that a machine's files sit beside its
-  topology, and says so if they do not. Scenarios that declare no placement unit
+  topology, and says so if they do not. Topologies that declare no placement unit
   keep the single network-scoped file.
 
   A link between two machines appears in no topology file, because nothing
@@ -99,7 +99,7 @@ further down.
   the spec file becomes group-scoped, the same way the containerlab topology
   file does: each machine gets its own nodes and the links it can wire itself,
   and the link that leaves a machine appears in neither. Mount paths become
-  relative to the machine's directory. Scenarios that declare no placement unit
+  relative to the machine's directory. Topologies that declare no placement unit
   keep the single network-scoped file. Deployed on two VMs: the same DOT and
   YAML bring up an OSPF adjacency across the machine boundary on TiNET as well
   as on containerlab.
