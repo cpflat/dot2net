@@ -70,10 +70,10 @@ After testing the network, you can remove the network with following command.
 ## Change network topology with Containerlab
 
 Traditionally, you can change the network topology by modifying the Containerlab topology file.
-Try extending one node `r4` and one link `r3:net1-r4:net0`.
+Try extending one node `r4` and one link between `r3` and `r4`.
 You need to modify topo.yaml and generate directory `r4` including the internal files.
-You also need to modify parameters in `r4/frr.conf` considering the IP address assignment.
-In addition, do not fotget to add new neighbor network configuration on `r3/frr.conf`
+You also need to modify parameters in `r4/etc/frr/frr.conf` considering the IP address assignment.
+In addition, do not forget to add new neighbor network configuration on `r3/etc/frr/frr.conf`
 
 After that, try deploying the extended topology with containerlab and test it with ping.
 If it fails, good luck finding out the reason and fix the configuration files.
@@ -92,3 +92,25 @@ Try deploying the extended topology again.
 There should be no failures, but try troubleshooting it if fails.
 
 
+## Try a larger, real topology
+
+The point of the previous section is not that adding one node is easy. It is
+that nothing in `input.yaml` had to know how many nodes there are, or which one
+is next to which. So a much bigger graph should work the same way.
+
+`Sinet.dot` in this directory is one: [SINET](https://www.sinet.ad.jp/), the
+Japanese research network, as recorded by the
+[Topology Zoo](http://www.topology-zoo.org/) - 74 routers and 76 links. Every
+node in it carries the same `xlabel="router"` your three routers carry, and
+nothing else. Generate it with the very same `input.yaml`:
+
+    dot2net build -c input.yaml Sinet.dot
+
+You get 74 node directories, a `topo.yaml` and a `spec.yaml`, with every
+address, interface name and OSPF network statement worked out. Deploy it the
+same way as before if you have the memory for it - it is 74 containers, so give
+the machine a few GB - and the routers will find each other across the whole
+graph.
+
+That is the whole idea: the graph is the input, and the configuration follows
+from it.
