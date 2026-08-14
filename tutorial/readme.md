@@ -46,25 +46,47 @@ Let's generate configuration files from these files.
 
     dot2net build -c ./input.yaml ./input.dot
 
-This command will generate three directories, a YAML file `topo.yaml` which is a containerlab topology file, and another YAML file `spec.yaml` which is a TiNET specification file.
+This command generates one directory per node, and one set of files per
+platform:
+
+- `topo.yaml`, a containerlab topology file
+- `spec.yaml`, a TiNET specification file
+- `kathara/`, a Kathara lab directory
+
+All three come from the same `input.dot` and `input.yaml`; nothing in them names
+a platform twice. Each node's directory holds the files `input.yaml` defines for
+it, laid out by the path they take inside the container - `r1/etc/frr/frr.conf`,
+for instance.
+
+There are also `containerlab.sh`, `tinet.sh` and `kathara/kathara.sh`. Each one
+runs its own platform's commands for you, and is described below.
+
 (If your dot2net executable is not registered in your PATH, you need to replace `dot2net` to the executable path. e.g., `/path/to/dot2net`)
-Each directory contains three files defined in `input.yaml`.
 
 Here, let us use Containerlab primarily for explanation.
 The topology file specifies nodes (with container image and file bind mount configurations) and link placement.
 The topology file definition is explained at the [Containerlab documentation](https://containerlab.dev/manual/topo-def-file/).
 
-The try deploying the container network with following command.
+Then try deploying the container network with following command.
 
-    sudo containerlab deploy --topo topo.yaml
+    sudo ./containerlab.sh deploy
 
 You can check the containers successfully deployed with `docker ps` command.
-You can also attach the login shell of the containers for example with `docker exec -it clab-tutorial-r1 /bin/sh`.
+You can also reach a node through the script, which finds the container for you:
+
+    sudo ./containerlab.sh exec r1 vtysh -c "show ip ospf neighbor"
+
 Please check that the node `r1` is accessible with the node `r3` using ping command.
 
 After testing the network, you can remove the network with following command.
 
-    sudo containerlab destroy --topo topo.yaml
+    sudo ./containerlab.sh destroy
+
+The script is not required - `sudo containerlab deploy -t topo.yaml` and
+`sudo containerlab destroy -t topo.yaml --cleanup` do the same deploying and
+undeploying. What the script adds is everything around them: it runs whatever
+the topology asks to be run inside a node before the node goes, copies out the
+files the topology asks to keep, and removes what the lab left on the machine.
 
 
 ## Change network topology with Containerlab

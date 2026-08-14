@@ -50,7 +50,8 @@ cd tutorial/
 # 3. Generate configuration files
 #    (the build above puts dot2net in the repository root)
 ../dot2net build -c ./input.yaml ./input.dot
-# This creates: r1/, r2/, r3/ directories + topo.yaml + spec.yaml
+# This creates: r1/, r2/, r3/ + topo.yaml (containerlab) + spec.yaml (TiNET)
+#               + kathara/ (Kathara), all from the one pair of input files
 
 # 4a. Deploy with Containerlab
 sudo containerlab deploy --topo topo.yaml

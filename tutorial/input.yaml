@@ -7,7 +7,23 @@ class_policy:
 global:
   path: local
 
+module_config:
+  # The entry scripts are off by default; this topology asks for all three so
+  # that what they hold is checked against expected/ like everything else, and
+  # so there is one worked example of a lab you deploy through its own script.
+  containerlab:
+    generate_scripts: true
+  tinet:
+    generate_scripts: true
+  kathara:
+    generate_scripts: true
+    # Kathara mounts directories rather than files, and the mount replaces
+    # what the image had there. Naming /etc/frr says the topology supplies
+    # everything FRR needs in it.
+    mount_dirs: [/etc/frr]
+
 module:
+  - kathara
   - tinet
   - containerlab
 
@@ -39,8 +55,10 @@ nodeclass:
     config:
       - file: daemons
         sourcefile: ./daemons
+        raw: true
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
+        raw: true
       - file: frr.conf
         blocks:
           after: ["interfaces_ospf_addr"]
@@ -59,7 +77,7 @@ interfaceclass:
     policy: [ip]
     config:
       - name: ospf_addr
-        template:
+        template: 
           - "interface {{ .name }}"
           - " ip address {{ .ip_addr }}/{{ .ip_plen }}"
           - "!"
