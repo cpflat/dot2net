@@ -58,6 +58,11 @@ var commandParams = &cli.Command{
 			Usage:   "Specify the Config file.",
 			Value:   "config.yaml",
 		},
+		&cli.StringFlag{
+			Name:  "name",
+			Usage: "Name this lab, in place of the topology's own name. Generate the same topology under two names to deploy it twice at once.",
+			Value: "",
+		},
 		&cli.BoolFlag{
 			Name:    "all",
 			Aliases: []string{"a"},
@@ -81,6 +86,11 @@ var commandVisual = &cli.Command{
 			Aliases: []string{"c"},
 			Usage:   "Specify the Config file.",
 			Value:   "config.yaml",
+		},
+		&cli.StringFlag{
+			Name:  "name",
+			Usage: "Name this lab, in place of the topology's own name. Generate the same topology under two names to deploy it twice at once.",
+			Value: "",
 		},
 		&cli.StringFlag{
 			Name:    "layer",
@@ -107,6 +117,11 @@ var commandData = &cli.Command{
 			Usage:   "Specify the Config file.",
 			Value:   "config.yaml",
 		},
+		&cli.StringFlag{
+			Name:  "name",
+			Usage: "Name this lab, in place of the topology's own name. Generate the same topology under two names to deploy it twice at once.",
+			Value: "",
+		},
 	},
 }
 
@@ -120,6 +135,11 @@ var commandFiles = &cli.Command{
 			Aliases: []string{"c"},
 			Usage:   "Specify the Config file.",
 			Value:   "config.yaml",
+		},
+		&cli.StringFlag{
+			Name:  "name",
+			Usage: "Name this lab, in place of the topology's own name. Generate the same topology under two names to deploy it twice at once.",
+			Value: "",
 		},
 		&cli.BoolFlag{
 			Name:    "verbose",
@@ -139,6 +159,11 @@ var commandClean = &cli.Command{
 			Aliases: []string{"c"},
 			Usage:   "Specify the Config file.",
 			Value:   "config.yaml",
+		},
+		&cli.StringFlag{
+			Name:  "name",
+			Usage: "Name this lab, in place of the topology's own name. Generate the same topology under two names to deploy it twice at once.",
+			Value: "",
 		},
 		&cli.BoolFlag{
 			Name:    "verbose",

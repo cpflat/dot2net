@@ -260,6 +260,9 @@ further down.
   `deploy --name` renames a lab but its `destroy` reads the name from the
   topology file regardless, so a renamed lab cannot be taken down again.
   Naming the lab when it is generated has no such gap.
+
+  Every command that reads a topology takes `--name`, not just `build`:
+  `files` has to list what `build` wrote, and `clean` has to delete it.
 - **Entry point scripts** (`module_config.<module>.generate_scripts: true`): a
   `containerlab.sh`, `tinet.sh` or `kathara.sh` beside the lab, taking
   `deploy`, `destroy` and `exec <node> <command>...`. Each finds its own files,
