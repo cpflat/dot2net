@@ -1,1 +1,1 @@
-{{ .name }}[image]="{{ .image }}"
+%%NODEPREFIX%%{{ .name }}[image]="{{ .image }}"

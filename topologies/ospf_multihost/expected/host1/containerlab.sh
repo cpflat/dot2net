@@ -14,6 +14,14 @@ COLLECT_DIR="${DOT2NET_COLLECT_DIR:-collected}"
 # not they went through sudo.
 OWNER="${SUDO_USER:-$(id -un)}"
 
+# Root without stacking sudo. A sudo inside a sudo'ed script replaces SUDO_USER
+# with root, and Kathara puts a lab in the namespace of the user it thinks asked
+# for it - so a lab started by hand would be invisible here, and destroy would
+# report success having removed nothing. The other platforms do not care, but
+# they run the same way so that all three are read the same.
+SUDO=sudo
+[ "$(id -u)" -eq 0 ] && SUDO=""
+
 failed=""
 note_failure() {
   failed="$failed
@@ -30,7 +38,7 @@ report() {
 # and both are needed: another lab on this machine may well have a node of the
 # same name, and teardown and collect must not reach into it.
 container_id() {
-  sudo docker ps -q \
+  $SUDO docker ps -q \
     --filter "label=containerlab=host1" \
     --filter "label=clab-node-name=$1" | head -1
 }
@@ -45,7 +53,7 @@ teardown_node() {
     cat >/dev/null
     return
   fi
-  sudo docker exec -i "$cid" sh -s || note_failure "teardown $node"
+  $SUDO docker exec -i "$cid" sh -s || note_failure "teardown $node"
 }
 
 collect_file() {
@@ -58,12 +66,12 @@ collect_file() {
   fi
   dest="$COLLECT_DIR/$node$path"
   mkdir -p "$(dirname "$dest")"
-  sudo docker cp "$cid:$path" "$dest" || note_failure "collect $node:$path"
+  $SUDO docker cp "$cid:$path" "$dest" || note_failure "collect $node:$path"
   # docker cp keeps the ownership the file had in the container, and this
   # script runs under sudo, so both what came back and the directories holding
   # it belong to root - unreadable and undeletable by the person who asked for
   # them. Hand the whole lot over.
-  sudo chown -R "$OWNER" "$COLLECT_DIR" 2>/dev/null || true
+  $SUDO chown -R "$OWNER" "$COLLECT_DIR" 2>/dev/null || true
 }
 
 run_teardown() {
@@ -78,12 +86,12 @@ run_collect() {
 
 case "${1:-deploy}" in
   deploy)
-    exec sudo containerlab deploy -t "$TOPO"
+    exec $SUDO containerlab deploy -t "$TOPO"
     ;;
   destroy)
     run_teardown
     run_collect
-    sudo containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
+    $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
   ovs-vsctl --if-exists del-br br1 || note_failure "delete bridge br1"
     report
     ;;
@@ -103,7 +111,7 @@ case "${1:-deploy}" in
     # way, for the same reason.
     cid=$(container_id "$node")
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
-    exec sudo docker exec "$cid" "$@"
+    exec $SUDO docker exec "$cid" "$@"
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

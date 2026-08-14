@@ -1,1 +1,1 @@
-{name: {{ .name }}, type: bridge, args: {{ .opp_node_name }}}
+{name: {{ .name }}, type: bridge, args: %%NODEPREFIX%%{{ .opp_node_name }}}

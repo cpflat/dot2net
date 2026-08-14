@@ -29,6 +29,11 @@ var commandBuild = &cli.Command{
 			Value:   "commands",
 		},
 		&cli.StringFlag{
+			Name:  "name",
+			Usage: "Name this lab, in place of the topology's own name. Generate the same topology under two names to deploy it twice at once.",
+			Value: "",
+		},
+		&cli.StringFlag{
 			Name:    "profile",
 			Aliases: []string{"p"},
 			Usage:   "Profile CPU performance in generating internal config model and output to the specified file.",

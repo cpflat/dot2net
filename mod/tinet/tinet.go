@@ -60,6 +60,20 @@ func NewModule() types.Module {
 	}
 }
 
+// nodeNamedTemplate reads a template that names a node and fills in the lab's
+// node name prefix. TiNET names a container after the node and nothing else, so
+// the node's name is the only place one lab can be told apart from another -
+// unlike containerlab, which labels every container with the lab it belongs to.
+// The prefix is empty unless this run was given a lab name, so a topology
+// generated the usual way is generated exactly as before.
+func nodeNamedTemplate(cfg *types.Config, path string) (string, error) {
+	bytes, err := templates.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.ReplaceAll(string(bytes), "%%NODEPREFIX%%", cfg.NodeNamePrefix()), nil
+}
+
 func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	var opts Options
 	if _, err := cfg.DecodeModuleConfig(ModuleName, &opts); err != nil {
@@ -178,11 +192,11 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	ct1.Template = []string{string(bytes)}
 
 	ct2 := &types.ConfigTemplate{Name: "tn_spec"}
-	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_spec")
+	nodeSpec, err := nodeNamedTemplate(cfg, "templates/spec.yaml.node_tn_spec")
 	if err != nil {
 		return err
 	}
-	ct2.Template = []string{string(bytes)}
+	ct2.Template = []string{nodeSpec}
 
 	// The copies run before the topology's own commands: a command the author
 	// wrote may use a file that is only there once it has been copied.
@@ -204,11 +218,11 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 			After: []string{"self_tn_copies", "self_tn_cmds"},
 		},
 	}
-	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_config")
+	nodeConfig, err := nodeNamedTemplate(cfg, "templates/spec.yaml.node_tn_config")
 	if err != nil {
 		return err
 	}
-	ct3.Template = []string{string(bytes)}
+	ct3.Template = []string{nodeConfig}
 
 	// What the entry script needs from each node: the lab's own teardown
 	// commands, and the files to copy out. Both are aggregated by the script,
@@ -253,11 +267,11 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	// A switch is a shared L2 domain TiNET realizes as an OVS bridge of its own,
 	// so it belongs in the switches: section rather than in nodes:.
 	ctSwitch := &types.ConfigTemplate{Name: "tn_switch", Format: TinetSwitchFormatName}
-	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_switch")
+	switchSpec, err := nodeNamedTemplate(cfg, "templates/spec.yaml.node_tn_switch")
 	if err != nil {
 		return err
 	}
-	ctSwitch.Template = []string{string(bytes)}
+	ctSwitch.Template = []string{switchSpec}
 	cfg.AddNodeClass(&types.NodeClass{
 		Name:            SwitchNodeClassName,
 		ConfigTemplates: []*types.ConfigTemplate{ctSwitch},
@@ -269,11 +283,11 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	// (e.g. bridges joined by a VXLAN overlay), or TiNET would create an interface
 	// whose name collides with the device the node config creates itself.
 	ct1 = &types.ConfigTemplate{Name: "tn_spec", Format: TinetYamlFormatName, RequiredLink: true}
-	bytes, err = templates.ReadFile("templates/spec.yaml.interface_spec")
+	ifaceSpec, err := nodeNamedTemplate(cfg, "templates/spec.yaml.interface_spec")
 	if err != nil {
 		return err
 	}
-	ct1.Template = []string{string(bytes)}
+	ct1.Template = []string{ifaceSpec}
 	interfaceClass := &types.InterfaceClass{
 		Name:            InterfaceClassName,
 		ConfigTemplates: []*types.ConfigTemplate{ct1},
@@ -286,11 +300,11 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	// peer interface. It shares the tn_spec config name so that both kinds
 	// aggregate into the same interfaces: list.
 	ctSwitchIface := &types.ConfigTemplate{Name: "tn_spec", Format: TinetYamlFormatName, RequiredLink: true}
-	bytes, err = templates.ReadFile("templates/spec.yaml.interface_switch_spec")
+	switchIfaceSpec, err := nodeNamedTemplate(cfg, "templates/spec.yaml.interface_switch_spec")
 	if err != nil {
 		return err
 	}
-	ctSwitchIface.Template = []string{string(bytes)}
+	ctSwitchIface.Template = []string{switchIfaceSpec}
 	cfg.AddInterfaceClass(&types.InterfaceClass{
 		Name:            SwitchInterfaceClassName,
 		ConfigTemplates: []*types.ConfigTemplate{ctSwitchIface},
@@ -572,6 +586,7 @@ func entryScriptTemplate(cfg *types.Config, scope, subdir string) (*types.Config
 	}
 	script := strings.ReplaceAll(string(bytes), "%%SPEC%%", path)
 	script = strings.ReplaceAll(script, "%%COLLECT%%", types.CollectDirName)
+	script = strings.ReplaceAll(script, "%%NODEPREFIX%%", cfg.NodeNamePrefix())
 	return &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}, nil
 }
 

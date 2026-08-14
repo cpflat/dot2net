@@ -44,6 +44,18 @@ func loadContext(c *cli.Context) (d *model.Diagram, cfg *types.Config, err error
 		return d, cfg, err
 	}
 
+	// A lab name given on the command line replaces the topology's own, so that
+	// the same inputs can be generated twice and deployed side by side. It goes
+	// in here rather than in the build action because every command that reads a
+	// topology should see the same lab: `files` and `clean` have to name the
+	// same files that `build` writes.
+	if labName := c.String("name"); labName != "" {
+		if err := types.ValidateLabName(labName); err != nil {
+			return d, cfg, err
+		}
+		cfg.SetLabName(labName)
+	}
+
 	return d, cfg, err
 }
 

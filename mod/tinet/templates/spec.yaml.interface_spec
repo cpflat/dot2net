@@ -1,1 +1,1 @@
-{name: {{ .name }}, type: direct, args: {{ .opp_node_name }}#{{ .opp_name }}}
+{name: {{ .name }}, type: direct, args: %%NODEPREFIX%%{{ .opp_node_name }}#{{ .opp_name }}}

@@ -19,7 +19,15 @@ COLLECT_DIR="${DOT2NET_COLLECT_DIR:-collected}"
 # not they went through sudo.
 OWNER="${SUDO_USER:-$(id -un)}"
 
-run() { tinet "$1" -c "$SPEC" | grep -v '<->' | sudo sh; }
+# Root without stacking sudo. A sudo inside a sudo'ed script replaces SUDO_USER
+# with root, and Kathara puts a lab in the namespace of the user it thinks asked
+# for it - so a lab started by hand would be invisible here, and destroy would
+# report success having removed nothing. The other platforms do not care, but
+# they run the same way so that all three are read the same.
+SUDO=sudo
+[ "$(id -u)" -eq 0 ] && SUDO=""
+
+run() { tinet "$1" -c "$SPEC" | grep -v '<->' | $SUDO sh; }
 
 failed=""
 note_failure() {
@@ -33,12 +41,16 @@ report() {
   exit 1
 }
 
-# TiNET names a container after the node, so there is nothing to look up.
+# TiNET names a container after the node and nothing else. A lab generated under
+# a name of its own carries that name in front of every node, so that two labs
+# from one topology can be up at once; the prefix is empty otherwise. Either way
+# a caller names the node as the topology does, and this puts back what the
+# platform sees.
 container_id() { echo "$1"; }
 
 teardown_node() {
   node="$1"
-  sudo docker exec -i "$(container_id "$node")" sh -s || note_failure "teardown $node"
+  $SUDO docker exec -i "$(container_id "$node")" sh -s || note_failure "teardown $node"
 }
 
 collect_file() {
@@ -46,12 +58,12 @@ collect_file() {
   path="$2"
   dest="$COLLECT_DIR/$node$path"
   mkdir -p "$(dirname "$dest")"
-  sudo docker cp "$(container_id "$node"):$path" "$dest" || note_failure "collect $node:$path"
+  $SUDO docker cp "$(container_id "$node"):$path" "$dest" || note_failure "collect $node:$path"
   # docker cp keeps the ownership the file had in the container, and this
   # script runs under sudo, so both what came back and the directories holding
   # it belong to root - unreadable and undeletable by the person who asked for
   # them. Hand the whole lot over.
-  sudo chown -R "$OWNER" "$COLLECT_DIR" 2>/dev/null || true
+  $SUDO chown -R "$OWNER" "$COLLECT_DIR" 2>/dev/null || true
 }
 
 run_teardown() {
@@ -84,7 +96,7 @@ case "${1:-deploy}" in
     shift
     [ $# -ge 2 ] || { echo "usage: $0 exec <node> <command>..." >&2; exit 2; }
     node="$1"; shift
-    exec sudo docker exec "$node" "$@"
+    exec $SUDO docker exec "$(container_id "$node")" "$@"
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

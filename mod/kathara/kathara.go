@@ -107,7 +107,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		Subdir: ModuleName,
 	})
 
-	ct, err := templateFrom("templates/lab.conf.network", &types.ConfigTemplate{
+	ct, err := templateFrom(cfg, "templates/lab.conf.network", &types.ConfigTemplate{
 		File: KatharaOutputFile,
 	})
 	if err != nil {
@@ -128,7 +128,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		}
 	}
 
-	ct, err = templateFrom("templates/lab.conf.node_kathara_device", &types.ConfigTemplate{
+	ct, err = templateFrom(cfg, "templates/lab.conf.node_kathara_device", &types.ConfigTemplate{
 		Name:    "kathara_device",
 		Format:  KatharaLineFormatName,
 		Depends: []string{"kathara_image", "kathara_volumes"},
@@ -142,8 +142,11 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// The startup file is what runs after the copy, which is why the startup
 	// commands a topology already writes for the other platforms are carried
 	// here rather than being left out.
+	// The filename carries the prefix too: Kathara reads <device>.startup, and
+	// the device is what the prefix renamed.
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:       StartupFile,
+		NamePrefix: cfg.NodeNamePrefix(),
 		NameSuffix: StartupFileSuffix,
 		Scope:      types.ClassTypeNode,
 		Output:     "root",
@@ -162,7 +165,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	}
 	// The copies come first: a command the author wrote may use a file that is
 	// only there once it has been copied.
-	ctCopies, err := templateFrom("templates/startup.node_kathara_copies", &types.ConfigTemplate{
+	ctCopies, err := templateFrom(cfg, "templates/startup.node_kathara_copies", &types.ConfigTemplate{
 		Name:           "kathara_copies",
 		Format:         KatharaCopyFormatName,
 		RequiredParams: []string{"values_kathara_copy_entry"},
@@ -173,7 +176,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// What the file holds is worked out first, so that the file itself can ask
 	// whether anything came of it: either the copies or the topology's startup
 	// commands are reason enough to write it, and neither alone can say so.
-	ctStartupBody, err := templateFrom("templates/startup.node_kathara_startup_body", &types.ConfigTemplate{
+	ctStartupBody, err := templateFrom(cfg, "templates/startup.node_kathara_startup_body", &types.ConfigTemplate{
 		Name:    "kathara_startup_body",
 		Depends: append([]string{"kathara_copies"}, startupDepends...),
 	})
@@ -183,7 +186,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// The file is written for every device, even when there is nothing to put
 	// in it: Kathara reads an empty startup file without complaint, and a file
 	// that appears only sometimes is one that dot2net files cannot promise.
-	ctStartup, err := templateFrom("templates/startup.node_kathara_startup", &types.ConfigTemplate{
+	ctStartup, err := templateFrom(cfg, "templates/startup.node_kathara_startup", &types.ConfigTemplate{
 		Name:    "kathara_startup",
 		File:    StartupFile,
 		Depends: []string{"kathara_startup_body"},
@@ -197,7 +200,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// has to have it carried through, or the lab comes up without the software
 	// it was written for. RequiredParams leaves the line out when the topology
 	// names no image, so a device may still take the default on purpose.
-	ctImage, err := templateFrom("templates/lab.conf.node_kathara_image", &types.ConfigTemplate{
+	ctImage, err := templateFrom(cfg, "templates/lab.conf.node_kathara_image", &types.ConfigTemplate{
 		Name:           "kathara_image",
 		Format:         KatharaLineFormatName,
 		RequiredParams: []string{"image"},
@@ -209,7 +212,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// software reads while booting arrives too late. A volume is mounted before
 	// the device starts, which is what the other platforms' bind mounts do, so
 	// the files are put in place that way instead.
-	ctVolumes, err := templateFrom("templates/lab.conf.node_kathara_volumes", &types.ConfigTemplate{
+	ctVolumes, err := templateFrom(cfg, "templates/lab.conf.node_kathara_volumes", &types.ConfigTemplate{
 		Name:           "kathara_volumes",
 		Format:         KatharaLineFormatName,
 		RequiredParams: []string{"values_kathara_volume_entry"},
@@ -254,13 +257,13 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		ConfigTemplates: []*types.ConfigTemplate{ct, ctImage, ctStartup, ctStartupBody, ctCopies, ctVolumes, ctTeardown, ctCollect},
 	})
 
-	entry, err := templateFrom("templates/lab.conf.value_kathara_volume_entry", &types.ConfigTemplate{
+	entry, err := templateFrom(cfg, "templates/lab.conf.value_kathara_volume_entry", &types.ConfigTemplate{
 		Name: "kathara_volume_entry",
 	})
 	if err != nil {
 		return err
 	}
-	copyEntry, err := templateFrom("templates/startup.value_kathara_copy_entry", &types.ConfigTemplate{
+	copyEntry, err := templateFrom(cfg, "templates/startup.value_kathara_copy_entry", &types.ConfigTemplate{
 		Name: "kathara_copy_entry",
 	})
 	if err != nil {
@@ -282,7 +285,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 
 	// RequiredLink: the line declares a wire, so it must not be emitted for a
 	// connection that models a shared segment without an actual link.
-	ct, err = templateFrom("templates/lab.conf.interface_kathara_interface", &types.ConfigTemplate{
+	ct, err = templateFrom(cfg, "templates/lab.conf.interface_kathara_interface", &types.ConfigTemplate{
 		Name:         "kathara_interface",
 		Format:       KatharaLineFormatName,
 		RequiredLink: true,
@@ -298,12 +301,17 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	return nil
 }
 
-func templateFrom(path string, ct *types.ConfigTemplate) (*types.ConfigTemplate, error) {
+// templateFrom reads a template and fills in the lab's node name prefix. Kathara
+// builds a container's name out of the user, the lab and the device, and gives
+// it a "name" label holding the device alone - so the device's name is where one
+// lab is told apart from another. The prefix is empty unless this run was given
+// a lab name, leaving a topology generated the usual way exactly as it was.
+func templateFrom(cfg *types.Config, path string, ct *types.ConfigTemplate) (*types.ConfigTemplate, error) {
 	bytes, err := templates.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	ct.Template = []string{string(bytes)}
+	ct.Template = []string{strings.ReplaceAll(string(bytes), "%%NODEPREFIX%%", cfg.NodeNamePrefix())}
 	return ct, nil
 }
 
@@ -479,10 +487,18 @@ func addEntryScript(cfg *types.Config) error {
 	cfg.AddNetworkClass(&types.NetworkClass{
 		Name: ScriptClassName,
 		ConfigTemplates: []*types.ConfigTemplate{
-			{File: ScriptFile, Template: []string{strings.ReplaceAll(string(bytes), "%%COLLECT%%", "../"+types.CollectDirName)}},
+			{File: ScriptFile, Template: []string{katharaScript(cfg, string(bytes))}},
 		},
 	})
 	return nil
+}
+
+// katharaScript fills in what the entry script cannot know until it is written:
+// where collected files go, and the prefix that tells this lab's devices from
+// another's.
+func katharaScript(cfg *types.Config, script string) string {
+	script = strings.ReplaceAll(script, "%%COLLECT%%", "../"+types.CollectDirName)
+	return strings.ReplaceAll(script, "%%NODEPREFIX%%", cfg.NodeNamePrefix())
 }
 
 // GenerateValueParameters implements types.ParameterGenerator.
@@ -563,7 +579,7 @@ func (m *KatharaModule) generateFilemountParams(
 		mounted[dir] = true
 
 		results = append(results, map[string]string{
-			"device": node.Name,
+			"device": cfg.NodeNamePrefix() + node.Name,
 			"source": path.Join("..", node.Name, strings.TrimPrefix(dir, "/")),
 			"target": dir,
 		})
@@ -577,7 +593,7 @@ func (m *KatharaModule) generateFilemountParams(
 		// The staging directory is dot2net's own and exists in no image, so it
 		// hides nothing and needs no declaration.
 		results = append(results, map[string]string{
-			"device": node.Name,
+			"device": cfg.NodeNamePrefix() + node.Name,
 			"source": path.Join("..", stagingDir),
 			"target": "/" + types.StagingDirName,
 		})

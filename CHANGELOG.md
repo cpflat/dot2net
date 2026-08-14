@@ -243,6 +243,23 @@ further down.
   every container running. containerlab's maintainer names this as a known
   limitation. To run one topology more than once at a time, generate it more
   than once under different names.
+- **`--name` on `build`, so one topology can be two labs at once.** A lab's
+  containers are named after the lab, so two labs from one topology collide
+  unless they are told apart. `--name` replaces the topology's own `name:` for
+  that build, and each platform takes the name up the way it namespaces its own
+  containers: containerlab in the lab (`clab-lab0-r1`), Kathara and TiNET in the
+  device or node name (`lab0_r1`), since those two name a container after the
+  node and nothing else.
+
+  The nodes are still `r1`, `r2`, `r3`: their files are written where they
+  always were, the configuration inside is untouched, and `exec r1` still
+  reaches the node — each entry script knows how its platform spells the name.
+  Without `--name` nothing changes at all.
+
+  Renaming at *deploy* time is not offered, and cannot be: containerlab's
+  `deploy --name` renames a lab but its `destroy` reads the name from the
+  topology file regardless, so a renamed lab cannot be taken down again.
+  Naming the lab when it is generated has no such gap.
 - **Entry point scripts** (`module_config.<module>.generate_scripts: true`): a
   `containerlab.sh`, `tinet.sh` or `kathara.sh` beside the lab, taking
   `deploy`, `destroy` and `exec <node> <command>...`. Each finds its own files,

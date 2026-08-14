@@ -1,1 +1,1 @@
-{{ .node_name }}[{{ ._kathara_index }}]="{{ ._kathara_cd }}"
+%%NODEPREFIX%%{{ .node_name }}[{{ ._kathara_index }}]="{{ ._kathara_cd }}"

@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"regexp"
 	"os"
 	"path/filepath"
 	"sort"
@@ -262,6 +263,57 @@ type Config struct {
 
 	LoadedModules              []Module           // reference to loaded modules, internal
 	SorterConfigTemplateGroups mapset.Set[string] // list of sort-style config template groups
+
+	// nodeNamePrefix separates one deployment of a topology from another. It is
+	// set from the command line rather than read from YAML, because it varies
+	// per run and not per topology: the same inputs generated twice under two
+	// names give two labs that can be up at once.
+	//
+	// A platform that already namespaces its containers by the lab does not
+	// need it - containerlab labels each container with the lab it belongs to -
+	// but TiNET names a container after the node and nothing else, and Kathara
+	// builds the name out of the device. For those, the node's name is the only
+	// place a lab can be told apart, so the prefix goes there. It reaches the
+	// platform's own file and nothing else: the model's node is still r1, and so
+	// are the directory its files are written to and the hostname inside them.
+	nodeNamePrefix string
+}
+
+// labNamePattern is what all three platforms can carry. A lab name becomes part
+// of a container's name on every one of them, and docker's own rule is the
+// narrowest thing they agree on. Kathara narrows it further for a device name,
+// which is checked where that name is built.
+var labNamePattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
+
+// ValidateLabName rejects a name a platform could not use. Caught here rather
+// than at deploy time, where it appears as a container runtime error with no
+// mention of dot2net.
+func ValidateLabName(name string) error {
+	if len(name) > 63 {
+		return fmt.Errorf("lab name %q is longer than 63 characters", name)
+	}
+	if !labNamePattern.MatchString(name) {
+		return fmt.Errorf(
+			"lab name %q cannot be used: it becomes part of a container's name, "+
+				"which must start with a letter or digit and hold only letters, "+
+				"digits, and the characters _ . -", name)
+	}
+	return nil
+}
+
+// SetLabName gives this run a lab name of its own, replacing the topology's.
+// The nodes are namespaced to match, so that two labs generated from one
+// topology can be deployed side by side.
+func (cfg *Config) SetLabName(name string) {
+	cfg.Name = name
+	cfg.nodeNamePrefix = name + "_"
+}
+
+// NodeNamePrefix is what a platform module puts in front of a node's name in
+// its own file. Empty unless this run was given a lab name, so a topology
+// generated the usual way is generated exactly as before.
+func (cfg *Config) NodeNamePrefix() string {
+	return cfg.nodeNamePrefix
 }
 
 func (cfg *Config) FileDefinitionByName(name string) (*FileDefinition, bool) {
