@@ -24,7 +24,6 @@ const StartupFileSuffix = ".startup"
 const VolumeParamRuleName = "kathara_volumes"
 const CopyParamRuleName = "kathara_copies"
 const ScriptFile = "kathara.sh"
-const ScriptClassName = "_katharaScript"
 
 // InterfaceNamePrefix is not a default but a requirement. Kathara names a
 // device's interfaces after the index written in lab.conf - r1[0] becomes eth0
@@ -38,6 +37,12 @@ const InterfaceNamePrefix = "eth"
 // match the ethN the container ends up with.
 const CollisionDomainParamName = "_kathara_cd"
 const InterfaceIndexParamName = "_kathara_index"
+
+// WorkerGroupClassName carries lab.conf when the topology declares placement
+// units. Not types.WorkerGroupClassName: that is the name a topology writes in
+// its DOT file, and this is the module's own class, applied to the worker groups
+// ClassifyObjects picks out.
+const WorkerGroupClassName = "_katharaWorkerGroup"
 
 const NetworkClassName = "_katharaNetwork"
 const NodeClassName = "_katharaNode"
@@ -100,32 +105,63 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// for, running after the device is up. With the lab one level down, the
 	// convention finds nothing and the only way in is the one the topology
 	// chose.
+	// One lab.conf, or one per machine. A lab is deployed to a single machine,
+	// so a topology spread over several needs a file each - the same choice
+	// containerlab and TiNET make, and for the same reason. What can be read at
+	// this point is the topology's own configuration, which is loaded before the
+	// modules are.
+	_, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName)
+	scope := types.ClassTypeNetwork
+	if perWorker {
+		scope = types.ClassTypeGroup
+	}
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:   KatharaOutputFile,
 		Path:   "",
-		Scope:  types.ClassTypeNetwork,
+		Scope:  scope,
 		Subdir: ModuleName,
 	})
 
+	// The template text is the same either way: it aggregates over "the devices
+	// of this object", and the object differs. A device's volume paths are
+	// relative to the lab directory, so ../r1/etc/frr means this machine's r1
+	// once the lab sits under that machine's own directory.
 	ct, err := templateFrom(cfg, "templates/lab.conf.network", &types.ConfigTemplate{
 		File: KatharaOutputFile,
 	})
 	if err != nil {
 		return err
 	}
-	cfg.AddNetworkClass(&types.NetworkClass{
-		Name:            NetworkClassName,
-		ConfigTemplates: []*types.ConfigTemplate{ct},
-	})
+	labOwned := []*types.ConfigTemplate{ct}
 
 	var opts Options
 	if _, err := cfg.DecodeModuleConfig(ModuleName, &opts); err != nil {
 		return err
 	}
+	// The entry script joins the same class rather than getting one of its own:
+	// a class of its own is a class no group carries a label for, and the script
+	// would silently not be written for a multi-machine lab.
 	if opts.GenerateScripts {
-		if err := addEntryScript(cfg); err != nil {
+		entry, err := entryScriptTemplate(cfg, scope)
+		if err != nil {
 			return err
 		}
+		labOwned = append(labOwned, entry)
+	}
+
+	if perWorker {
+		// Not AddModuleGroupClassLabel: that would give lab.conf to every group,
+		// including the ones that only share parameters. ClassifyObjects picks
+		// the worker groups out.
+		cfg.AddGroupClass(&types.GroupClass{
+			Name:            WorkerGroupClassName,
+			ConfigTemplates: labOwned,
+		})
+	} else {
+		cfg.AddNetworkClass(&types.NetworkClass{
+			Name:            NetworkClassName,
+			ConfigTemplates: labOwned,
+		})
 	}
 
 	ct, err = templateFrom(cfg, "templates/lab.conf.node_kathara_device", &types.ConfigTemplate{
@@ -329,6 +365,14 @@ func (m *KatharaModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkMode
 			iface.AddModuleClassLabels(InterfaceClassName)
 		}
 	}
+	// A lab.conf per machine when the topology places its nodes on several. Only
+	// the worker groups get it: a group that exists to share parameters is not a
+	// machine, and nothing is deployed to it.
+	for _, group := range nm.Groups {
+		if cfg.IsWorkerGroup(group) {
+			group.AddModuleClassLabels(WorkerGroupClassName)
+		}
+	}
 	return nil
 }
 
@@ -387,18 +431,6 @@ func interfaceIndex(iface *types.Interface) (int, error) {
 }
 
 func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
-	// A Kathara lab is one lab.conf and one machine. A topology that declares
-	// placement units is describing a topology spread over several, and there
-	// is nothing in lab.conf that says which device goes where - so the file
-	// would name every device as if they shared a machine, and the paths it
-	// points at would be wrong as well. Say so rather than write it.
-	if _, perWorker := cfg.GroupClassByName(types.WorkerGroupClassName); perWorker {
-		return fmt.Errorf(
-			"this topology places nodes on machines with %s groups, which Kathara has no way to "+
-				"express: a lab.conf describes one machine. Drop the kathara module, or the placement "+
-				"units if the lab is meant for one machine after all",
-			types.WorkerGroupClassName)
-	}
 
 	if err := checkMountDirsUsed(cfg, nm); err != nil {
 		return err
@@ -472,25 +504,19 @@ type Options struct {
 // commands. Kathara is not split by GlobalSettings.SplitModuleOutput: its lab
 // is the directory itself, holding lab.conf and every <device>.startup, and
 // those startup files are written by the topology rather than by this module.
-func addEntryScript(cfg *types.Config) error {
+func entryScriptTemplate(cfg *types.Config, scope string) (*types.ConfigTemplate, error) {
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:       ScriptFile,
 		Path:       "",
-		Scope:      types.ClassTypeNetwork,
+		Scope:      scope,
 		Subdir:     ModuleName,
 		Executable: true,
 	})
 	bytes, err := templates.ReadFile("templates/kathara.sh.entry")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	cfg.AddNetworkClass(&types.NetworkClass{
-		Name: ScriptClassName,
-		ConfigTemplates: []*types.ConfigTemplate{
-			{File: ScriptFile, Template: []string{katharaScript(cfg, string(bytes))}},
-		},
-	})
-	return nil
+	return &types.ConfigTemplate{File: ScriptFile, Template: []string{katharaScript(cfg, string(bytes))}}, nil
 }
 
 // katharaScript fills in what the entry script cannot know until it is written:
