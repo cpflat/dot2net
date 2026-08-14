@@ -20,6 +20,18 @@ why an example is worth adding even when it only demonstrates a notation: it
 also pins the behaviour.
 
 
+## Platforms
+
+Every example here generates for containerlab and TiNET, except the two that
+name no platform at all: `value_class_basic` and `test_blocks_basic` are about
+the notation and stop at the config blocks. Two do not generate for Kathara,
+and say why where their modules are listed:
+
+- `address_reservation` names its own interfaces (up1, dn1), and Kathara
+  derives an interface's name from its index in lab.conf
+- `vlan_multihost` places nodes on more than one machine, which a lab.conf
+  cannot express
+
 ## What each one shows
 
 - **switching** — a switch node, and the segments that form around it

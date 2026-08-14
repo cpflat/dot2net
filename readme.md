@@ -1,6 +1,12 @@
 # dot2net
 
-**dot2net** implements **Topology-driven Configuration**, a revolutionary approach that separates network topology from generalized configuration settings. Instead of manually editing multiple device configurations when adding a single router, dot2net generates all required configuration files from a simple topology graph (DOT) and reusable configuration templates (YAML).
+**dot2net** implements **Topology-driven Configuration**, an approach that separates the structure of a network from the configuration of the things in it. Instead of manually editing multiple device configurations when adding a single router, dot2net generates all required configuration files from a graph (DOT) and reusable configuration templates (YAML).
+
+> **A word used in a particular way.** A **topology** here is not just the graph:
+> it is what you write — the DOT file *and* the YAML that configures it — taken
+> together, one network you can generate and deploy. When only the graph is
+> meant, this documentation says **the DOT file** or **the graph**. See
+> [Basic Concepts](https://github.com/cpflat/dot2net/wiki/Basic-Concepts).
 
 ## How dot2net Works
 
@@ -26,9 +32,10 @@ This separation enables **topology-driven configuration** where changing the net
 - **Using Containerlab/TiNET**: Linux environment with Docker and sudo privilege
 - **Manual deployment**: Any environment (dot2net generates config files only)
 
-**Deployment platforms (choose one):**
+**Deployment platforms (choose one, or generate for several at once):**
 - [Containerlab](https://containerlab.dev/) - container-based network labs
 - [TiNET](https://github.com/tinynetwork/tinet) - Linux namespace-based emulation
+- [Kathara](https://www.kathara.org/) - container-based network emulator built for teaching
 
 ### Installation & Basic Usage
 
@@ -41,7 +48,8 @@ go build .
 cd tutorial/
 
 # 3. Generate configuration files
-dot2net build -c ./input.yaml ./input.dot
+#    (the build above puts dot2net in the repository root)
+../dot2net build -c ./input.yaml ./input.dot
 # This creates: r1/, r2/, r3/ directories + topo.yaml + spec.yaml
 
 # 4a. Deploy with Containerlab
@@ -73,6 +81,35 @@ digraph {
 }
 ```
 
+## 📂 Where the topologies are
+
+Three directories hold topologies, and they are for different things.
+
+| Directory | What is in it | Read it to |
+|---|---|---|
+| **`tutorial/`** | One topology, walked through step by step in its own readme | Get a network up for the first time |
+| **`topologies/`** | 13 networks worth deploying: the FRR topotests, the TiNET examples, and dot2net's own | Find something close to what you want and copy it |
+| **`example/`** | 6 small topologies, each showing what one piece of the notation does | Understand a feature you met in the Wiki |
+
+Everything in `topologies/` and `example/` carries an `expected/` holding the
+output dot2net should produce for it, which the test suite checks on every
+build. A topology is built by running dot2net inside its own directory:
+
+```bash
+cd topologies/ospf_simple
+../../dot2net build -c input.yaml input.dot
+```
+
+Two worth knowing about:
+
+- **`topologies/ospf_simple`** — the smallest thing that routes, and the one
+  that generates for all three platforms. Start here.
+- **`topologies/ospf_multihost`** — the same network placed on two machines.
+  Its `expected/` is what a multi-machine lab looks like: one directory per
+  machine holding that machine's nodes, its deployment file and its scripts,
+  plus an `inter-host-links.txt` naming the links that no single machine's
+  file can create.
+
 ## 📖 Complete Documentation
 
 For comprehensive documentation including detailed syntax, configuration examples, and best practices, visit the **[dot2net Wiki](https://github.com/cpflat/dot2net/wiki)**.
@@ -82,14 +119,17 @@ For comprehensive documentation including detailed syntax, configuration example
 - **Automatic Parameter Assignment**: IP addresses, interface names, and other parameters
 - **Flexible Class System**: Reusable node, interface, connection, and group configurations
 - **Template-Based Configuration**: Generate any configuration format using Go templates
-- **Multi-Platform Support**: TiNET and Containerlab emulation platforms
+- **Multi-Platform Support**: Containerlab, TiNET and Kathara, from one topology
+- **Labs Larger Than One Machine**: mark the machines in the graph and each gets a deployment file holding its own nodes and the links it can wire itself
+- **Taking a Lab Down**: commands to run in a node before it goes, and files to copy back out of it
 - **Conflict Detection**: Intelligent detection and reporting of configuration conflicts
 - **Scalable Design**: Handle large networks with hundreds of nodes and connections
 
 ## 📋 Supported Platforms
 
-- **[TiNET](https://github.com/tinynetwork/tinet)**: Linux namespace-based network emulation
 - **[Containerlab](https://containerlab.dev/)**: Container-based network labs
+- **[TiNET](https://github.com/tinynetwork/tinet)**: Linux namespace-based network emulation
+- **[Kathara](https://www.kathara.org/)**: Container-based network emulator built for teaching
 
 ## 🤝 Community
 
