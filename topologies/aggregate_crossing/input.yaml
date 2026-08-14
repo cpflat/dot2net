@@ -14,8 +14,8 @@
 # first form. The addresses do not move either way: bridges carry none, so a
 # search for a segment passes through them and all four routers stay in one /24.
 #
-# Deploying it works like example/ospf_multihost - see doc/active/TEST_ENVIRONMENT.md
-# 1.6 - except that the bridge to create on the second machine is named
+# Deploying it works like topologies/ospf_multihost, except that the bridge to
+# create on the second machine is named
 # sw1_host2, which is dot2net's name for "the sw1 side that stands on host2".
 name: aggregate_crossing
 

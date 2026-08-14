@@ -12,7 +12,6 @@ const ModuleName = "tinet"
 
 const TinetOutputFile = "spec.yaml"
 const ScriptFile = "tinet.sh"
-const ScriptClassName = "_tinetScript"
 
 const TinetNetworkNameParamName = "_tn_networkName"
 const TinetImageParamName = "image"
@@ -62,6 +61,11 @@ func NewModule() types.Module {
 }
 
 func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
+	var opts Options
+	if _, err := cfg.DecodeModuleConfig(ModuleName, &opts); err != nil {
+		return err
+	}
+
 	// add file format
 	formatStyle := &types.FormatStyle{
 		Name:                TinetYamlFormatName,
@@ -133,29 +137,31 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	// end outside the group is not one of its children, which is exactly the
 	// set a machine can wire itself. The template text is the same either way:
 	// it aggregates over "the nodes of this object", and the object differs.
+	// The entry script joins the same class, rather than getting one of its
+	// own: a class of its own is a class no group carries a label for, and the
+	// script would silently not be written for a multi-machine lab.
+	owns := []*types.ConfigTemplate{ctSwitches, ct1}
+	if opts.GenerateScripts {
+		entry, err := entryScriptTemplate(cfg, scope, subdir)
+		if err != nil {
+			return err
+		}
+		owns = append(owns, entry)
+	}
+
 	if perWorker {
 		// Not AddModuleGroupClassLabel: that would give the spec file to every
 		// group, including the ones that only share parameters. ClassifyObjects
 		// picks the worker groups out.
 		cfg.AddGroupClass(&types.GroupClass{
 			Name:            WorkerGroupClassName,
-			ConfigTemplates: []*types.ConfigTemplate{ctSwitches, ct1},
+			ConfigTemplates: owns,
 		})
 	} else {
 		cfg.AddNetworkClass(&types.NetworkClass{
 			Name:            NetworkClassName,
-			ConfigTemplates: []*types.ConfigTemplate{ctSwitches, ct1},
+			ConfigTemplates: owns,
 		})
-	}
-
-	var opts Options
-	if _, err := cfg.DecodeModuleConfig(ModuleName, &opts); err != nil {
-		return err
-	}
-	if opts.GenerateScripts {
-		if err := addEntryScript(cfg, scope, subdir); err != nil {
-			return err
-		}
 	}
 
 	// add node class
@@ -545,10 +551,11 @@ type Options struct {
 	GenerateScripts bool `yaml:"generate_scripts"`
 }
 
-// addEntryScript registers the script that stands in front of TiNET's own
+// entryScriptTemplate builds the script that stands in front of TiNET's own
 // commands. It sits where the lab is operated from, even when the spec file has
-// moved into a directory of its own.
-func addEntryScript(cfg *types.Config, scope, subdir string) error {
+// moved into a directory of its own. The caller attaches it to the class that
+// already owns this module's files.
+func entryScriptTemplate(cfg *types.Config, scope, subdir string) (*types.ConfigTemplate, error) {
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:       ScriptFile,
 		Path:       "",
@@ -557,7 +564,7 @@ func addEntryScript(cfg *types.Config, scope, subdir string) error {
 	})
 	bytes, err := templates.ReadFile("templates/tinet.sh.entry")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	path := TinetOutputFile
 	if subdir != "" {
@@ -565,19 +572,7 @@ func addEntryScript(cfg *types.Config, scope, subdir string) error {
 	}
 	script := strings.ReplaceAll(string(bytes), "%%SPEC%%", path)
 	script = strings.ReplaceAll(script, "%%COLLECT%%", types.CollectDirName)
-	ct := &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}
-	if scope == types.ClassTypeGroup {
-		cfg.AddGroupClass(&types.GroupClass{
-			Name:            ScriptClassName,
-			ConfigTemplates: []*types.ConfigTemplate{ct},
-		})
-	} else {
-		cfg.AddNetworkClass(&types.NetworkClass{
-			Name:            ScriptClassName,
-			ConfigTemplates: []*types.ConfigTemplate{ct},
-		})
-	}
-	return nil
+	return &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}, nil
 }
 
 // copyFileParams turns the node's staged files into the source and target a copy

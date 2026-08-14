@@ -258,9 +258,15 @@ further down.
   caller quoted stay quoted. Each platform's own exec takes the whole command as
   one string, and `vtysh -c "show ip ospf neighbor"` does not survive that.
 
+  A script reaches only its own lab. containerlab labels a container with the
+  lab it belongs to as well as the node it is, and both are matched: another
+  lab on the same machine may well have a node of the same name, and teardown
+  and collect must not reach into it.
+
   Off by default, and chosen per module. `topologies/ospf_simple` turns all
-  three on, so what the scripts hold is checked against `expected/` like
-  everything else.
+  three on and `topologies/ospf_multihost` the two that run there, so what the
+  scripts hold is checked against `expected/` like everything else — in both
+  scopes, since a multi-machine lab gets one script per machine.
 - **`executable` on a file definition** writes the file with the executable bit
   set. The generated entry scripts and `setup-bridges.sh` use it: a script that
   has to be `chmod`'ed before it works is one that will be run wrong once.

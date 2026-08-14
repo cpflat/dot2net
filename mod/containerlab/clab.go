@@ -12,7 +12,6 @@ const ModuleName = "containerlab"
 
 const ClabOutputFile = "topo.yaml"
 const ScriptFile = "containerlab.sh"
-const ScriptClassName = "_clabScript"
 
 const ClabNetworkNameParamName = "_clab_networkName"
 const ClabImageParamName = "image"
@@ -215,6 +214,17 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		})
 	}
 
+	// The entry script joins the same class, rather than getting one of its
+	// own: a class of its own is a class no group carries a label for, and the
+	// script would silently not be written for a multi-machine lab.
+	if opts.GenerateScripts {
+		entry, err := entryScriptTemplate(cfg, scope, subdir)
+		if err != nil {
+			return err
+		}
+		owns = append(owns, entry)
+	}
+
 	if perWorker {
 		// Not AddModuleGroupClassLabel: that would give the topology file to
 		// every group, including the ones that only share parameters.
@@ -228,12 +238,6 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 			Name:            NetworkClassName,
 			ConfigTemplates: owns,
 		})
-	}
-
-	if opts.GenerateScripts {
-		if err := addEntryScript(cfg, scope, subdir); err != nil {
-			return err
-		}
 	}
 
 	// add node class
@@ -692,7 +696,7 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 // machine's directory - even when the topology file itself has moved into a
 // directory of its own, because the point of it is to be reachable without
 // knowing that layout.
-func addEntryScript(cfg *types.Config, scope, subdir string) error {
+func entryScriptTemplate(cfg *types.Config, scope, subdir string) (*types.ConfigTemplate, error) {
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:       ScriptFile,
 		Path:       "",
@@ -701,7 +705,7 @@ func addEntryScript(cfg *types.Config, scope, subdir string) error {
 	})
 	bytes, err := templates.ReadFile("templates/containerlab.sh.entry")
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// %%TOPO%% is filled in here rather than by the template engine: the path is
 	// known at registration and the script is otherwise the same for every lab,
@@ -712,19 +716,7 @@ func addEntryScript(cfg *types.Config, scope, subdir string) error {
 	}
 	script := strings.ReplaceAll(string(bytes), "%%TOPO%%", path)
 	script = strings.ReplaceAll(script, "%%COLLECT%%", types.CollectDirName)
-	ct := &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}
-	if scope == types.ClassTypeGroup {
-		cfg.AddGroupClass(&types.GroupClass{
-			Name:            ScriptClassName,
-			ConfigTemplates: []*types.ConfigTemplate{ct},
-		})
-	} else {
-		cfg.AddNetworkClass(&types.NetworkClass{
-			Name:            ScriptClassName,
-			ConfigTemplates: []*types.ConfigTemplate{ct},
-		})
-	}
-	return nil
+	return &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}, nil
 }
 
 // copyFileParams turns the node's staged files into the source and target a

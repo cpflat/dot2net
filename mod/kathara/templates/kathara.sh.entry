@@ -4,8 +4,7 @@
 #
 # Kathara reads lab.conf and <device>.startup from the directory it runs in, so
 # this script changes into it first. Everything that reaches into a device goes
-# through docker: kathara exec cannot pass a command containing -c (see
-# doc/active/TESTBED_NOTES.md).
+# through docker: kathara exec cannot pass a command containing -c.
 #
 # destroy does more than Kathara's own: it runs the lab's teardown commands,
 # copies out what the lab was asked to bring back, and only then takes the lab

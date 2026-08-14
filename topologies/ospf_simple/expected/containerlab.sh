@@ -26,10 +26,13 @@ report() {
   exit 1
 }
 
-# containerlab names a container after the lab and the node, and labels it with
-# the node's own name, which is what this looks up.
+# containerlab labels a container with the lab it belongs to and the node it is,
+# and both are needed: another lab on this machine may well have a node of the
+# same name, and teardown and collect must not reach into it.
 container_id() {
-  sudo docker ps -q --filter "label=clab-node-name=$1" | head -1
+  sudo docker ps -q \
+    --filter "label=containerlab=ospf_simple" \
+    --filter "label=clab-node-name=$1" | head -1
 }
 
 # Commands the lab wants run inside a node while it is still up. The block is

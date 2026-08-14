@@ -1,6 +1,6 @@
 # OSPF over two machines.
 #
-# This is example/ospf_simple placed on a multi-host lab: the same OSPF
+# This is topologies/ospf_simple placed on a multi-host lab: the same OSPF
 # configuration, split across two machines that are wired together outside the
 # lab. It is the one to copy when writing a multi-host topology of your
 # own; example/vlan_multihost is the feature demonstration and configures no
@@ -13,7 +13,7 @@
 #     carry no address, so a search for a segment passes through them and both
 #     ends of the crossing link land in one /24
 #
-# Deploying it (see doc/active/TEST_ENVIRONMENT.md 1.6 for the full procedure):
+# Deploying it:
 #   1. put host1/ on one machine and host2/ on the other
 #   2. run setup-bridges.sh on each - containerlab refuses to deploy when an
 #      ovs-bridge node names a bridge that does not exist yet
@@ -31,6 +31,15 @@ global:
 
 # Kathara is not among the modules below: a lab.conf describes one machine,
 # and this topology places its nodes on more than one.
+module_config:
+  # One entry script per machine, since one machine is what a lab is deployed
+  # to. Each carries its own lab name, so teardown and collect on host1 cannot
+  # reach a container on host2's lab.
+  containerlab:
+    generate_scripts: true
+  tinet:
+    generate_scripts: true
+
 module:
   - tinet
   - containerlab
