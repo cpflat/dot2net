@@ -15,7 +15,7 @@ import (
 // map-iteration-heavy paths (grouping, IP assignment, parameter distribution,
 // multi-layer config) most likely to expose non-deterministic output.
 var determinismTopologies = []string{
-	"vlan_multihost",
+	"ospf_multihost",
 	"basic_clos",
 	"bgp_evpn_vxlan_topo1",
 	"basic_bgp",

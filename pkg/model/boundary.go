@@ -14,7 +14,7 @@ import (
 // Which links cross a boundary follows from the topology: a node's groups are
 // already known once the skeleton is built. Making the author mark the edges
 // instead would record the same fact twice, and the two records can disagree -
-// which is what example/vlan_multihost used to do, with hand-written
+// which is what a multi-host topology used to have to do, with hand-written
 // normal_conn / vlan_conn labels beside the subgraphs that said the same thing.
 //
 // It runs before the classes are resolved, because a label added afterwards

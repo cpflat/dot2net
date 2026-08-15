@@ -1,7 +1,0 @@
-host: host2
-nodes:
-  - r3
-  - r4
-links:
-  - conn2
-  - conn4

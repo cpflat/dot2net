@@ -90,7 +90,7 @@ Three directories hold topologies, and they are for different things.
 |---|---|---|
 | **`tutorial/`** | One topology, walked through step by step in its own readme | Get a network up for the first time |
 | **`topologies/`** | 13 networks worth deploying: the FRR topotests, the TiNET examples, and dot2net's own | Find something close to what you want and copy it |
-| **`example/`** | 6 small topologies, each showing what one piece of the notation does | Understand a feature you met in the Wiki |
+| **`example/`** | 5 small topologies, each showing what one piece of the notation does | Understand a feature you met in the Wiki |
 
 Everything in `topologies/` and `example/` carries an `expected/` holding the
 output dot2net should produce for it, which the test suite checks on every

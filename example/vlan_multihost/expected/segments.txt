@@ -1,3 +1,0 @@
-seg0 vlan=100 reach=inter-host
-seg1 vlan=101 reach=intra-host
-seg2 vlan=102 reach=intra-host

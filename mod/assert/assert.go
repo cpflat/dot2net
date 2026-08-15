@@ -4,7 +4,7 @@
 // It exists because the golden tests cannot notice a class that is declared but
 // never applied: such a class contributes nothing to the output, so regenerating
 // the expected files simply freezes its absence. This actually happened -
-// example/vlan_multihost declared segment classes that no relational label ever
+// A bundled topology once declared segment classes that no relational label ever
 // attached, and the breakage was released and preserved by the golden files.
 //
 // Requiring every class to be applied is not workable: topologies legitimately

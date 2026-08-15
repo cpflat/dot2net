@@ -58,7 +58,7 @@ nodeclass:
 			yaml: head + plainNodes + usedSeg,
 		},
 		{
-			// This is example/vlan_multihost's failure: a segment class that no
+			// The failure this was written for: a segment class that no
 			// relational label attaches. Without the module it passes silently.
 			name: "asserted segment class is never attached",
 			yaml: head + plainNodes + usedSeg + `

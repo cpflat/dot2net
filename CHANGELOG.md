@@ -44,9 +44,23 @@ further down.
   demonstrate a piece of notation. Both are read by users and both are
   golden-tested, but only the first is worth running, and the shared name kept
   drawing new demonstrations into the same pile. The 13 deployable ones are now
-  under `topologies/`; `example/` keeps the 6 that demonstrate a notation.
+  under `topologies/`; `example/` keeps the ones that demonstrate a notation.
   Nothing inside a topology changed. **What to do:** update any path that names
   one: `cd example/ospf_simple` becomes `cd topologies/ospf_simple`.
+
+### Removed
+
+- **`example/vlan_multihost`.** It was rebuilt in this cycle to cover the
+  multi-host output path, which then had no example at all. Two topologies now do
+  that better — `topologies/ospf_multihost` is a network you can deploy, and
+  `topologies/aggregate_crossing` shows what a segment reaching across machines
+  costs — and the properties it was written to pin moved into unit tests.
+
+  What it uniquely showed has a better home: a parameter assigned per segment is
+  `example/param_share`, where the value is actually read back at both ends; the
+  `assert` module is also loaded by `example/address_reservation`. Its own name
+  had stopped being true, too — it configured no VLAN, only assigned a number and
+  wrote it to a file.
 
 ### Changed (repository layout)
 
@@ -71,7 +85,7 @@ further down.
   Give each machine its own bridge and join them with a link; that link is what
   `boundary_crossing_connection_class` marks. Address assignment still sees one segment spanning
   both machines, because searching for a segment passes through bridges, which
-  carry no addresses. `example/vlan_multihost` is built this way.
+  carry no addresses. `topologies/ospf_multihost` is built this way.
 - **`worker` group class**: marks a placement unit, a machine that containers
   are deployed onto, as opposed to a group that exists to share parameters. A
   node belongs to several groups at once, so the two uses need telling apart.
@@ -103,8 +117,8 @@ further down.
 
   A link between two such nodes is not counted as a member: it is the link
   between two sides of a segment that is already split, whether dot2net made it
-  or the author wrote it out. `example/vlan_multihost` and
-  `topologies/ospf_multihost`, which write the split by hand, are unchanged.
+  or the author wrote it out. `topologies/ospf_multihost`, which writes the split
+  by hand, is unchanged.
 
   `global.aggregate_crossing_links: false` turns it off, for a platform that
   stretches a segment across machines itself or an author who wants to draw the
@@ -119,9 +133,7 @@ further down.
   as on containerlab.
 - **`topologies/ospf_multihost`**: `topologies/ospf_simple` placed on two machines —
   the same OSPF configuration, split across a machine boundary. This is the
-  one to copy when writing a multi-host topology; `example/vlan_multihost`
-  demonstrates the machinery (`worker`, `boundary_crossing_connection_class`, `deploy`, `use:`) and
-  configures no routing. Deployed on two VMs: the OSPF adjacency between the
+  one to copy when writing a multi-host topology. Deployed on two VMs: the OSPF adjacency between the
   border routers comes up across the boundary, each machine learns the other's
   subnets, and traffic is routed between them.
 - **Kathara module** (`module: [kathara]`): generates `lab.conf`, including each
@@ -390,8 +402,8 @@ further down.
   applied to at least one object, or the build fails. It generates no output.
   This closes a hole the golden tests cannot cover: a class that is declared but
   never applied contributes nothing, so regenerating the expected files silently
-  freezes its absence — which is how `example/vlan_multihost` shipped with
-  segment classes that never attached.
+  freezes its absence — which is how a bundled topology shipped with segment
+  classes that never attached.
 - **`LabelOwner.AddModuleClassLabels`**: lets a module attach a class label at the
   module tier. A module classifying objects through the `ObjectClassifier` hook
   had only `AddClassLabels`, which files labels as user-written — so a module's
