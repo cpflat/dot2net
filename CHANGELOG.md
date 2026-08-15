@@ -28,12 +28,15 @@ further down.
   with a typo that used to run will now say so.
 - **Two file definitions writing the same file is an error**, as is a config
   entry naming both `template` and `sourcefile`.
-- **`virtual` on an interface no longer takes its link with it.** It used to
-  mean "leave this out of the output" and to reach the connection as well, so an
-  interface marked virtual silently removed the link it sat on. It now says what
-  it says: the interface is not deployed, and whether a link is emitted follows
-  from whether a platform is being told to make one (`required_link`). A
-  topology that used `virtual` on an interface to drop a link gets the link.
+- **`virtual` no longer means "not deployed".** One flag used to answer two
+  questions — is this object there, and does dot2net write its configuration —
+  and a topology could not answer them separately. `deploy` now says what an
+  object is materialised as, and `virtual: true` says only that its own
+  configuration is withheld. **What to do:** write `deploy: none` wherever
+  `virtual: true` meant "this is not deployed". You do not have to find them by
+  reading: a class setting `virtual: true` without also naming a `deploy` is an
+  error, so a 0.7.x topology stops on the first one. That error is a migration
+  aid and will be removed in a later release.
 - **The Kathara module owns `<device>.startup`.** The pattern documented in
   0.7.0 — a topology declaring the file itself with `name_suffix: .startup` and
   `output: root` — still works on its own, but collides once the Kathara module
@@ -170,11 +173,13 @@ further down.
   other, from generated files alone and with the same image as containerlab.
 
   Two of Kathara's constraints are reported rather than worked around: an
-  interface class asking for a prefix other than `eth` is rejected (Kathara
-  names interfaces after their index in `lab.conf` and offers no way to change
-  it), as is a device name outside `[a-z0-9_]{1,30}`. A device whose interface
-  indexes have a hole is also rejected — renumbering after dropped interfaces is
-  not implemented yet, so the case is named instead of emitted broken.
+  interface it lists in `lab.conf` under any name but `ethN` is rejected
+  (Kathara names interfaces after their index there and offers no way to change
+  it), as is a device name outside `[a-z0-9_]{1,30}`. The rule reaches only the
+  interfaces Kathara names — a device the node's own configuration builds gets no
+  line in `lab.conf`, so its name is the topology's to choose. A device whose
+  interface indexes have a hole is also rejected, though automatic naming can no
+  longer produce one.
 - **`provide` on a file definition**: says how the file reaches its node's
   container, `mount` (the default) or `copy`. Neither is the better one, and
   which to use follows from what the file is for:
@@ -391,12 +396,35 @@ further down.
   node — which is how a topology sets its own default without a dedicated global
   setting.
 
-  `virtual: true` is the shorthand for `deploy: none` and keeps working. Writing
-  both `virtual: true` and a contradicting `deploy` in one class is an error.
   `virtual: false` still claims nothing, since a boolean cannot tell "false" from
   "unset"; `deploy: container` is how to say it out loud and override another
   class. Only the field name is reserved, so a class may still be *called*
   `switch` and mean an ordinary container, as eight of the bundled examples do.
+- **`deploy` on interfaces and connections**, with the values that kind of object
+  can take: `link` (wiring the platform lays, or an end of it), `logical` (a
+  device or a link the generated configuration builds — a bridge, a dummy, a VRF,
+  a GRE or VXLAN tunnel), or `none`.
+
+  This completes an axis that only nodes had. It asks one question of every
+  object — what is this materialised as — and the values differ by kind because
+  what an object can be differs: a node has two ways of being put in place by the
+  platform and no way of being built from inside itself, while wiring has one
+  platform form and can be built by the configuration instead. A group has no
+  `deploy` at all, since nothing is ever put in place for one.
+
+  An interface takes the form of the connection it sits on, so the usual case
+  needs nothing written; a class says it for an interface that has no connection
+  to take it from. A connection reaching a node nobody deploys is not
+  materialised either, and neither is an interface on it — which is where the
+  reach that `virtual` used to have on a node has gone.
+
+  `required_link` templates are written only where the connection is a `link`,
+  which is what keeps a platform from being told to wire a tunnel. The check now
+  applies to connection-scoped templates as well as interface-scoped ones.
+- **Wired interfaces are numbered first.** Within one prefix, the numbers run
+  without a gap over the interfaces the platform lays. Kathara names an interface
+  after its position in `lab.conf`, so a number spent on an interface that gets
+  no line there used to leave a hole it refuses to start on.
 - **`assert` module**: an opt-in module that checks the expectations a topology
   states about itself. A class marked `values: {assert_used: "true"}` must be
   applied to at least one object, or the build fails. It generates no output.
