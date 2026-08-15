@@ -1,23 +1,30 @@
 digraph {
-	// Every form deploy can take, in one graph. See input.yaml for what each
-	// class asks for, and expected/ for what each one produces.
-	r1[xlabel="router"];
-	r2[xlabel="router"];
-	sw[xlabel="switch"];        // the platform provides this one itself
-	ph[xlabel="phantom"];       // nobody deploys this one
-	stock[xlabel="router,unwritten"];   // deployed, but dot2net writes nothing into it
+	// A small site, drawn as it actually is: not everything in the picture is a
+	// container of ours, and not everything of ours is ours to configure.
+	//
+	//   edge1, edge2 - our routers
+	//   lan          - the segment they share. Every platform has one of these
+	//                  already, so we take the platform's rather than run our own
+	//   isp          - the upstream router, on the same segment. Someone else
+	//                  runs it. We draw it so that the address it holds is one
+	//                  nobody else is given: edge1 gets .1, isp .2, edge2 .3
+	//   probe        - an appliance that arrives configured. We start it and
+	//                  leave it alone
+	//   the overlay  - edge1 and edge2 also reach each other over a tunnel they
+	//                  build themselves. Nothing lays a wire for it
 
-	r1->sw[dir="none"];
-	r2->sw[dir="none"];
+	edge1[xlabel="router"];
+	edge2[xlabel="router"];
+	lan[xlabel="shared_lan"];
+	isp[xlabel="upstream"];
+	probe[xlabel="router,preconfigured"];
 
-	// A link to a node nobody deploys. It shapes the addressing and nothing else.
-	r1->ph[dir="none"];
+	edge1->lan[dir="none"];
+	edge2->lan[dir="none"];
+	isp->lan[dir="none"];
 
-	// Not a wire: a tunnel the configuration builds, between two ends that are
-	// real. Both ends get a name of their own so that they take no number from
-	// the run the platform's own interfaces are named from.
-	r1->r2[dir="none", class="overlay", headlabel="tunnel", taillabel="tunnel"];
+	edge1->edge2[dir="none", class="overlay", headlabel="vxlan", taillabel="vxlan"];
 
-	// r1's end of this link is wired like any other, and says nothing.
-	r1->stock[dir="none", taillabel="silent"];
+	// The appliance addresses this link itself, so our end says nothing.
+	edge1->probe[dir="none", taillabel="unmanaged"];
 }

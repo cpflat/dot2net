@@ -34,10 +34,11 @@ an interface's name from its index in lab.conf.
 
 ## What each one shows
 
-- **deploy_and_virtual** — every form `deploy` can take, and what `virtual`
-  withholds: a switch the platform provides, a node nobody deploys, a tunnel
-  with no wire, a node that is deployed and left unconfigured, and an interface
-  that is wired and silent
+- **deploy_and_virtual** — a site where not everything drawn is a container of
+  yours: the LAN the platform already has, the upstream router someone else
+  runs, an appliance that arrives configured, and a tunnel nothing lays a wire
+  for. One answer each for the two questions asked of every object — what it is
+  materialised as, and whether dot2net writes its configuration
 - **switching** — a switch node, and the segments that form around it
 - **address_reservation** — reserving an address so the automatic assignment
   works around it

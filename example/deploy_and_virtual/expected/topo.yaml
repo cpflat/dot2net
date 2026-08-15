@@ -1,31 +1,31 @@
 name: deploy_and_virtual
 topology:
   nodes:
-    r1:
+    edge1:
       kind: linux
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r1/etc/net/net.conf:/etc/net/net.conf
+      - edge1/etc/net/net.conf:/etc/net/net.conf
       exec:
       - ip link set lo up
-    r2:
+    edge2:
       kind: linux
       image: nicolaka/netshoot
       network-mode: none
       binds:
-      - r2/etc/net/net.conf:/etc/net/net.conf
+      - edge2/etc/net/net.conf:/etc/net/net.conf
       exec:
       - ip link set lo up
-    stock:
+    lan:
+      kind: bridge
+    probe:
       kind: linux
       image: nicolaka/netshoot
       network-mode: none
 
-    sw:
-      kind: bridge
 
   links:
-  - endpoints: [r1:eth0, stock:eth0]
-  - endpoints: [r1:eth1, sw:eth0]
-  - endpoints: [r2:eth0, sw:eth1]
+  - endpoints: [edge1:eth0, lan:eth0]
+  - endpoints: [edge1:eth1, probe:eth0]
+  - endpoints: [edge2:eth0, lan:eth1]

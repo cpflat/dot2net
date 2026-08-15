@@ -1,12 +1,17 @@
-# What each object is materialised as (deploy), and whether dot2net writes its
-# configuration (virtual). The two are separate questions, and this topology
-# writes down every answer to both so that the generated files show the
-# difference.
+# A site where not everything drawn is a container of ours, and not everything
+# that is ours is ours to configure. Two questions get asked about every object
+# and they are answered separately:
 #
-# Changing the graph: adding another router to sw, or another link between two
-# routers, needs nothing here. What is tied to the graph is the tunnel - the
-# overlay class is written for a link between two ends that build it themselves,
-# so a second one needs a second pair of tunnel interfaces.
+#   deploy  - what is this materialised as
+#   virtual - does dot2net write its configuration
+#
+# The graph names five things and needs four different answers, which is the
+# point of the topology: each form is here because the site has one, not to
+# enumerate the values.
+#
+# Changing the graph: another router on the LAN needs nothing here. The overlay
+# is the one part tied to the drawing - it is written for a link between two ends
+# that build it themselves, so a second overlay needs a second pair of ends.
 
 name: deploy_and_virtual
 
@@ -21,6 +26,8 @@ module_config:
   kathara:
     mount_dirs: [/etc/net]
 
+# All three, on purpose. What each form turns into is decided per platform, so a
+# topology that generated for one of them would not show that it was right.
 module:
   - kathara
   - tinet
@@ -39,8 +46,7 @@ layer:
         prefix: 24
 
 nodeclass:
-  # deploy: container is the default and needs no writing. A node of this class
-  # is a container of dot2net's own, configured by it.
+  # Our own routers. deploy: container is the default and needs no writing.
   - name: router
     values:
       kind: linux
@@ -55,54 +61,62 @@ nodeclass:
           - "# {{ .name }}"
           - "{{ .interfaces_addr }}"
 
-  # deploy: platform - a shared medium the platform provides itself: a bridge on
-  # containerlab, a switches: entry on TiNET, a collision domain on Kathara. It
-  # has no image because it is not a container.
-  - name: switch
+  # The LAN both routers sit on. A shared medium is something every platform
+  # already has, so asking for a container of our own would be asking for a
+  # worse version of it: deploy: platform takes the platform's.
+  - name: shared_lan
     deploy: platform
     values:
       kind: bridge
 
-  # deploy: none - nothing is put in place. It still takes part in addressing,
-  # which is the whole reason for drawing it: the link to it consumes a subnet
-  # and gives r1 an address on that subnet.
-  - name: phantom
+  # The upstream router, sharing the LAN with ours. It is a real router in a
+  # real network, run by someone else - we neither start it nor configure it.
+  - name: upstream
     deploy: none
+    # It takes part in the addressing like any other member of the LAN: the
+    # address it holds is one no other device is given. That is what drawing it
+    # buys, and the only thing deploy: none leaves behind.
+    interface_policy: [ip]
 
-  # virtual - deployed like any other node, and dot2net writes nothing into it.
-  # For an image that arrives configured, or one another tool configures.
-  - name: unwritten
+  # An appliance that arrives configured: a probe, a vendor image, anything set
+  # up before it ever reaches the lab. It is started like any other node, and
+  # dot2net writes nothing into it.
+  - name: preconfigured
     deploy: container
     virtual: true
 
 interfaceclass:
+  # No policy here: which interfaces get an address is the node's decision
+  # (router carries interface_policy), which is what keeps the LAN's own ports
+  # out of the addressing and lets a search for a segment pass through it.
   - name: addressed
-    policy: [ip]
     config:
       - name: addr
+        node: router
         template:
           - "address {{ .name }} {{ .ip_addr }}/{{ .ip_plen }}"
 
-  # An end of the tunnel. deploy: logical is derived from the connection, so it
-  # is not written here; what is written is a name of its own, so that the
-  # numbers the platform's interfaces are named from stay unbroken.
-  - name: tunnel
-    prefix: br
+  # An end of the overlay. Its form comes from the connection, so it is not
+  # written here; what is written is a name of its own, which keeps it out of the
+  # run of numbers the platform's own interfaces are named from.
+  - name: vxlan
+    prefix: vx
     config:
-      # The same block name the addressed class uses, so that the node's
-      # aggregation gathers both without knowing which kind it got.
+      # The same block name the addressed class uses, so that the node gathers
+      # both without knowing which kind of interface it got.
       - name: addr
         template:
-          - "bridge {{ .name }}"
+          - "tunnel {{ .name }}"
 
-  # Wired like any other interface, and silent. The address it was given is
-  # still assigned - virtual withholds the configuration, not the parameters.
-  - name: silent
+  # Wired like any other port, and silent: the appliance on the far end
+  # addresses this link itself. virtual withholds the configuration, not the
+  # parameters - the address is still assigned, and still consumed.
+  - name: unmanaged
     deploy: link
     virtual: true
 
 connectionclass:
-  # deploy: logical - the platform lays no wire. What reaches the far end is
-  # built by the configuration above, on both of the interfaces this connects.
+  # The overlay. Both ends are real devices that the routers build for
+  # themselves, and no platform lays anything between them.
   - name: overlay
     deploy: logical
