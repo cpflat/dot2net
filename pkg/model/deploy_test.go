@@ -1,6 +1,7 @@
 package model
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
@@ -225,5 +226,73 @@ nodeclass:
 	}
 	if got != types.DeployPlatform {
 		t.Errorf("deploy = %q, want %q", got, types.DeployPlatform)
+	}
+}
+
+// TestWiredInterfacesAreNumberedFirst guards the property Kathara depends on:
+// within one prefix, the numbers run without a gap over the interfaces the
+// platform lays, whatever else the node carries. A logical connection used to
+// take a number from the same run, leaving a hole where an interface was
+// expected but never appeared - lab.conf was then written with a missing index,
+// which Kathara refuses to start, and nothing said so.
+func TestWiredInterfacesAreNumberedFirst(t *testing.T) {
+	cfgPath, dotPath := writeTempInput(t, `
+name: wired_first
+class_policy:
+  interface:
+    default: [default]
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+connectionclass:
+  - name: v
+    deploy: logical
+interfaceclass:
+  - name: default
+    policy: [ip]
+`, `digraph {
+  r1; r2; r3;
+  r1 -> r2 [dir="none"];
+  r2 -> r3 [dir="none", class="v"];
+  r2 -> r3 [dir="none"];
+}`)
+
+	cfg, err := types.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	d, err := DiagramFromDotFile(dotPath)
+	if err != nil {
+		t.Fatalf("DiagramFromDotFile: %v", err)
+	}
+	nm, err := BuildNetworkModel(cfg, d, false)
+	if err != nil {
+		t.Fatalf("BuildNetworkModel: %v", err)
+	}
+
+	// r2 is the node that carries both: two ends of wiring and one end of the
+	// logical connection, all taking their names from the same prefix.
+	var wired []string
+	for _, node := range nm.Nodes {
+		if node.Name != "r2" {
+			continue
+		}
+		for _, iface := range node.Interfaces {
+			if iface.DeployForm() == types.DeployLink {
+				wired = append(wired, iface.Name)
+			}
+		}
+	}
+	if len(wired) != 2 {
+		t.Fatalf("r2 should have two wired interfaces, got %v", wired)
+	}
+	sort.Strings(wired)
+	if wired[0] != "eth0" || wired[1] != "eth1" {
+		t.Errorf("wired interfaces are named %v, want [eth0 eth1]: a number spent on the "+
+			"logical interface leaves a hole in lab.conf", wired)
 	}
 }

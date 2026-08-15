@@ -581,6 +581,31 @@ func assignNodeNames(nm *types.NetworkModel) error {
 	return nil
 }
 
+// wiredFirst puts the interfaces the platform lays ahead of the rest, keeping
+// the order within each group. The numbers a prefix hands out then run without a
+// gap over the interfaces that appear in the platform's own files, which is what
+// Kathara needs: it names an interface after its position in lab.conf, so a
+// number spent on an interface that never gets a line there leaves a hole it
+// refuses to start.
+//
+// The others still get names from the same prefix, continuing after the wired
+// ones. A topology that wants a name of its own for a device it builds itself
+// says so with a prefix of its own, which is the usual way to write it.
+func wiredFirst(interfaces []*types.Interface) []*types.Interface {
+	ordered := make([]*types.Interface, 0, len(interfaces))
+	for _, iface := range interfaces {
+		if iface.DeployForm() == types.DeployLink {
+			ordered = append(ordered, iface)
+		}
+	}
+	for _, iface := range interfaces {
+		if iface.DeployForm() != types.DeployLink {
+			ordered = append(ordered, iface)
+		}
+	}
+	return ordered
+}
+
 // assignInterfaceNames assign names for unnamed interfaces with given name prefix automatically
 func assignInterfaceNames(nm *types.NetworkModel) error {
 	for _, node := range nm.Nodes {
@@ -595,7 +620,7 @@ func assignInterfaceNames(nm *types.NetworkModel) error {
 		}
 		for prefix, interfaces := range prefixMap {
 			i := 0
-			for _, iface := range interfaces {
+			for _, iface := range wiredFirst(interfaces) {
 				oldName := iface.Name
 				var name string
 				for { // avoid existing names

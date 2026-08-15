@@ -451,8 +451,9 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 					"underscores, at most 30 characters)", node.Name)
 		}
 		// Kathara rejects a device whose interface indexes have a hole, and the
-		// indexes come from the names, which are handed out before anything is
-		// dropped from the output. A virtual interface therefore leaves a gap.
+		// indexes come from the names. Automatic naming hands the numbers to the
+		// wired interfaces first, so it cannot leave one; a hole means the
+		// topology chose the names itself and skipped a number.
 		seen := map[int]bool{}
 		count := 0
 		for _, iface := range node.Interfaces {
@@ -472,7 +473,9 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 			if !seen[i] {
 				return fmt.Errorf(
 					"node %s has a hole in its interface indexes (%s%d is missing), which Kathara "+
-						"rejects; renumbering after dropping interfaces is not implemented yet",
+						"rejects: it gives an interface the name its index in lab.conf earns, so the "+
+						"indexes have to run from 0 without a gap. Let the interfaces be named "+
+						"automatically, or name them so that the numbers are consecutive",
 					node.Name, InterfaceNamePrefix, i)
 			}
 		}
