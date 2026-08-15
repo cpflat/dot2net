@@ -1041,7 +1041,7 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 		// wiring per connection and would keep the link, while TiNET and Kathara
 		// write theirs per interface and would lose it, leaving Kathara with a
 		// gap in lab.conf that nothing reports.
-		if lo.IsVirtual() && !configTemplate.RequiredLink {
+		if lo.IsVirtual() && !configTemplate.PlatformDeclaration() {
 			return "virtual object", false
 		}
 		if !lo.IsMaterialised() {

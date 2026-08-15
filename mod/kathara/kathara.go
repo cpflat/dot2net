@@ -165,9 +165,10 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	}
 
 	ct, err = templateFrom(cfg, "templates/lab.conf.node_kathara_device", &types.ConfigTemplate{
-		Name:    "kathara_device",
-		Format:  KatharaLineFormatName,
-		Depends: []string{"kathara_image", "kathara_volumes"},
+		Name:          "kathara_device",
+		Format:        KatharaLineFormatName,
+		Depends:       []string{"kathara_image", "kathara_volumes"},
+		PlatformEntry: true,
 	})
 	if err != nil {
 		return err
@@ -240,6 +241,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		Name:           "kathara_image",
 		Format:         KatharaLineFormatName,
 		RequiredParams: []string{"image"},
+		PlatformEntry:  true,
 	})
 	if err != nil {
 		return err
@@ -439,7 +441,6 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 	if err := checkMountDirsUsed(cfg, nm); err != nil {
 		return err
 	}
-
 
 	for _, node := range nm.Nodes {
 		if !node.IsMaterialised() || cfg.IsSwitchNode(node) {

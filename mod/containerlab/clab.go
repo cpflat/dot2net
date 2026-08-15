@@ -311,8 +311,9 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 
 	// main topo entry - references binds and exec sections
 	ct4 := &types.ConfigTemplate{
-		Name:    "clab_topo",
-		Depends: []string{"clab_topo_binds", "clab_topo_exec"},
+		Name:          "clab_topo",
+		Depends:       []string{"clab_topo_binds", "clab_topo_exec"},
+		PlatformEntry: true,
 	}
 	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_topo")
 	if err != nil {
@@ -358,7 +359,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	// A switch node is a shared L2 domain the platform realizes itself, so it
 	// carries no image, no bind mounts and no commands - only the kind, whose
 	// value comes from the user untouched.
-	ct6 := &types.ConfigTemplate{Name: "clab_topo"}
+	ct6 := &types.ConfigTemplate{Name: "clab_topo", PlatformEntry: true}
 	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_switch")
 	if err != nil {
 		return err

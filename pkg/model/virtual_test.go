@@ -100,36 +100,40 @@ func TestVirtualDoesNotUnwire(t *testing.T) {
 	}
 }
 
-// TestVirtualNodeIsMarkedAndStillDeployed guards a flag that was silently
-// dropped once: nothing applied a node class's virtual to the node, so writing
-// it had no effect at all. It also pins that the flag stops at configuration -
-// a node nobody configures is still a node the platform deploys.
-func TestVirtualNodeIsMarkedAndStillDeployed(t *testing.T) {
-	_, nm := buildFullModel(t, `
-name: virtual_node
-global:
-  path: local
-nodeclass:
-  - name: unwritten
-    deploy: container
-    virtual: true
-  - name: ordinary
-`, `graph { r1 [class="unwritten"]; r2 [class="ordinary"]; r1 -- r2; }`)
+// TestVirtualNodeIsStillDeployed pins the node half of the same rule, in the
+// generated files rather than in the model. Two things went wrong here in turn:
+// nothing applied a node class's virtual to the node at all, and then, once it
+// did, virtual withheld the platform's own record that the node exists — so the
+// node vanished from topo.yaml while the links to it stayed, which containerlab
+// refuses to deploy. Neither is visible from the model's flags, which is why
+// this reads the output.
+func TestVirtualNodeIsStillDeployed(t *testing.T) {
+	dir := generateInto(t, strings.Replace(virtualWiringYAML,
+		"nodeclass:\n", "nodeclass:\n  - name: unwritten\n    deploy: container\n    virtual: true\n", 1),
+		strings.Replace(virtualWiringDot,
+			`r2 [xlabel="router"];`, `r2 [xlabel="router,unwritten"];`, 1))
 
-	for _, n := range nm.Nodes {
-		switch n.Name {
-		case "r1":
-			if !n.IsVirtual() {
-				t.Error("a node class saying virtual: true must mark the node")
-			}
-			if !n.IsMaterialised() {
-				t.Error("virtual must not decide deployment; deploy: container says it is deployed")
-			}
-		case "r2":
-			if n.IsVirtual() {
-				t.Error("a class that says nothing must not mark the node virtual")
-			}
+	for _, c := range []struct {
+		file, want, platform string
+	}{
+		{"topo.yaml", "r2:", "containerlab"},
+		{"spec.yaml", "name: r2", "TiNET"},
+		{filepath.Join("kathara", "lab.conf"), "r2[image]=", "Kathara"},
+	} {
+		got := readGenerated(t, dir, c.file)
+		if !strings.Contains(got, c.want) {
+			t.Errorf("%s: %s drops the node itself, leaving the links to it dangling "+
+				"(looking for %q in:\n%s)", c.platform, c.file, c.want, got)
 		}
+	}
+
+	// What virtual does withhold: the node's own configuration, and with it the
+	// bind that would have delivered a file that was never written.
+	if _, err := os.Stat(filepath.Join(dir, "r2", "etc", "frr", "frr.conf")); err == nil {
+		t.Error("the configuration of a virtual node must not be written")
+	}
+	if strings.Contains(readGenerated(t, dir, "topo.yaml"), "r2/etc/frr") {
+		t.Error("a virtual node must not carry binds for files that were not written")
 	}
 }
 

@@ -1483,6 +1483,20 @@ type ConfigTemplate struct {
 	// Set by modules on their own wiring templates; users normally never write it.
 	RequiredLink bool `yaml:"required_link" mapstructure:"required_link"`
 
+	// PlatformEntry marks a template whose output is what puts the object in
+	// place for the platform: containerlab's entry under nodes:, TiNET's under
+	// nodes: or switches:, Kathara's device line in lab.conf. It is not
+	// configuration written into the object, so virtual - which withholds an
+	// object's configuration - does not withhold it. Whether it is written is
+	// deploy's answer alone.
+	//
+	// RequiredLink marks the same kind of output for wiring, with the extra
+	// condition that the connection has to be a link; the two together are what
+	// PlatformDeclaration reports.
+	//
+	// Set by modules on their own; users never write it.
+	PlatformEntry bool `yaml:"-" mapstructure:"-"`
+
 	// This option is valid only on InterfaceClass or ConnectionClass
 	// If specified, add config only for included output (e.g., tinet only, clab only, etc)
 	Platform []string `yaml:"platform,flow" mapstructure:"platform,flow"`
@@ -2096,4 +2110,13 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 		}
 	}
 	return cfg, nil
+}
+
+// PlatformDeclaration reports whether this template's output is the platform's
+// own record that the object exists, rather than configuration written into it.
+// The distinction is what keeps the two axes apart at the point of output:
+// deploy decides whether an object is put in place, virtual decides whether its
+// configuration is written, and a template of this kind answers to the first.
+func (ct *ConfigTemplate) PlatformDeclaration() bool {
+	return ct.PlatformEntry || ct.RequiredLink
 }

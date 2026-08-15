@@ -191,7 +191,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct1.Template = []string{string(bytes)}
 
-	ct2 := &types.ConfigTemplate{Name: "tn_spec"}
+	ct2 := &types.ConfigTemplate{Name: "tn_spec", PlatformEntry: true}
 	nodeSpec, err := nodeNamedTemplate(cfg, "templates/spec.yaml.node_tn_spec")
 	if err != nil {
 		return err
@@ -266,7 +266,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 
 	// A switch is a shared L2 domain TiNET realizes as an OVS bridge of its own,
 	// so it belongs in the switches: section rather than in nodes:.
-	ctSwitch := &types.ConfigTemplate{Name: "tn_switch", Format: TinetSwitchFormatName}
+	ctSwitch := &types.ConfigTemplate{Name: "tn_switch", Format: TinetSwitchFormatName, PlatformEntry: true}
 	switchSpec, err := nodeNamedTemplate(cfg, "templates/spec.yaml.node_tn_switch")
 	if err != nil {
 		return err
