@@ -388,7 +388,13 @@ func (m *KatharaModule) GenerateParameters(cfg *types.Config, nm *types.NetworkM
 			continue
 		}
 		for _, iface := range node.Interfaces {
-			if iface.Connection == nil {
+			// Only the interfaces that reach lab.conf. The line that puts one
+			// there is RequiredLink, so an interface on a virtual connection -
+			// one that models a relationship rather than a wire - never gets a
+			// line, and Kathara never names it. The ethN rule exists because
+			// Kathara names an interface after its index in that line, so it has
+			// nothing to say about an interface that has none.
+			if iface.Connection == nil || iface.Connection.IsVirtual() {
 				continue
 			}
 			cd := iface.Connection.Name
@@ -436,17 +442,6 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 		return err
 	}
 
-	// The interface prefix is dictated by Kathara, so a topology that asks for
-	// another one is telling the module to do something it cannot. Say so
-	// rather than overwrite the request without a word.
-	for _, ic := range cfg.InterfaceClasses {
-		if ic.Prefix != "" && ic.Prefix != InterfaceNamePrefix {
-			return fmt.Errorf(
-				"interfaceclass %s sets prefix %q, but Kathara names a device's interfaces %sN "+
-					"after their index in lab.conf and offers no way to change that",
-				ic.Name, ic.Prefix, InterfaceNamePrefix)
-		}
-	}
 
 	for _, node := range nm.Nodes {
 		if node.IsVirtual() || cfg.IsSwitchNode(node) {
@@ -463,7 +458,9 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 		seen := map[int]bool{}
 		count := 0
 		for _, iface := range node.Interfaces {
-			if iface.IsVirtual() || iface.Connection == nil {
+			// The same set GenerateParameters walks: the interfaces that get a
+			// line in lab.conf, and so a name Kathara decides.
+			if iface.Connection == nil || iface.Connection.IsVirtual() {
 				continue
 			}
 			index, err := interfaceIndex(iface)
