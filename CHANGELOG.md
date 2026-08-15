@@ -37,11 +37,12 @@ further down.
   reading: a class setting `virtual: true` without also naming a `deploy` is an
   error, so a 0.7.x topology stops on the first one. That error is a migration
   aid and is removed in 0.9.0.
-- **The Kathara module owns `<device>.startup`.** The pattern documented in
-  0.7.0 — a topology declaring the file itself with `name_suffix: .startup` and
-  `output: root` — still works on its own, but collides once the Kathara module
-  is loaded. Drop that declaration and write a `startup` template
-  instead, as containerlab and TiNET already expect.
+- **A topology that declares `<device>.startup` itself stops building once the
+  Kathara module is loaded.** 0.7.0 documented writing that file by hand, with
+  `name_suffix: .startup` and `output: root`; the module now declares it, and two
+  definitions writing one file is an error. **What to do:** drop the declaration
+  and write a `startup` template instead, the same one containerlab and TiNET
+  already read.
 - **Most topologies move from `example/` to `topologies/`.** The directory held
   two different things: networks worth deploying, and small inputs written to
   demonstrate a piece of notation. Both are read by users and both are
@@ -216,8 +217,8 @@ further down.
 
   `dot2net files -v` lists the delivery beside each file. The plain listing
   stays a list of paths, since `dot2net clean` reads it.
-- **`teardown`**, a second name dot2net owns: commands to run in a node while it
-  is still up, before the lab is destroyed. Dumping state, flushing what a
+- **`teardown` on a node class**: commands to run in a node while it is still
+  up, before the lab is destroyed. Dumping state, flushing what a
   program buffers, putting a mounted file's permissions back. Written the same
   way as `startup`, and merged the same way when a module has something to add.
 - **`collect` on a node class**: files to copy out of a node before the lab is
@@ -307,9 +308,9 @@ further down.
 - **`executable` on a file definition** writes the file with the executable bit
   set. The generated entry scripts and `setup-bridges.sh` use it: a script that
   has to be `chmod`'ed before it works is one that will be run wrong once.
-- **A module can add to a node's `startup`, and a topology reaches modules only
-  through `use:`.** Which names cross between a module and a topology is now a
-  short list rather than a growing one:
+- **Write a node's `startup` once and every platform runs it, including what a
+  module adds to it.** Which names cross between a module and a topology is now a
+  short list rather than a growing one, and `use:` is the only way in:
 
   - the **class names and value names a module publishes** — you write
     them in `use:` and `values:`
@@ -432,11 +433,11 @@ further down.
   never applied contributes nothing, so regenerating the expected files silently
   freezes its absence — which is how a bundled topology shipped with segment
   classes that never attached.
-- **`LabelOwner.AddModuleClassLabels`**: lets a module attach a class label at the
-  module tier. A module classifying objects through the `ObjectClassifier` hook
-  had only `AddClassLabels`, which files labels as user-written — so a module's
-  class would collide with the user's instead of losing to it, contrary to the
-  rule that module-provided classes are the weakest.
+- **A class a module attaches now loses to one you wrote, instead of colliding
+  with it** (`LabelOwner.AddModuleClassLabels`, for module authors). A module
+  classifying objects through the `ObjectClassifier` hook had only
+  `AddClassLabels`, which files labels as user-written, contrary to the rule that
+  module-provided classes are the weakest.
 - **`module_config`**: a section per module, for settings that belong to one
   platform rather than to the topology.
 
