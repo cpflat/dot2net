@@ -398,7 +398,11 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	// The endpoint names come from GenerateParameters; rendering lives in the
 	// template so that the list can be aggregated by whichever object owns the
 	// output file (see the network class below).
-	ct5 := &types.ConfigTemplate{Name: "clab_link", NamespaceFormat: ClabLinkFormatName}
+	// RequiredLink: the entry asks containerlab to lay a wire, so it is written
+	// only where the platform lays one. A connection the generated configuration
+	// builds instead - a tunnel between two ends that already exist - reaches the
+	// same pair of nodes without any wiring for containerlab to do.
+	ct5 := &types.ConfigTemplate{Name: "clab_link", NamespaceFormat: ClabLinkFormatName, RequiredLink: true}
 	bytes, err = templates.ReadFile("templates/topo.yaml.connection_clab_link")
 	if err != nil {
 		return err
@@ -530,7 +534,7 @@ func (m *ClabModule) generateFilemountParams(
 	}
 
 	// Skip virtual nodes
-	if node.IsVirtual() {
+	if !node.IsMaterialised() {
 		return nil, nil
 	}
 
@@ -629,7 +633,7 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 	}
 	if opts.ManagementNetwork {
 		for _, node := range nm.Nodes {
-			if node.IsVirtual() || cfg.IsSwitchNode(node) {
+			if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
 				continue
 			}
 			for _, iface := range node.Interfaces {
@@ -672,7 +676,7 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 
 	// parameter {{ .image }} and {{ .kind }}
 	for _, node := range nm.Nodes {
-		if node.IsVirtual() {
+		if !node.IsMaterialised() {
 			continue
 		}
 		// A switch node is not a container, so it has no image. Which kinds go
@@ -727,7 +731,7 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 	if !ok {
 		return nil, fmt.Errorf("copyfiles generator requires Node target, got %T", target)
 	}
-	if node.IsVirtual() {
+	if !node.IsMaterialised() {
 		return nil, nil
 	}
 	copies, err := types.StagedCopies(cfg, node)

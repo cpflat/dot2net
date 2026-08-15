@@ -1027,9 +1027,17 @@ func prepareOutputPath(dirname, filename string) (string, error) {
 
 func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.ConfigTemplate, verbose bool) (string, bool) {
 	if lo, ok := ns.(types.LabelOwner); ok {
-		// check virtual object or not if ns is LabelOwner
+		// Two separate reasons to write nothing. virtual is the author asking
+		// for this object's configuration to be withheld; an object that is not
+		// materialised has nothing for a configuration to describe. The second
+		// reaches further than the object it is written on, because a node
+		// nobody deploys leaves its interfaces and the links to them with
+		// nothing at their end either - resolveDeployForms works that out.
 		if lo.IsVirtual() {
 			return "virtual object", false
+		}
+		if !lo.IsMaterialised() {
+			return "object is not materialised", false
 		}
 
 		// check classname meets if ns is LabelOwner
@@ -1069,37 +1077,33 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 		}
 	}
 
+	// A wiring template tells the platform to lay a link, so it is written only
+	// where the platform lays one. The connection is what it describes whichever
+	// object it is scoped to: containerlab writes one entry per connection,
+	// TiNET lists interfaces per node, and both are asking for the same wire.
+	//
+	// Nothing here has to look at the nodes at either end. A connection reaching
+	// a node nobody deploys is not materialised, and neither is an interface on
+	// it, so both were turned away above.
+	if configTemplate.RequiredLink {
+		var conn *types.Connection
+		switch o := ns.(type) {
+		case *types.Interface:
+			conn = o.Connection
+		case *types.Connection:
+			conn = o
+		}
+		if conn != nil && conn.DeployForm() != types.DeployLink {
+			return "connection is not an actual link", false
+		}
+	}
+
 	// check optional conditions
 	switch o := ns.(type) {
 	case *types.Interface:
 		// check if parent node class of the interface matches
 		if !configTemplate.NodeClassCheck(o.Node) {
 			return "parent node class condition", false
-		}
-		// A wiring template needs the connection to be an actual link. The template
-		// is interface-scoped (TiNET lists interfaces per node) but describes the
-		// connection, so the connection's own virtuality has to be checked here.
-		if configTemplate.RequiredLink && o.Connection != nil && o.Connection.IsVirtual() {
-			return "connection is not an actual link", false
-		}
-		// check if connection involves virtual nodes
-		if o.Connection != nil {
-			if o.Connection.Src != nil && o.Connection.Src.Node != nil && o.Connection.Src.Node.IsVirtual() {
-				return "connection from virtual node", false
-			}
-			if o.Connection.Dst != nil && o.Connection.Dst.Node != nil && o.Connection.Dst.Node.IsVirtual() {
-				return "connection to virtual node", false
-			}
-		}
-	case *types.Connection:
-		// check if connection involves virtual nodes.
-		// Same rule as the *types.Interface case above: a connection to an object
-		// that is not materialised must not appear in generated output.
-		if o.Src != nil && o.Src.Node != nil && o.Src.Node.IsVirtual() {
-			return "connection from virtual node", false
-		}
-		if o.Dst != nil && o.Dst.Node != nil && o.Dst.Node.IsVirtual() {
-			return "connection to virtual node", false
 		}
 	case *types.Neighbor:
 		// check if self node class of neighbor object match

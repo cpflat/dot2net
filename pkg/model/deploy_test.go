@@ -173,31 +173,38 @@ nodeclass:
 	}
 }
 
-// TestVirtualIsShorthandForDeployNone checks the v0.7 spelling still resolves,
-// and that a class contradicting itself is caught.
-func TestVirtualIsShorthandForDeployNone(t *testing.T) {
-	got, err := resolveDeployFor(t, `
-name: deploy_virtual
+// TestVirtualNoLongerDecidesDeployment covers the change of meaning in v0.8.
+// virtual withholds an object's configuration and says nothing about whether it
+// is deployed, so a class written for v0.7 - where one flag answered both - is
+// refused rather than read the old way or the new way silently.
+func TestVirtualNoLongerDecidesDeployment(t *testing.T) {
+	_, err := resolveDeployFor(t, `
+name: deploy_virtual_alone
 nodeclass:
   - name: vrouter
     virtual: true
 `, `graph { v1 [class="vrouter"]; r1; v1 -- r1; }`, "v1")
-	if err != nil {
-		t.Fatalf("checkClasses: %v", err)
+	if err == nil {
+		t.Fatal("virtual: true without deploy must be refused: it meant deploy: none in v0.7")
 	}
-	if got != types.DeployNone {
-		t.Errorf("deploy = %q, want %q (virtual: true is the released spelling)", got, types.DeployNone)
+	if !strings.Contains(err.Error(), types.DeployNone) {
+		t.Errorf("the error must name the form to write instead, got: %v", err)
 	}
 
-	_, err = resolveDeployFor(t, `
-name: deploy_virtual_contradiction
+	// The pair the old spelling could not express: a node that is deployed like
+	// any other, whose configuration dot2net does not write.
+	got, err := resolveDeployFor(t, `
+name: deploy_virtual_with_form
 nodeclass:
-  - name: confused
+  - name: unwritten
     virtual: true
-    deploy: platform
-`, `graph { sw1 [class="confused"]; r1; sw1 -- r1; }`, "sw1")
-	if err == nil {
-		t.Fatal("virtual: true together with deploy: platform in one class must be an error")
+    deploy: container
+`, `graph { r1 [class="unwritten"]; r2; r1 -- r2; }`, "r1")
+	if err != nil {
+		t.Fatalf("virtual alongside a deployment form must be allowed, got: %v", err)
+	}
+	if got != types.DeployContainer {
+		t.Errorf("deploy = %q, want %q", got, types.DeployContainer)
 	}
 }
 

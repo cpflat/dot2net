@@ -63,7 +63,7 @@ func generatedFiles(cfg *types.Config, nm *types.NetworkModel) ([]generatedFile,
 			}
 		case types.ClassTypeNode, "":
 			for _, node := range nm.Nodes {
-				if node.IsVirtual() || !contains(node.FilesToGenerate(cfg), fileDef.Name) {
+				if !node.IsMaterialised() || !contains(node.FilesToGenerate(cfg), fileDef.Name) {
 					continue
 				}
 				outputPath, err := node.OutputPath(cfg, fileDef)
@@ -98,7 +98,7 @@ func checkCopyTargets(cfg *types.Config, nm *types.NetworkModel) error {
 	}
 
 	for _, node := range nm.Nodes {
-		if node.IsVirtual() {
+		if !node.IsMaterialised() {
 			continue
 		}
 		generated := make(map[string]bool)

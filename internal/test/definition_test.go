@@ -262,6 +262,7 @@ name: valid_test
 nodeclass:
   - name: class1
     virtual: true
+    deploy: container
   - name: class2
     virtual: false
 `,

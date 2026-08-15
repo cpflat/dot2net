@@ -110,14 +110,63 @@ const ClassTypeValueHeader string = "value"
 // See doc/active/CLASS_SEMANTICS.md ch.3 for the naming survey.
 const WorkerGroupClassName string = "worker"
 
-// Deployment forms a node class can ask for through NodeClass.Deploy. They
-// answer what the platform puts in place for the node: a container of its own,
-// a facility the platform provides itself, or nothing at all.
+// Deployment forms a class can ask for through its Deploy field. They all
+// answer one question - what is this object materialised as - and the set a
+// class may choose from is the set of forms that object can take. That is why
+// the sets differ: a node has two ways of being put in place by the platform, a
+// link has one, and only a wire has the option of being built by the
+// configuration that runs inside the nodes rather than by the platform.
 const (
-	DeployContainer string = "container" // a container of its own (the fallback)
-	DeployPlatform  string = "platform"  // provided by the platform itself
-	DeployNone      string = "none"      // nothing is deployed; parameters only
+	DeployContainer string = "container" // a container of its own (a node's fallback)
+	DeployPlatform  string = "platform"  // a facility the platform provides itself
+	DeployLink      string = "link"      // wiring the platform lays: a link, or an end of one
+	DeployLogical   string = "logical"   // a logical device or link the generated configuration builds
+	DeployNone      string = "none"      // nothing is materialised; parameters only
 )
+
+// A node is materialised by the platform or not at all. It has no DeployLogical
+// because configuration runs inside a node, and there is nothing inside a node
+// for it to build the node from.
+var nodeDeployForms = []string{DeployContainer, DeployPlatform, DeployNone}
+
+// An interface or a connection has one platform form, because the only way the
+// platform puts wiring in place is by laying a link. DeployLogical covers what
+// the configuration builds instead: a bridge, a dummy, a VRF, a GRE or VXLAN
+// tunnel. See doc/ROADMAP.md TODO 85 for why the value is named after the shape
+// it takes rather than after what builds it.
+var wiringDeployForms = []string{DeployLink, DeployLogical, DeployNone}
+
+// deployClaim validates one class's deployment form and returns what it claims,
+// or "" when it claims nothing. Validation lives here so that a typo is reported
+// against the class that contains it.
+//
+// virtual no longer names a deployment form. It says the object's own
+// configuration is not written, which is a different question from what puts the
+// object in place, and the two are set independently. A class written for v0.7,
+// where one flag answered both, is rejected rather than guessed at.
+func deployClaimOf(kind, className, deploy string, virtual bool, forms []string) (string, error) {
+	if deploy != "" {
+		known := false
+		for _, form := range forms {
+			if deploy == form {
+				known = true
+				break
+			}
+		}
+		if !known {
+			return "", fmt.Errorf("%s %s: unknown deploy value %q (expected %s)",
+				kind, className, deploy, strings.Join(forms, ", "))
+		}
+	}
+	if virtual && deploy == "" {
+		return "", fmt.Errorf(
+			"%s %s: virtual: true no longer says the object is not deployed, only that its own "+
+				"configuration is not written. Write deploy: %s for what virtual meant in v0.7, or "+
+				"name the form it takes (%s) if the configuration really is all you meant to suppress",
+			kind, className, DeployNone, strings.Join(forms, ", "))
+	}
+	return deploy, nil
+}
 
 // Default format names
 const DefaultFormatPhaseFormatName = "DefaultFormatPhaseFormat"
@@ -455,62 +504,104 @@ func (cfg *Config) GetValidNodeClasses(given []string) *ParsedLabels {
 }
 
 // deployClaim returns the deployment form this class asks for, or "" when it
-// asks for nothing. It is also where the value is validated, so that a typo is
-// reported against the class that contains it.
+// asks for nothing.
 func (nc *NodeClass) deployClaim() (string, error) {
-	switch nc.Deploy {
-	case "", DeployContainer, DeployPlatform, DeployNone:
-	default:
-		return "", fmt.Errorf("nodeclass %s: unknown deploy value %q (expected %s, %s or %s)",
-			nc.Name, nc.Deploy, DeployContainer, DeployPlatform, DeployNone)
-	}
-	if nc.Virtual {
-		if nc.Deploy != "" && nc.Deploy != DeployNone {
-			return "", fmt.Errorf("nodeclass %s: virtual: true means deploy: %s, which contradicts deploy: %s",
-				nc.Name, DeployNone, nc.Deploy)
-		}
-		return DeployNone, nil
-	}
-	return nc.Deploy, nil
+	return deployClaimOf("nodeclass", nc.Name, nc.Deploy, nc.Virtual, nodeDeployForms)
 }
 
-// ResolveDeploy determines how a node is deployed from the classes it carries.
+func (ic *InterfaceClass) deployClaim() (string, error) {
+	return deployClaimOf("interfaceclass", ic.Name, ic.Deploy, ic.Virtual, wiringDeployForms)
+}
+
+func (cc *ConnectionClass) deployClaim() (string, error) {
+	return deployClaimOf("connectionclass", cc.Name, cc.Deploy, cc.Virtual, wiringDeployForms)
+}
+
+// resolveDeploy weighs the deployment claims of the classes an object carries.
 // Claims are weighed by class tier, so a default coming from a module or from
 // the base class loses to anything the user wrote; two classes of the same tier
-// asking for different forms is a conflict only the user can resolve. A node no
-// class speaks for is a DeployContainer.
+// asking for different forms is a conflict only the user can resolve. An object
+// no class speaks for takes the given fallback.
 //
 // Tiers are compared rather than relying on the order of ClassLabels, because
 // classes pulled in through use: are appended after the ones that named them
 // and would otherwise be weighed as if they came last.
 //
+// claimOf reports the form the named class asks for; a name it does not know is
+// answered with ok false, since the labels of an object name classes of more
+// than one kind.
+func resolveDeploy(lo LabelOwner, fallback string, claimOf func(string) (string, bool, error)) (string, error) {
+	deploy := fallback
+	claimed := ClassTierModule - 1
+	for _, name := range lo.ClassLabels() {
+		claim, ok, err := claimOf(name)
+		if err != nil {
+			return "", err
+		}
+		if !ok || claim == "" {
+			continue
+		}
+		switch tier := lo.ClassTier(name); {
+		case tier > claimed:
+			deploy, claimed = claim, tier
+		case tier == claimed && claim != deploy:
+			return "", fmt.Errorf("%s: classes of the same precedence ask to deploy it as %s and as %s",
+				lo.StringForMessage(), deploy, claim)
+		}
+	}
+	return deploy, nil
+}
+
+// ResolveDeploy determines what a node is materialised as. A node no class
+// speaks for is a DeployContainer.
+//
 // The result comes from the labels alone so that a module can ask before
 // SetClasses has run: ClassifyObjects needs it to pick which node class to
 // attach.
 func (cfg *Config) ResolveDeploy(n *Node) (string, error) {
-	deploy := DeployContainer
-	claimed := ClassTierModule - 1
-	for _, name := range n.ClassLabels() {
+	return resolveDeploy(n, DeployContainer, func(name string) (string, bool, error) {
 		nc, ok := cfg.NodeClassByName(name)
 		if !ok {
-			continue
+			return "", false, nil
 		}
 		claim, err := nc.deployClaim()
-		if err != nil {
-			return "", err
+		return claim, true, err
+	})
+}
+
+// ResolveConnectionDeploy determines what a connection is materialised as. An
+// edge in the graph is a wire the platform lays unless a class says otherwise.
+func (cfg *Config) ResolveConnectionDeploy(conn *Connection) (string, error) {
+	return resolveDeploy(conn, DeployLink, func(name string) (string, bool, error) {
+		cc, ok := cfg.ConnectionClassByName(name)
+		if !ok {
+			return "", false, nil
 		}
-		if claim == "" {
-			continue
+		claim, err := cc.deployClaim()
+		return claim, true, err
+	})
+}
+
+// ResolveInterfaceDeployClaim reports the form the interface's own classes ask
+// for, or "" when they ask for nothing.
+//
+// An interface that sits on a connection takes the connection's form and is not
+// asked: the two describe one event seen from either side, since the platform
+// that lays a wire creates both of its ends and a tunnel the configuration
+// builds has ends the configuration builds too. Writing the form on an
+// interface class is therefore for interfaces that have no connection - the
+// management interface the platform supplies on its own, and the devices a node
+// builds for itself. Whether the claim agrees with the connection is checked
+// where both are known.
+func (cfg *Config) ResolveInterfaceDeployClaim(iface *Interface) (string, error) {
+	return resolveDeploy(iface, "", func(name string) (string, bool, error) {
+		ic, ok := cfg.InterfaceClassByName(name)
+		if !ok {
+			return "", false, nil
 		}
-		switch tier := n.ClassTier(name); {
-		case tier > claimed:
-			deploy, claimed = claim, tier
-		case tier == claimed && claim != deploy:
-			return "", fmt.Errorf("node %s: classes of the same precedence ask to deploy it as %s and as %s",
-				n.Name, deploy, claim)
-		}
-	}
-	return deploy, nil
+		claim, err := ic.deployClaim()
+		return claim, true, err
+	})
 }
 
 // IsSwitchNode reports whether the node stands for a shared L2 domain that the
@@ -1080,12 +1171,13 @@ type NodeClass struct {
 	// it in through Use, so that a module's defaults still lose to the user.
 	ModuleProvided bool   `yaml:"-" mapstructure:"-"`
 	Name           string `yaml:"name" mapstructure:"name"`
-	// Virtual is the spelling of DeployNone released in v0.7. It stays as a
-	// shorthand: virtual: true claims deploy: none, while virtual: false claims
-	// nothing, which is how the boolean has always behaved.
+	// Virtual withholds the configuration of the object carrying this class. It
+	// says nothing about whether the object is deployed - Deploy answers that -
+	// so a virtual node still gets its container unless a class says otherwise.
+	// virtual: false claims nothing, which is how the boolean has always behaved.
 	Virtual bool `yaml:"virtual" mapstructure:"virtual"`
-	// Deploy states what the platform puts in place for a node carrying this
-	// class: DeployContainer, DeployPlatform or DeployNone.
+	// Deploy states what a node carrying this class is materialised as:
+	// DeployContainer, DeployPlatform or DeployNone.
 	//
 	// An empty value is not a claim. A class that stays silent leaves the choice
 	// to the other classes on the node, and a node no class speaks for is a
@@ -1129,9 +1221,19 @@ type InterfaceClass struct {
 	// ModuleProvided marks a class registered by a module rather than written
 	// by the user. It decides the tier a class keeps when another class pulls
 	// it in through Use, so that a module's defaults still lose to the user.
-	ModuleProvided  bool              `yaml:"-" mapstructure:"-"`
-	Name            string            `yaml:"name" mapstructure:"name"`
-	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
+	ModuleProvided bool   `yaml:"-" mapstructure:"-"`
+	Name           string `yaml:"name" mapstructure:"name"`
+	// Virtual withholds this interface's own configuration. It says nothing
+	// about whether the interface exists: an interface can be wired and still
+	// have nothing written for it.
+	Virtual bool `yaml:"virtual" mapstructure:"virtual"`
+	// Deploy states what an interface carrying this class is materialised as:
+	// DeployLink (an end of wiring the platform lays), DeployLogical (a device
+	// the generated configuration builds inside the node) or DeployNone.
+	//
+	// An empty value is not a claim. An interface no class speaks for takes the
+	// form of its connection, so that the usual case needs nothing written.
+	Deploy          string            `yaml:"deploy" mapstructure:"deploy"`
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Layers          []string          `yaml:"layers,flow" mapstructure:"layers,flow"` // Interface connection is limited to specified layers
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies
@@ -1159,9 +1261,19 @@ type ConnectionClass struct {
 	// ModuleProvided marks a class registered by a module rather than written
 	// by the user. It decides the tier a class keeps when another class pulls
 	// it in through Use, so that a module's defaults still lose to the user.
-	ModuleProvided  bool              `yaml:"-" mapstructure:"-"`
-	Name            string            `yaml:"name" mapstructure:"name"`
-	Virtual         bool              `yaml:"virtual" mapstructure:"virtual"`
+	ModuleProvided bool   `yaml:"-" mapstructure:"-"`
+	Name           string `yaml:"name" mapstructure:"name"`
+	// Virtual withholds this connection's own configuration. Whether the
+	// platform lays a wire for it is Deploy's answer, not this one.
+	Virtual bool `yaml:"virtual" mapstructure:"virtual"`
+	// Deploy states what a connection carrying this class is materialised as:
+	// DeployLink (a wire the platform lays), DeployLogical (a tunnel or overlay
+	// the generated configuration builds, which reaches the same two ends
+	// without the platform wiring anything) or DeployNone.
+	//
+	// An empty value is not a claim, and a connection no class speaks for is a
+	// DeployLink: an edge in the graph is a wire unless something says otherwise.
+	Deploy          string            `yaml:"deploy" mapstructure:"deploy"`
 	IPPolicy        []string          `yaml:"policy,flow" mapstructure:"policy,flow"`
 	Layers          []string          `yaml:"layers,flow" mapstructure:"layers,flow"` // Connection is limited to specified layers
 	Parameters      []string          `yaml:"params,flow" mapstructure:"params,flow"` // Parameter policies

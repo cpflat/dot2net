@@ -74,6 +74,13 @@ func BuildNetworkModelForFileList(cfg *types.Config, d *Diagram) (nm *types.Netw
 		return nil, err
 	}
 
+	// Before anything asks whether an object is there. Which files are written
+	// depends on it, so the file list has to settle it as well.
+	err = resolveDeployForms(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
 	err = checkOutputFilesUnique(cfg, nm)
 	if err != nil {
 		return nil, err
@@ -130,6 +137,13 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 	}
 
 	err = checkClasses(cfg, nm)
+	if err != nil {
+		return nil, err
+	}
+
+	// Before anything asks whether an object is there. Which files are written
+	// depends on it, so the file list has to settle it as well.
+	err = resolveDeployForms(cfg, nm)
 	if err != nil {
 		return nil, err
 	}
@@ -348,6 +362,99 @@ func buildSkeleton(cfg *types.Config, d *Diagram) (*types.NetworkModel, error) {
 	}
 
 	return nm, nil
+}
+
+// resolveDeployForms settles what every object is materialised as, once all the
+// classes have been applied. It is a pass of its own because the answer for one
+// object depends on the answers around it: a wire needs something at both of its
+// ends, and an end of a wire is there because the wire is.
+//
+// That propagation used to be written into the virtual flag, where it could not
+// be told apart from an author asking for a configuration to be withheld. The
+// two questions are separate now - see doc/ROADMAP.md TODO 85.
+func resolveDeployForms(cfg *types.Config, nm *types.NetworkModel) error {
+	for _, node := range nm.Nodes {
+		form, err := cfg.ResolveDeploy(node)
+		if err != nil {
+			return err
+		}
+		node.SetDeployForm(form)
+	}
+
+	for _, conn := range nm.Connections {
+		form, err := cfg.ResolveConnectionDeploy(conn)
+		if err != nil {
+			return err
+		}
+		// Nothing reaches between ends that are not there, whoever would have
+		// built it. This is what keeps the far end of a link to a node nobody
+		// deploys from describing an interface that never appears.
+		if form != types.DeployNone && !connectionEndsMaterialised(conn) {
+			form = types.DeployNone
+		}
+		conn.SetDeployForm(form)
+	}
+
+	for _, node := range nm.Nodes {
+		for _, iface := range node.Interfaces {
+			form, err := interfaceDeployForm(cfg, iface)
+			if err != nil {
+				return err
+			}
+			iface.SetDeployForm(form)
+		}
+	}
+
+	return nil
+}
+
+func connectionEndsMaterialised(conn *types.Connection) bool {
+	for _, end := range []*types.Interface{conn.Src, conn.Dst} {
+		if end == nil || end.Node == nil {
+			continue
+		}
+		if !end.Node.IsMaterialised() {
+			return false
+		}
+	}
+	return true
+}
+
+// interfaceDeployForm works out what one interface is materialised as. An
+// interface on a connection takes the connection's form, so the usual case needs
+// nothing written; a class may only say so for an interface that has no
+// connection to take it from.
+func interfaceDeployForm(cfg *types.Config, iface *types.Interface) (string, error) {
+	claim, err := cfg.ResolveInterfaceDeployClaim(iface)
+	if err != nil {
+		return "", err
+	}
+
+	// A node that is not there has no interfaces. This overrides whatever the
+	// interface's own classes ask for rather than reporting a conflict: the
+	// author's answer is already recorded one level up, on the node.
+	if !iface.Node.IsMaterialised() {
+		return types.DeployNone, nil
+	}
+
+	if iface.Connection == nil {
+		if claim == "" {
+			// A management interface: the platform supplies it without an edge
+			// ever being written for it.
+			return types.DeployLink, nil
+		}
+		return claim, nil
+	}
+
+	form := iface.Connection.DeployForm()
+	if claim != "" && claim != form {
+		return "", fmt.Errorf(
+			"interface %s is an end of connection %s, which is %s, but its interface classes ask "+
+				"for %s. An interface takes the form of its connection; write the form on the "+
+				"connection class instead, or leave it off the interface class",
+			iface.StringForMessage(), iface.Connection.Name, form, claim)
+	}
+	return form, nil
 }
 
 func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {

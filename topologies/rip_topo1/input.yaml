@@ -89,7 +89,7 @@ nodeclass:
         template:
           - "{{ .interfaces_static_route }}"
   - name: vrouter
-    virtual: true
+    deploy: none
     interface_policy: [ip]
 
 interfaceclass:
@@ -144,6 +144,6 @@ interfaceclass:
             template:
               - "ip route {{ .n_node_stubnet }} {{ .n_ip_addr }}"
   - name: vlink
-    virtual: true
+    deploy: none
 
 

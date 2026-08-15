@@ -384,7 +384,7 @@ func (m *TinetModule) generateFilemountParams(
 	}
 
 	// Skip virtual nodes
-	if node.IsVirtual() {
+	if !node.IsMaterialised() {
 		return nil, nil
 	}
 
@@ -545,7 +545,7 @@ func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 	for _, node := range nm.Nodes {
 		// A switch is realized by TiNET itself as an OVS bridge, so it has no
 		// image to run.
-		if node.IsVirtual() || cfg.IsSwitchNode(node) {
+		if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
 			continue
 		}
 		if _, err := node.GetParamValue(TinetImageParamName); err != nil {
@@ -598,7 +598,7 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 	if !ok {
 		return nil, fmt.Errorf("copyfiles generator requires Node target, got %T", target)
 	}
-	if node.IsVirtual() {
+	if !node.IsMaterialised() {
 		return nil, nil
 	}
 	copies, err := types.StagedCopies(cfg, node)

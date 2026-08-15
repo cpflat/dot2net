@@ -99,7 +99,7 @@ nodeclass:
         sort_group: staticd.conf
         template: []
   - name: vrouter
-    virtual: true
+    deploy: none
     params: [lo]
     interface_policy: [ip]
 
@@ -137,5 +137,5 @@ interfaceclass:
               - "ipv6 route {{ .n_node_stubnet }} {{ .n_ip_addr }}"
               - "!"
   - name: vlink
-    virtual: true
+    deploy: none
 

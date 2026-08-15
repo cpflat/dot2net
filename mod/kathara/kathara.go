@@ -388,13 +388,11 @@ func (m *KatharaModule) GenerateParameters(cfg *types.Config, nm *types.NetworkM
 			continue
 		}
 		for _, iface := range node.Interfaces {
-			// Only the interfaces that reach lab.conf. The line that puts one
-			// there is RequiredLink, so an interface on a virtual connection -
-			// one that models a relationship rather than a wire - never gets a
-			// line, and Kathara never names it. The ethN rule exists because
-			// Kathara names an interface after its index in that line, so it has
-			// nothing to say about an interface that has none.
-			if iface.Connection == nil || iface.Connection.IsVirtual() {
+			// Only the interfaces that reach lab.conf: the ones the platform
+			// wires. Kathara names an interface after its index in that line, so
+			// it has nothing to say about an interface it never lists - a bridge
+			// the node builds for itself keeps whatever name the topology chose.
+			if iface.DeployForm() != types.DeployLink || iface.Connection == nil {
 				continue
 			}
 			cd := iface.Connection.Name
@@ -444,7 +442,7 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 
 
 	for _, node := range nm.Nodes {
-		if node.IsVirtual() || cfg.IsSwitchNode(node) {
+		if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
 			continue
 		}
 		if !deviceNamePattern.MatchString(node.Name) {
@@ -460,7 +458,7 @@ func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.Net
 		for _, iface := range node.Interfaces {
 			// The same set GenerateParameters walks: the interfaces that get a
 			// line in lab.conf, and so a name Kathara decides.
-			if iface.Connection == nil || iface.Connection.IsVirtual() {
+			if iface.DeployForm() != types.DeployLink {
 				continue
 			}
 			index, err := interfaceIndex(iface)
@@ -560,7 +558,7 @@ func (m *KatharaModule) generateFilemountParams(
 	if !ok {
 		return nil, fmt.Errorf("filemounts generator requires Node target, got %T", target)
 	}
-	if node.IsVirtual() || cfg.IsSwitchNode(node) {
+	if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
 		return nil, nil
 	}
 
@@ -643,7 +641,7 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 	if !ok {
 		return nil, fmt.Errorf("copyfiles generator requires Node target, got %T", target)
 	}
-	if node.IsVirtual() || cfg.IsSwitchNode(node) {
+	if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
 		return nil, nil
 	}
 	copies, err := types.StagedCopies(cfg, node)
@@ -676,7 +674,7 @@ func checkMountDirsUsed(cfg *types.Config, nm *types.NetworkModel) error {
 
 	used := make(map[string]bool, len(opts.MountDirs))
 	for _, node := range nm.Nodes {
-		if node.IsVirtual() || cfg.IsSwitchNode(node) {
+		if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
 			continue
 		}
 		generated := make(map[string]bool)

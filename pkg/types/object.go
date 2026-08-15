@@ -316,6 +316,10 @@ type LabelOwner interface {
 	SetVirtual(bool)
 	IsVirtual() bool
 
+	SetDeployForm(string)
+	DeployForm() string
+	IsMaterialised() bool
+
 	ClassDefinition(cfg *Config, cls string) (interface{}, error)
 
 	ObjectInstance
@@ -355,7 +359,13 @@ type ParsedLabels struct {
 	// parallel to Classes because Classes is rebuilt in several places and skips
 	// entries that cannot be resolved, which would desynchronise a parallel slice.
 	classTiers map[string]int
-	virtual    bool // virtual object flag
+	// virtual withholds the object's own configuration. It says nothing about
+	// whether the object exists; deploy answers that.
+	virtual bool
+	// deploy is what the object is materialised as, resolved once the classes
+	// and the objects around it have been weighed. Empty for a group, which
+	// nothing materialises.
+	deploy string
 }
 
 func newParsedLabels() *ParsedLabels {
@@ -543,6 +553,29 @@ func (l *ParsedLabels) SetVirtual(flag bool) {
 
 func (l *ParsedLabels) IsVirtual() bool {
 	return l.virtual
+}
+
+// SetDeployForm records what the object is materialised as, once the classes it
+// carries have been weighed and the forms of the objects around it have been
+// taken into account. resolveDeployForms does that, and nothing else writes it.
+func (l *ParsedLabels) SetDeployForm(form string) {
+	l.deploy = form
+}
+
+// DeployForm reports what the object is materialised as: one of the Deploy
+// constants, or "" for an object the question does not apply to. A group is the
+// only such object - it is a scope, and neither the platform nor the generated
+// configuration puts anything in place for one.
+func (l *ParsedLabels) DeployForm() string {
+	return l.deploy
+}
+
+// IsMaterialised reports whether anything puts this object in place. It is the
+// question virtual used to be asked to answer, and the two have been separate
+// since v0.8: virtual withholds an object's configuration, while this says
+// whether the object is there at all.
+func (l *ParsedLabels) IsMaterialised() bool {
+	return l.deploy != DeployNone
 }
 
 // classMemberReferer includes Node, Interface
@@ -1414,14 +1447,12 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 		}
 	})
 
-	// A node nothing is deployed for carries parameters but produces no object
-	// and no configuration, which is what virtual has always meant.
-	deploy, err := cfg.ResolveDeploy(n)
-	if err != nil {
+	// What the node is materialised as is settled once every class has been
+	// applied, by resolveDeployForms, because it also decides the form of the
+	// connections and interfaces around it. Only the value is validated here, so
+	// that a bad one is reported against the node that carries the class.
+	if _, err := cfg.ResolveDeploy(n); err != nil {
 		return err
-	}
-	if deploy == DeployNone {
-		n.SetVirtual(true)
 	}
 
 	// Apply the winning single-valued attributes. Assigning after the loop (rather
@@ -1890,9 +1921,10 @@ func (iface *Interface) SetClasses(cfg *Config, nm *NetworkModel) error {
 	values := newTieredValues()
 	single := newTieredValues()
 
-	// set virtual flag to interfaces of virtual nodes as default
-	iface.SetVirtual(iface.Node.IsVirtual())
-	//iface.Virtual = iface.Node.Virtual
+	// A virtual node no longer makes its interfaces virtual. virtual withholds
+	// the configuration of the object it is written on and nothing more; that
+	// the interfaces of a node nobody deploys are not there either is a fact
+	// about deployment, and resolveDeployForms is where it is worked out.
 
 	// set defaults for interfaces without class
 	iface.NamePrefix = DefaultInterfacePrefix
@@ -3383,7 +3415,9 @@ const CollectDirName = "collected"
 func CollectTargets(cfg *Config, nm *NetworkModel) ([]CollectTarget, error) {
 	var targets []CollectTarget
 	for _, node := range nm.Nodes {
-		if node.IsVirtual() || cfg.IsSwitchNode(node) {
+		// Nothing to bring back from a node that was never put in place, or from
+		// one the platform provides itself: neither has a filesystem of ours.
+		if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
 			continue
 		}
 		for _, cls := range node.GetClasses() {

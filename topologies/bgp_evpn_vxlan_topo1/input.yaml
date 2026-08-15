@@ -124,7 +124,7 @@ connectionclass:
   - name: p
     layers: [provider]
   - name: v
-    virtual: true
+    deploy: logical
 
 interfaceclass:
   - name: all
