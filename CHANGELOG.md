@@ -17,7 +17,7 @@ further down.
   generated files by path has to follow.
 - **Interfaces are named `eth0`, `eth1`, ...** instead of `net0`, `net1`. A
   template naming an interface literally has to be updated.
-- **containerlab nodes get no management network.** A lab that relied on
+- **containerlab nodes get no management network by default.** A lab that relied on
   `clab exec`, the `clab-*` container names, or reachability through the
   management network has to turn it back on with
   `module_config.containerlab.management_network: true`.
@@ -37,12 +37,16 @@ further down.
   reading: a class setting `virtual: true` without also naming a `deploy` is an
   error, so a 0.7.x topology stops on the first one. That error is a migration
   aid and is removed in 0.9.0.
-- **A topology that declares `<device>.startup` itself stops building once the
-  Kathara module is loaded.** 0.7.0 documented writing that file by hand, with
-  `name_suffix: .startup` and `output: root`; the module now declares it, and two
-  definitions writing one file is an error. **What to do:** drop the declaration
-  and write a `startup` template instead, the same one containerlab and TiNET
-  already read.
+- **A topology with its own `file:` entry for `<device>.startup` stops building
+  once the Kathara module is loaded.** Two things share the word: the *file*
+  `<device>.startup`, and the *config template* named `startup` that fills it.
+  0.7.0 documented declaring the file yourself — a `file:` entry with
+  `name_suffix: .startup` and `output: root` — and the Kathara module declares
+  that file now, so both definitions write one file, which is an error.
+  **What to do:** delete the `file:` entry. Keep the commands, moving them into a
+  config template named `startup` if they are not there already; that template is
+  what containerlab puts in `exec:` and TiNET in `cmds:`, so it is written once
+  and runs on all three.
 - **Most topologies move from `example/` to `topologies/`.** The directory held
   two different things: networks worth deploying, and small inputs written to
   demonstrate a piece of notation. Both are read by users and both are
@@ -165,9 +169,9 @@ further down.
   off: a second delivery nobody asked for, running after the device is up. One
   level down, the convention finds nothing.
 
-  A node config template named `startup` becomes `<device>.startup`, the same
-  template containerlab puts in `exec:` and TiNET in `cmds:`. You
-  therefore write the startup commands once and runs on all three.
+  A node config template named `startup` becomes the file `<device>.startup`,
+  from the same template containerlab puts in `exec:` and TiNET in `cmds:`. The
+  startup commands are therefore written once and run on all three.
 
   Verified by deploying `topologies/ospf_simple` with the Kathara module added:
   the OSPF adjacency reaches Full and the routers two hops apart reach each
@@ -504,8 +508,8 @@ further down.
   `module_config.containerlab.management_network` means naming the interfaces
   something else through an interface class `prefix`; dot2net says so while
   generating rather than letting containerlab refuse at deploy time.
-- **containerlab nodes are emitted with `network-mode: none`.** A lab now has
-  only the links its topology describes. The management network containerlab
+- **containerlab nodes are emitted with `network-mode: none` by default.** A lab
+  now has only the links its topology describes. The management network containerlab
   attaches by default is convenient — `clab exec`, `clab-*` names — but it is
   also a second path between every pair of nodes, and a reachability test that
   should have failed can pass through it without anyone noticing. TiNET runs its
