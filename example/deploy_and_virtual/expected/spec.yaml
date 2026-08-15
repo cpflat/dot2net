@@ -1,0 +1,24 @@
+switches:
+  - name: sw
+
+nodes:
+  - name: r1
+    image: nicolaka/netshoot
+    interfaces: [{name: eth0, type: direct, args: stock#eth0}, {name: eth1, type: bridge, args: sw}]
+    mounts: [$PWD/r1/etc/net/net.conf:/etc/net/net.conf]
+  - name: r2
+    image: nicolaka/netshoot
+    interfaces: [{name: eth0, type: bridge, args: sw}]
+    mounts: [$PWD/r2/etc/net/net.conf:/etc/net/net.conf]
+  - name: stock
+    image: nicolaka/netshoot
+    interfaces: [{name: eth0, type: direct, args: r1#eth0}]
+    mounts: [$PWD/stock/etc/net/net.conf:/etc/net/net.conf]
+
+node_configs:
+  - name: r1
+    cmds:
+      - cmd: ip link set lo up
+  - name: r2
+    cmds:
+      - cmd: ip link set lo up

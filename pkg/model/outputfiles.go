@@ -63,7 +63,10 @@ func generatedFiles(cfg *types.Config, nm *types.NetworkModel) ([]generatedFile,
 			}
 		case types.ClassTypeNode, "":
 			for _, node := range nm.Nodes {
-				if !node.IsMaterialised() || !contains(node.FilesToGenerate(cfg), fileDef.Name) {
+				// A node whose configuration is withheld has no configuration
+				// files, so neither the build nor this list has one to name.
+				if !node.IsMaterialised() || node.IsVirtual() ||
+					!contains(node.FilesToGenerate(cfg), fileDef.Name) {
 					continue
 				}
 				outputPath, err := node.OutputPath(cfg, fileDef)

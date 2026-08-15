@@ -1,0 +1,108 @@
+# What each object is materialised as (deploy), and whether dot2net writes its
+# configuration (virtual). The two are separate questions, and this topology
+# writes down every answer to both so that the generated files show the
+# difference.
+#
+# Changing the graph: adding another router to sw, or another link between two
+# routers, needs nothing here. What is tied to the graph is the tunnel - the
+# overlay class is written for a link between two ends that build it themselves,
+# so a second one needs a second pair of tunnel interfaces.
+
+name: deploy_and_virtual
+
+class_policy:
+  interface:
+    default: [addressed]
+
+global:
+  path: local
+
+module_config:
+  kathara:
+    mount_dirs: [/etc/net]
+
+module:
+  - kathara
+  - tinet
+  - containerlab
+
+file:
+  - name: net.conf
+    path: /etc/net/net.conf
+
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+
+nodeclass:
+  # deploy: container is the default and needs no writing. A node of this class
+  # is a container of dot2net's own, configured by it.
+  - name: router
+    values:
+      kind: linux
+      image: nicolaka/netshoot
+    interface_policy: [ip]
+    config:
+      - name: startup
+        template:
+          - "ip link set lo up"
+      - file: net.conf
+        template:
+          - "# {{ .name }}"
+          - "{{ .interfaces_addr }}"
+
+  # deploy: platform - a shared medium the platform provides itself: a bridge on
+  # containerlab, a switches: entry on TiNET, a collision domain on Kathara. It
+  # has no image because it is not a container.
+  - name: switch
+    deploy: platform
+    values:
+      kind: bridge
+
+  # deploy: none - nothing is put in place. It still takes part in addressing,
+  # which is the whole reason for drawing it: the link to it consumes a subnet
+  # and gives r1 an address on that subnet.
+  - name: phantom
+    deploy: none
+
+  # virtual - deployed like any other node, and dot2net writes nothing into it.
+  # For an image that arrives configured, or one another tool configures.
+  - name: unwritten
+    deploy: container
+    virtual: true
+
+interfaceclass:
+  - name: addressed
+    policy: [ip]
+    config:
+      - name: addr
+        template:
+          - "address {{ .name }} {{ .ip_addr }}/{{ .ip_plen }}"
+
+  # An end of the tunnel. deploy: logical is derived from the connection, so it
+  # is not written here; what is written is a name of its own, so that the
+  # numbers the platform's interfaces are named from stay unbroken.
+  - name: tunnel
+    prefix: br
+    config:
+      # The same block name the addressed class uses, so that the node's
+      # aggregation gathers both without knowing which kind it got.
+      - name: addr
+        template:
+          - "bridge {{ .name }}"
+
+  # Wired like any other interface, and silent. The address it was given is
+  # still assigned - virtual withholds the configuration, not the parameters.
+  - name: silent
+    deploy: link
+    virtual: true
+
+connectionclass:
+  # deploy: logical - the platform lays no wire. What reaches the far end is
+  # built by the configuration above, on both of the interfaces this connects.
+  - name: overlay
+    deploy: logical

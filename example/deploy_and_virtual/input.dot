@@ -1,0 +1,23 @@
+digraph {
+	// Every form deploy can take, in one graph. See input.yaml for what each
+	// class asks for, and expected/ for what each one produces.
+	r1[xlabel="router"];
+	r2[xlabel="router"];
+	sw[xlabel="switch"];        // the platform provides this one itself
+	ph[xlabel="phantom"];       // nobody deploys this one
+	stock[xlabel="router,unwritten"];   // deployed, but dot2net writes nothing into it
+
+	r1->sw[dir="none"];
+	r2->sw[dir="none"];
+
+	// A link to a node nobody deploys. It shapes the addressing and nothing else.
+	r1->ph[dir="none"];
+
+	// Not a wire: a tunnel the configuration builds, between two ends that are
+	// real. Both ends get a name of their own so that they take no number from
+	// the run the platform's own interfaces are named from.
+	r1->r2[dir="none", class="overlay", headlabel="tunnel", taillabel="tunnel"];
+
+	// r1's end of this link is wired like any other, and says nothing.
+	r1->stock[dir="none", taillabel="silent"];
+}

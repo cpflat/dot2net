@@ -24,7 +24,9 @@ also pins the behaviour.
 
 Every example here generates for containerlab and TiNET, except the two that
 name no platform at all: `value_class_basic` and `test_blocks_basic` are about
-the notation and stop at the config blocks.
+the notation and stop at the config blocks. `deploy_and_virtual` generates for
+all three, on purpose: what it demonstrates is decided per platform, so seeing
+one of them would not tell you it was right.
 
 One does not generate for Kathara, and says why where its modules are listed:
 `address_reservation` names its own interfaces (up1, dn1), and Kathara derives
@@ -32,6 +34,10 @@ an interface's name from its index in lab.conf.
 
 ## What each one shows
 
+- **deploy_and_virtual** — every form `deploy` can take, and what `virtual`
+  withholds: a switch the platform provides, a node nobody deploys, a tunnel
+  with no wire, a node that is deployed and left unconfigured, and an interface
+  that is wired and silent
 - **switching** — a switch node, and the segments that form around it
 - **address_reservation** — reserving an address so the automatic assignment
   works around it
