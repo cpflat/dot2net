@@ -53,6 +53,15 @@ further down.
   golden-tested, but only the first is worth running, and the shared name kept
   drawing new demonstrations into the same pile. The 13 deployable ones are now
   under `topologies/`; `example/` keeps the ones that demonstrate a notation.
+
+  **Which one to open:** `topologies/` when you want a network to run, or one
+  near yours to copy — the FRR topotests, the TiNET examples and dot2net's own,
+  each generating for the platforms its readme names. `example/` when you want to
+  see what one piece of the notation does; those are deliberately minimal and
+  most configure no routing, so deploying one would show you little. A new
+  topology belongs wherever it will be read from: something worth running goes in
+  `topologies/`, something written to explain a notation goes in `example/`.
+
   Nothing inside a topology changed. **What to do:** update any path that names
   one: `cd example/ospf_simple` becomes `cd topologies/ospf_simple`.
 
@@ -78,22 +87,38 @@ further down.
 
 ### Added
 
-- **One containerlab topology file per machine.** A lab is deployed to a single
-  machine, so when a topology declares worker groups the topology file becomes
-  group-scoped and each machine gets one it can deploy on its own, holding its
-  own nodes and the links with both ends inside it. Bind paths become relative
-  to the machine's directory, since containerlab resolves them against the
-  directory holding the topology file; this requires
-  `global.output_group_class: worker` so that a machine's files sit beside its
-  topology, and says so if they do not. Topologies that declare no placement unit
-  keep the single network-scoped file.
+- **A lab spanning machines gets one deployment file per machine — on all three
+  platforms.** A lab is deployed to a single machine, so when a topology declares
+  `worker` groups the deployment file becomes group-scoped: containerlab gets a
+  `topo.yaml` per machine, TiNET a `spec.yaml`, Kathara a `lab.conf`. Each holds
+  that machine's own nodes and the links with both ends inside it, and each can
+  be deployed on its own. Paths inside it become relative to the machine's
+  directory, which is why this requires `global.output_group_class: worker` so
+  that a machine's files sit beside its deployment file; dot2net says so if they
+  do not. Topologies that declare no placement unit keep the single
+  network-scoped file.
 
-  A link between two machines appears in no topology file, because nothing
-  inside containerlab can create it — the machines are wired outside the lab.
+  This is the platform-neutral half of multi-host support, and the point of
+  building it for three platforms rather than one: the same DOT and YAML place a
+  lab across machines whichever of them deploys it. What each platform writes
+  differs and is described in its own entry below.
+
+  **A link between two machines appears in no deployment file**, because nothing
+  inside the platform can create it — the machines are wired outside the lab.
   Give each machine its own bridge and join them with a link; that link is what
   `boundary_crossing_connection_class` marks. Address assignment still sees one segment spanning
   both machines, because searching for a segment passes through bridges, which
   carry no addresses. `topologies/ospf_multihost` is built this way.
+- **containerlab, per machine**: bind paths are written relative to the machine's
+  directory, since containerlab resolves them against the directory holding the
+  topology file.
+- **TiNET, per machine**: mount paths are written relative to the machine's
+  directory. Deployed on two VMs: the same DOT and YAML bring up an OSPF
+  adjacency across the machine boundary on TiNET as well as on containerlab.
+- **Kathara, per machine**: a lab is the directory holding `lab.conf` and the
+  startup files, so each machine gets a directory of its own to run `kathara
+  lstart` in. The entry script joins the same machine's group, so
+  `./kathara.sh deploy` on each machine brings up its own half.
 - **`worker` group class**: marks a placement unit, a machine that containers
   are deployed onto, as opposed to a group that exists to share parameters. A
   node belongs to several groups at once, so the two uses need telling apart.
@@ -131,14 +156,6 @@ further down.
   `global.aggregate_crossing_links: false` turns it off, for a platform that
   stretches a segment across machines itself or an author who wants to draw the
   split. It defaults to on.
-- **One TiNET spec file per machine.** When a topology declares `worker` groups
-  the spec file becomes group-scoped, the same way the containerlab topology
-  file does: each machine gets its own nodes and the links it can wire itself,
-  and the link that leaves a machine appears in neither. Mount paths become
-  relative to the machine's directory. Topologies that declare no placement unit
-  keep the single network-scoped file. Deployed on two VMs: the same DOT and
-  YAML bring up an OSPF adjacency across the machine boundary on TiNET as well
-  as on containerlab.
 - **`topologies/ospf_multihost`**: `topologies/ospf_simple` placed on two machines —
   the same OSPF configuration, split across a machine boundary. This is the
   one to copy when writing a multi-host topology. Deployed on two VMs: the OSPF adjacency between the
