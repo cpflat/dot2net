@@ -159,7 +159,10 @@ further down.
 - **Kathara, per machine**: a lab is the directory holding `lab.conf` and the
   startup files, so each machine gets a directory of its own to run `kathara
   lstart` in. The entry script joins the same machine's group, so
-  `./kathara.sh deploy` on each machine brings up its own half.
+  `./kathara.sh deploy` on each machine brings up its own half. Joining the
+  machines needs one change to Kathara's own settings: its default collision
+  domain driver puts no bridge on the host, so `network_plugin` has to be
+  `kathara/katharanp` for a cross-machine link to have anything to attach to.
 - **`topologies/ospf_multihost`**: `topologies/ospf_simple` placed on two machines —
   the same OSPF configuration, split across a machine boundary. This is the
   one to copy when writing a multi-host topology. Deployed on two VMs: the OSPF adjacency between the
