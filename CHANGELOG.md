@@ -87,80 +87,6 @@ further down.
 
 ### Added
 
-- **A lab spanning machines gets one deployment file per machine — on all three
-  platforms.** A lab is deployed to a single machine, so when a topology declares
-  `worker` groups the deployment file becomes group-scoped: containerlab gets a
-  `topo.yaml` per machine, TiNET a `spec.yaml`, Kathara a `lab.conf`. Each holds
-  that machine's own nodes and the links with both ends inside it, and each can
-  be deployed on its own. Paths inside it become relative to the machine's
-  directory, which is why this requires `global.output_group_class: worker` so
-  that a machine's files sit beside its deployment file; dot2net says so if they
-  do not. Topologies that declare no placement unit keep the single
-  network-scoped file.
-
-  This is the platform-neutral half of multi-host support, and the point of
-  building it for three platforms rather than one: the same DOT and YAML place a
-  lab across machines whichever of them deploys it. What each platform writes
-  differs and is described in its own entry below.
-
-  **A link between two machines appears in no deployment file**, because nothing
-  inside the platform can create it — the machines are wired outside the lab.
-  Give each machine its own bridge and join them with a link; that link is what
-  `boundary_crossing_connection_class` marks. Address assignment still sees one segment spanning
-  both machines, because searching for a segment passes through bridges, which
-  carry no addresses. `topologies/ospf_multihost` is built this way.
-- **containerlab, per machine**: bind paths are written relative to the machine's
-  directory, since containerlab resolves them against the directory holding the
-  topology file.
-- **TiNET, per machine**: mount paths are written relative to the machine's
-  directory. Deployed on two VMs: the same DOT and YAML bring up an OSPF
-  adjacency across the machine boundary on TiNET as well as on containerlab.
-- **Kathara, per machine**: a lab is the directory holding `lab.conf` and the
-  startup files, so each machine gets a directory of its own to run `kathara
-  lstart` in. The entry script joins the same machine's group, so
-  `./kathara.sh deploy` on each machine brings up its own half.
-- **`worker` group class**: marks a placement unit, a machine that containers
-  are deployed onto, as opposed to a group that exists to share parameters. A
-  node belongs to several groups at once, so the two uses need telling apart.
-  dot2net owns the word rather than letting each platform module pick its own,
-  because fourteen of the bundled examples emit both `topo.yaml` and `spec.yaml`
-  from one topology and a name like `clabHost` in the DOT file would tie it to
-  containerlab.
-- **`boundary_crossing_connection_class` on a group class**: names a connection class attached to
-  every connection that leaves a group of that class. Whether the two ends sit
-  in the same group follows from the topology, so annotating each edge would
-  state twice what is already written once, and the two can disagree. The label
-  goes on at the module tier, so a class written on the edge outranks it. The
-  feature knows nothing about hosts: setting it on an `as` class marks the eBGP
-  sessions just as setting it on the worker class marks the links that leave a
-  machine.
-- **A shared segment reaching across machines is replaced with one bridge per
-  machine**, and the bridges are linked. A shared segment is drawn as a node the
-  platform provides rather than deploys, and such a node stands on one machine;
-  left alone, every member on another machine needs a link that leaves its own.
-  So a segment with n members over there costs n links leaving a machine — and
-  each one costs a VLAN from a finite pool. With the replacement it costs one
-  per pair of machines, whatever n is.
-
-  The author draws the segment they mean, once. `topologies/aggregate_crossing`
-  shows the difference: four routers on one segment, two per machine, cost four
-  crossings without it and one with it. The addresses do not move either way —
-  bridges carry none, so a search for a segment passes through them and all four
-  routers stay in one subnet.
-
-  A link between two such nodes is not counted as a member: it is the link
-  between two sides of a segment that is already split, whether dot2net made it
-  or the author wrote it out. `topologies/ospf_multihost`, which writes the split
-  by hand, is unchanged.
-
-  `global.aggregate_crossing_links: false` turns it off, for a platform that
-  stretches a segment across machines itself or an author who wants to draw the
-  split. It defaults to on.
-- **`topologies/ospf_multihost`**: `topologies/ospf_simple` placed on two machines —
-  the same OSPF configuration, split across a machine boundary. This is the
-  one to copy when writing a multi-host topology. Deployed on two VMs: the OSPF adjacency between the
-  border routers comes up across the boundary, each machine learns the other's
-  subnets, and traffic is routed between them.
 - **Kathara module** (`module: [kathara]`): generates `lab.conf`, including each
   device's `image`, the directories to mount into it, and its
   `<device>.startup`. Kathara declares, per device, which collision domain each
@@ -202,106 +128,43 @@ further down.
   line in `lab.conf`, so its name is the topology's to choose. A device whose
   interface indexes have a hole is also rejected, though automatic naming can no
   longer produce one.
-- **`provide` on a file definition**: says how the file reaches its node's
-  container, `mount` (the default) or `copy`. Neither is the better one, and
-  which to use follows from what the file is for:
+- **A lab spanning machines gets one deployment file per machine — on all three
+  platforms.** A lab is deployed to a single machine, so when a topology declares
+  `worker` groups the deployment file becomes group-scoped: containerlab gets a
+  `topo.yaml` per machine, TiNET a `spec.yaml`, Kathara a `lab.conf`. Each holds
+  that machine's own nodes and the links with both ends inside it, and each can
+  be deployed on its own. Paths inside it become relative to the machine's
+  directory, which is why this requires `global.output_group_class: worker` so
+  that a machine's files sit beside its deployment file; dot2net says so if they
+  do not. Topologies that declare no placement unit keep the single
+  network-scoped file.
 
-  ```yaml
-  file:
-    - name: frr.conf
-      path: /etc/frr/frr.conf   # provide: mount, and must be - FRR reads it while booting
-    - name: motd
-      path: /etc/motd
-      provide: copy             # the container may rewrite it; the generated file stays as generated
-  ```
+  This is the platform-neutral half of multi-host support, and the point of
+  building it for three platforms rather than one: the same DOT and YAML place a
+  lab across machines whichever of them deploys it. What each platform writes
+  differs and is described in its own entry below.
 
-  A **mounted** file is the generated file itself, shown to the container. It is
-  there before the container's first process runs, which is the only way to
-  reach software that reads its configuration while booting. The other side of
-  that: what the container writes reaches the generated file, and a container's
-  own startup can take ownership of it — measured on Kathara, where a writable
-  mount left `/etc/frr` owned by the container's user and the generated files out
-  of the author's reach.
-
-  A **copied** file is placed once the container is up, from a read-only staging
-  directory (`r1/staging/etc/motd`, mounted at `/staging`). The container gets
-  its own copy: it may rewrite it, and nothing comes back. It cannot serve a
-  file read while booting, on any platform — containerlab's `exec:`, TiNET's
-  `cmds:` and Kathara's `<device>.startup` all run after the container has
-  started.
-
-  Nothing falls back silently. A combination a platform cannot honour is
-  reported: a file to be mounted from a directory Kathara was not told it owns,
-  a copy landing inside a mounted directory (the mount is read only, so the copy
-  would fail at deploy time — on Kathara without a word), a `mount_dirs` entry
-  that no file is generated into.
-
-  `dot2net files -v` lists the delivery beside each file. The plain listing
-  stays a list of paths, since `dot2net clean` reads it.
-- **`teardown` on a node class**: commands to run in a node while it is still
-  up, before the lab is destroyed. Dumping state, flushing what a
-  program buffers, putting a mounted file's permissions back. Written the same
-  way as `startup`, and merged the same way when a module has something to add.
-- **`collect` on a node class**: files to copy out of a node before the lab is
-  destroyed. Each entry is a template, so a path that follows a value stays
-  right when the value is changed:
-
-  ```yaml
-  nodeclass:
-    - name: router
-      collect: ["{{ .frr_log_path }}"]
-  ```
-
-  Collected files land in `collected/<node>/<the path inside the container>`,
-  beside the generated tree rather than in it: what was generated and what came
-  back from a run are not the same kind of thing. They are handed to whoever ran
-  the lab — `docker cp` keeps the ownership a file had inside the container, and
-  the entry script runs under sudo, so without this the collection could not be
-  read or deleted without sudo either.
-
-  A module declares what it needs back: `frrLogFile` collects its own log, so a
-  topology that never named the file does not have to name it to get it back.
-
-  The entry script does the copying, which is why a topology that collects
-  anything needs one. Declaring `collect` with `generate_scripts` off is an
-  error that says which class asked for it.
-- **`destroy` in an entry script now takes the lab down in four steps**: the
-  lab's `teardown` commands, the files to collect, the platform's own destroy,
-  and — for containerlab — deleting the bridges `setup-bridges.sh` made, which
-  nothing did before. A step that fails is named and the rest still run: a lab
-  left standing because something could not be copied is worse than the missing
-  file. The script ends non-zero so that whatever called it knows.
-
-  `collect [<dir>]` runs the collection on its own, and `DOT2NET_COLLECT_DIR`
-  sets where the files go.
-
-  A lab is named by the topology, and nothing offers to rename it at deploy
-  time. containerlab's `deploy --name` does rename a lab, but its `destroy`
-  takes the name from the topology file whatever `--name` says, so a renamed lab
-  cannot be taken down again — and the destroy reports success while leaving
-  every container running. containerlab's maintainer names this as a known
-  limitation. To run one topology more than once at a time, generate it more
-  than once under different names.
-- **`--name` on `build`, so one topology can be two labs at once.** A lab's
-  containers are named after the lab, so two labs from one topology collide
-  unless they are told apart. `--name` replaces the topology's own `name:` for
-  that build, and each platform takes the name up the way it namespaces its own
-  containers: containerlab in the lab (`clab-lab0-r1`), Kathara and TiNET in the
-  device or node name (`lab0_r1`), since those two name a container after the
-  node and nothing else.
-
-  The nodes are still `r1`, `r2`, `r3`: their files are written where they
-  always were, the configuration inside is untouched, and `exec r1` still
-  reaches the node — each entry script knows how its platform spells the name.
-  Without `--name` nothing changes at all.
-
-  Renaming at *deploy* time is not offered, and cannot be: containerlab's
-  `deploy --name` renames a lab but its `destroy` reads the name from the
-  topology file regardless, so a renamed lab cannot be taken down again.
-  Naming the lab when it is generated has no such gap.
-
-  Every command that reads a topology takes `--name`, not just `build`:
-  `files` has to list what `build` wrote, and `clean` has to delete it.
+  **A link between two machines appears in no deployment file**, because nothing
+  inside the platform can create it — the machines are wired outside the lab.
+  Give each machine its own bridge and join them with a link; that link is what
+  `boundary_crossing_connection_class` marks. Address assignment still sees one segment spanning
+  both machines, because searching for a segment passes through bridges, which
+  carry no addresses. `topologies/ospf_multihost` is built this way.
+- **containerlab, per machine**: bind paths are written relative to the machine's
+  directory, since containerlab resolves them against the directory holding the
+  topology file.
+- **TiNET, per machine**: mount paths are written relative to the machine's
+  directory. Deployed on two VMs: the same DOT and YAML bring up an OSPF
+  adjacency across the machine boundary on TiNET as well as on containerlab.
+- **Kathara, per machine**: a lab is the directory holding `lab.conf` and the
+  startup files, so each machine gets a directory of its own to run `kathara
+  lstart` in. The entry script joins the same machine's group, so
+  `./kathara.sh deploy` on each machine brings up its own half.
+- **`topologies/ospf_multihost`**: `topologies/ospf_simple` placed on two machines —
+  the same OSPF configuration, split across a machine boundary. This is the
+  one to copy when writing a multi-host topology. Deployed on two VMs: the OSPF adjacency between the
+  border routers comes up across the boundary, each machine learns the other's
+  subnets, and traffic is routed between them.
 - **Entry point scripts** (`module_config.<module>.generate_scripts: true`): a
   `containerlab.sh`, `tinet.sh` or `kathara.sh` beside the lab, taking
   `deploy`, `destroy` and `exec <node> <command>...`. Each finds its own files,
@@ -326,73 +189,126 @@ further down.
   three on and `topologies/ospf_multihost` the two that run there, so what the
   scripts hold is checked against `expected/` like everything else — in both
   scopes, since a multi-machine lab gets one script per machine.
-- **`executable` on a file definition** writes the file with the executable bit
-  set. The generated entry scripts and `setup-bridges.sh` use it: a script that
-  has to be `chmod`'ed before it works is one that will be run wrong once.
-- **Write a node's `startup` once and every platform runs it, including what a
-  module adds to it.** Which names cross between a module and a topology is now a
-  short list rather than a growing one, and `use:` is the only way in:
+- **`--name` on `build`, so one topology can be two labs at once.** A lab's
+  containers are named after the lab, so two labs from one topology collide
+  unless they are told apart. `--name` replaces the topology's own `name:` for
+  that build, and each platform takes the name up the way it namespaces its own
+  containers: containerlab in the lab (`clab-lab0-r1`), Kathara and TiNET in the
+  device or node name (`lab0_r1`), since those two name a container after the
+  node and nothing else.
 
-  - the **class names and value names a module publishes** — you write
-    them in `use:` and `values:`
-  - the **hook names dot2net itself owns** — you write them in
-    `config: - name:`. There is one so far, `startup`, and a module reads it and
-    puts it where its own platform expects it
+  The nodes are still `r1`, `r2`, `r3`: their files are written where they
+  always were, the configuration inside is untouched, and `exec r1` still
+  reaches the node — each entry script knows how its platform spells the name.
+  Without `--name` nothing changes at all.
 
-  A module's own block names are its business. Naming one from a topology would be
-  reaching into a module's insides, and the ways the two can talk to each other
-  would multiply with every module and every feature until nobody could say what
-  they are.
+  Renaming at *deploy* time is not offered, and cannot be: containerlab's
+  `deploy --name` renames a lab but its `destroy` reads the name from the
+  topology file regardless, so a renamed lab cannot be taken down again.
+  Naming the lab when it is generated has no such gap.
 
-  What this makes possible: a module class pulled in with `use:` can define a
-  template under a hook name, and what it has to do is merged ahead of what the
-  topology asked for there. Two classes of the topology's own naming one hook is
-  still rejected — nothing would say which of them wins.
+  Every command that reads a topology takes `--name`, not just `build`:
+  `files` has to list what `build` wrote, and `clean` has to delete it.
+- **`destroy` in an entry script now takes the lab down in four steps**: the
+  lab's `teardown` commands, the files to collect, the platform's own destroy,
+  and — for containerlab — deleting the bridges `setup-bridges.sh` made, which
+  nothing did before. A step that fails is named and the rest still run: a lab
+  left standing because something could not be copied is worse than the missing
+  file. The script ends non-zero so that whatever called it knows.
+
+  `collect [<dir>]` runs the collection on its own, and `DOT2NET_COLLECT_DIR`
+  sets where the files go.
+
+  A lab is named by the topology, and nothing offers to rename it at deploy
+  time. containerlab's `deploy --name` does rename a lab, but its `destroy`
+  takes the name from the topology file whatever `--name` says, so a renamed lab
+  cannot be taken down again — and the destroy reports success while leaving
+  every container running. containerlab's maintainer names this as a known
+  limitation. To run one topology more than once at a time, generate it more
+  than once under different names.
+- **`collect` on a node class**: files to copy out of a node before the lab is
+  destroyed. Each entry is a template, so a path that follows a value stays
+  right when the value is changed:
 
   ```yaml
   nodeclass:
     - name: router
-      use: [frrLogFile]     # the module adds its commands to this node's startup
-      config:
-        - name: startup
-          template: ["whatever the topology wants, running after"]
+      collect: ["{{ .frr_log_path }}"]
   ```
-- **`frrLogFile`**: a class from the FRR module that makes the log file and names
-  it to a running FRR. FRR cannot do it itself — its daemons run as the frr user
-  and `/var/log` belongs to root, so a log file named in a configuration read at
-  boot is one FRR reports it cannot open, and mounting the file in was the old
-  answer. That answer does not survive Kathara, which mounts directories and
-  would have to replace `/var/log` wholesale. Doing it from `startup` costs the
-  messages FRR logged before it runs, and nothing after.
 
-  `topologies/ospf_topo1`, `ospf6_topo1`, `rip_topo1`, `bgp_features` and
-  `bgp_evpn_vxlan_topo1` use it and no longer generate a log file of their own.
-- **containerlab writes `setup-bridges.sh` itself** when a topology pulls in
-  `clabOvsBridgeSetup` or `clabLinuxBridgeSetup`, instead of a topology
-  declaring the file and assembling it from a module's blocks. A lab whose
-  bridges are provisioned some other way leaves the `use:` line out and gets no
-  script.
-- **Ready-made bridge setup classes (containerlab)**: `clabOvsBridgeSetup` and
-  `clabLinuxBridgeSetup` carry the command that creates the bridge containerlab
-  requires to exist before deploy. A topology opts in with
-  `use: [clabOvsBridgeSetup]`; both define a `clab_bridge_setup` template, so
-  `{{ .nodes_clab_bridge_setup }}` collects one line per switch node.
+  Collected files land in `collected/<node>/<the path inside the container>`,
+  beside the generated tree rather than in it: what was generated and what came
+  back from a run are not the same kind of thing. They are handed to whoever ran
+  the lab — `docker cp` keeps the ownership a file had inside the container, and
+  the entry script runs under sudo, so without this the collection could not be
+  read or deleted without sudo either.
 
-  They are never applied automatically. Which command creates a bridge is not
-  decided by the kind — the same `ovs-bridge` may be provisioned by Ansible,
-  need sudo, or live in another OVS database — so a topology that does it
-  differently names neither class and writes its own `clab_bridge_setup`.
-- **`use:` on class definitions**: a class may name other classes of the same
-  type that an object carrying it also carries. It attaches labels only — no
-  field is merged or overridden — so composition follows the ordinary
-  multi-class rules. Cycles terminate; naming an undefined class is an error.
+  A module declares what it needs back: `frrLogFile` collects its own log, so a
+  topology that never named the file does not have to name it to get it back.
 
-  This is what lets a module offer a ready-made class that a topology opts into,
-  without naming that class in the topology: putting it in the DOT would tie the
-  file to one platform, since the class exists only while that module is loaded.
-  A used class keeps the tier of wherever it was defined rather than the tier of
-  the class that named it, so a module's defaults still lose to the user's own
-  values instead of clashing with them.
+  The entry script does the copying, which is why a topology that collects
+  anything needs one. Declaring `collect` with `generate_scripts` off is an
+  error that says which class asked for it.
+- **`teardown` on a node class**: commands to run in a node while it is still
+  up, before the lab is destroyed. Dumping state, flushing what a
+  program buffers, putting a mounted file's permissions back. Written the same
+  way as `startup`, and merged the same way when a module has something to add.
+- **`assert` module**: an opt-in module that checks the expectations a topology
+  states about itself. A class marked `values: {assert_used: "true"}` must be
+  applied to at least one object, or the build fails. It generates no output.
+  This closes a hole the golden tests cannot cover: a class that is declared but
+  never applied contributes nothing, so regenerating the expected files silently
+  freezes its absence — which is how a bundled topology shipped with segment
+  classes that never attached.
+- **Interfaces are named `eth0`, `eth1`, ... by default** instead of `net0`,
+  `net1`. The old prefix followed TiNET's examples; `eth` is what a Linux
+  container calls its interfaces and what Kathara requires — it derives the name
+  from the index in `lab.conf` and offers no way to change it — so this is the
+  one prefix every platform accepts, and a topology can now load all three
+  modules at once.
+
+  The exception is containerlab's management network, which keeps `eth0` for
+  itself. Turning it back on with
+  `module_config.containerlab.management_network` means naming the interfaces
+  something else through an interface class `prefix`; dot2net says so while
+  generating rather than letting containerlab refuse at deploy time.
+- **containerlab nodes are emitted with `network-mode: none` by default.** A lab
+  now has only the links its topology describes. The management network containerlab
+  attaches by default is convenient — `clab exec`, `clab-*` names — but it is
+  also a second path between every pair of nodes, and a reachability test that
+  should have failed can pass through it without anyone noticing. TiNET runs its
+  nodes with `--net none` and Kathara gives them no management network either,
+  so this also brings the three into line.
+
+  It frees `eth0` as well: containerlab refuses a data interface by that name
+  while the management network is attached, which is what kept a topology from
+  loading the Kathara module alongside the other two.
+- **A shared segment reaching across machines is replaced with one bridge per
+  machine**, and the bridges are linked. A shared segment is drawn as a node the
+  platform provides rather than deploys, and such a node stands on one machine;
+  left alone, every member on another machine needs a link that leaves its own.
+  So a segment with n members over there costs n links leaving a machine — and
+  each one costs a VLAN from a finite pool. With the replacement it costs one
+  per pair of machines, whatever n is.
+
+  The author draws the segment they mean, once. `topologies/aggregate_crossing`
+  shows the difference: four routers on one segment, two per machine, cost four
+  crossings without it and one with it. The addresses do not move either way —
+  bridges carry none, so a search for a segment passes through them and all four
+  routers stay in one subnet.
+
+  A link between two such nodes is not counted as a member: it is the link
+  between two sides of a segment that is already split, whether dot2net made it
+  or the author wrote it out. `topologies/ospf_multihost`, which writes the split
+  by hand, is unchanged.
+
+  `global.aggregate_crossing_links: false` turns it off, for a platform that
+  stretches a segment across machines itself or an author who wants to draw the
+  split. It defaults to on.
+- **Wired interfaces are numbered first.** Within one prefix, the numbers run
+  without a gap over the interfaces the platform lays. Kathara names an interface
+  after its position in `lab.conf`, so a number spent on an interface that gets
+  no line there used to leave a hole it refuses to start on.
 - **`deploy` on node classes**: names what the platform puts in place for a node
   — `container` (a container of its own), `platform` (a facility the platform
   provides itself) or `none` (nothing is deployed; the node carries parameters
@@ -443,22 +359,133 @@ further down.
   `required_link` templates are written only where the connection is a `link`,
   which is what keeps a platform from being told to wire a tunnel. The check now
   applies to connection-scoped templates as well as interface-scoped ones.
-- **Wired interfaces are numbered first.** Within one prefix, the numbers run
-  without a gap over the interfaces the platform lays. Kathara names an interface
-  after its position in `lab.conf`, so a number spent on an interface that gets
-  no line there used to leave a hole it refuses to start on.
-- **`assert` module**: an opt-in module that checks the expectations a topology
-  states about itself. A class marked `values: {assert_used: "true"}` must be
-  applied to at least one object, or the build fails. It generates no output.
-  This closes a hole the golden tests cannot cover: a class that is declared but
-  never applied contributes nothing, so regenerating the expected files silently
-  freezes its absence — which is how a bundled topology shipped with segment
-  classes that never attached.
-- **A class a module attaches now loses to one you wrote, instead of colliding
-  with it** (`LabelOwner.AddModuleClassLabels`, for module authors). A module
-  classifying objects through the `ObjectClassifier` hook had only
-  `AddClassLabels`, which files labels as user-written, contrary to the rule that
-  module-provided classes are the weakest.
+- **`use:` on class definitions**: a class may name other classes of the same
+  type that an object carrying it also carries. It attaches labels only — no
+  field is merged or overridden — so composition follows the ordinary
+  multi-class rules. Cycles terminate; naming an undefined class is an error.
+
+  This is what lets a module offer a ready-made class that a topology opts into,
+  without naming that class in the topology: putting it in the DOT would tie the
+  file to one platform, since the class exists only while that module is loaded.
+  A used class keeps the tier of wherever it was defined rather than the tier of
+  the class that named it, so a module's defaults still lose to the user's own
+  values instead of clashing with them.
+- **`worker` group class**: marks a placement unit, a machine that containers
+  are deployed onto, as opposed to a group that exists to share parameters. A
+  node belongs to several groups at once, so the two uses need telling apart.
+  dot2net owns the word rather than letting each platform module pick its own,
+  because fourteen of the bundled examples emit both `topo.yaml` and `spec.yaml`
+  from one topology and a name like `clabHost` in the DOT file would tie it to
+  containerlab.
+- **`boundary_crossing_connection_class` on a group class**: names a connection class attached to
+  every connection that leaves a group of that class. Whether the two ends sit
+  in the same group follows from the topology, so annotating each edge would
+  state twice what is already written once, and the two can disagree. The label
+  goes on at the module tier, so a class written on the edge outranks it. The
+  feature knows nothing about hosts: setting it on an `as` class marks the eBGP
+  sessions just as setting it on the worker class marks the links that leave a
+  machine.
+- **Write a node's `startup` once and every platform runs it, including what a
+  module adds to it.** Which names cross between a module and a topology is now a
+  short list rather than a growing one, and `use:` is the only way in:
+
+  - the **class names and value names a module publishes** — you write
+    them in `use:` and `values:`
+  - the **hook names dot2net itself owns** — you write them in
+    `config: - name:`. There is one so far, `startup`, and a module reads it and
+    puts it where its own platform expects it
+
+  A module's own block names are its business. Naming one from a topology would be
+  reaching into a module's insides, and the ways the two can talk to each other
+  would multiply with every module and every feature until nobody could say what
+  they are.
+
+  What this makes possible: a module class pulled in with `use:` can define a
+  template under a hook name, and what it has to do is merged ahead of what the
+  topology asked for there. Two classes of the topology's own naming one hook is
+  still rejected — nothing would say which of them wins.
+
+  ```yaml
+  nodeclass:
+    - name: router
+      use: [frrLogFile]     # the module adds its commands to this node's startup
+      config:
+        - name: startup
+          template: ["whatever the topology wants, running after"]
+  ```
+- **`provide` on a file definition**: says how the file reaches its node's
+  container, `mount` (the default) or `copy`. Neither is the better one, and
+  which to use follows from what the file is for:
+
+  ```yaml
+  file:
+    - name: frr.conf
+      path: /etc/frr/frr.conf   # provide: mount, and must be - FRR reads it while booting
+    - name: motd
+      path: /etc/motd
+      provide: copy             # the container may rewrite it; the generated file stays as generated
+  ```
+
+  A **mounted** file is the generated file itself, shown to the container. It is
+  there before the container's first process runs, which is the only way to
+  reach software that reads its configuration while booting. The other side of
+  that: what the container writes reaches the generated file, and a container's
+  own startup can take ownership of it — measured on Kathara, where a writable
+  mount left `/etc/frr` owned by the container's user and the generated files out
+  of the author's reach.
+
+  A **copied** file is placed once the container is up, from a read-only staging
+  directory (`r1/staging/etc/motd`, mounted at `/staging`). The container gets
+  its own copy: it may rewrite it, and nothing comes back. It cannot serve a
+  file read while booting, on any platform — containerlab's `exec:`, TiNET's
+  `cmds:` and Kathara's `<device>.startup` all run after the container has
+  started.
+
+  Nothing falls back silently. A combination a platform cannot honour is
+  reported: a file to be mounted from a directory Kathara was not told it owns,
+  a copy landing inside a mounted directory (the mount is read only, so the copy
+  would fail at deploy time — on Kathara without a word), a `mount_dirs` entry
+  that no file is generated into.
+
+  `dot2net files -v` lists the delivery beside each file. The plain listing
+  stays a list of paths, since `dot2net clean` reads it.
+- **`executable` on a file definition** writes the file with the executable bit
+  set. The generated entry scripts and `setup-bridges.sh` use it: a script that
+  has to be `chmod`'ed before it works is one that will be run wrong once.
+- **`raw` on a config entry**: hands a source file through as read instead of
+  reading it as a template. For a file that is material rather than a template —
+  one dot2net has nothing to fill in, and that may carry `{{` of its own meant
+  for whoever reads it later. Until now every `sourcefile:` was expanded, so
+  such a file either failed to parse or, worse, had an action quietly filled in
+  because its name happened to match a parameter. The bundled examples use it
+  for the FRR `daemons` and `vtysh.conf` files they ship.
+- **`delimiters` on a config entry**: replaces `{{` and `}}` for that template
+  alone, e.g. `delimiters: ["[[", "]]"]`. Generating a file that is itself a
+  template for another tool — an Ansible playbook, a TENTOU `infra.yml` — would
+  otherwise mean escaping every one of its actions, and an action naming a
+  parameter dot2net knows would be swallowed without a word. With different
+  marks the downstream syntax passes through and dot2net's own values are still
+  filled in, in the same file.
+- **`values:` on segment classes**: `segmentclass` accepts a `values` map like the
+  other class types, so a segment can carry static attributes
+  (`values: {kind: ovs-bridge}`). Conflicting values from two classes of the same
+  tier are rejected, as they are for the other class types.
+
+- **Group-scope file output**: a `groupclass` can now own a `file:` template, and
+  `file` definitions accept `scope: group`. The file is written into the group's
+  own directory (`cluster_h1/host.yaml`), mirroring how node-scope files land in
+  the node's directory; `output: root` puts it at the output root instead, where
+  `name_prefix` / `name_suffix` are needed to keep the groups apart.
+- **Group child aggregation**: group-scope templates can reference
+  `{{ .nodes_<name> }}` and `{{ .connections_<name> }}` and receive only the
+  group's own members. A connection is included only when both of its endpoints
+  are inside the group, so a link leaving the group appears in no group file.
+- **`xlabel` is read on edges and subgraphs**, not only on nodes. It was silently
+  ignored there, so `sw1 -> sw2 [xlabel="trunk"]` attached no connection class —
+  which is what `example/value_class_basic` had been doing. For a subgraph,
+  `xlabel` is also the way to give a cluster a decorative title without it being
+  taken as a group class (`label` still doubles as both). Node `label` remains
+  excluded on purpose: it collides with the record-shape node syntax.
 - **`module_config`**: a section per module, for settings that belong to one
   platform rather than to the topology.
 
@@ -477,14 +504,6 @@ further down.
   `containerlab.management_network` is the first setting to live there: it puts
   the management network back for a topology that wants `clab exec` and the
   `clab-*` names.
-- **`global.split_module_output: true`** puts each module's own files in a
-  directory named after it — `containerlab/topo.yaml`, `tinet/spec.yaml` —
-  while the files the topology defines stay where they are, since more than one
-  platform may read them. Bind and mount paths follow. Off by default; it is for
-  a lab whose output is large enough that the platforms get in each other's way.
-
-  Kathara is not split: its lab *is* the directory, holding `lab.conf` and every
-  `<device>.startup`, and those startup files are written by the topology.
 - **`global.output_group_class`**: names the group class that splits the output
   directory. Every node of such a group has its files written below that group's
   directory, so a host packs as a single directory:
@@ -493,66 +512,39 @@ further down.
   reported as an error rather than silently assigned to one. Unset (the default)
   keeps the previous flat layout.
 
-- **Group-scope file output**: a `groupclass` can now own a `file:` template, and
-  `file` definitions accept `scope: group`. The file is written into the group's
-  own directory (`cluster_h1/host.yaml`), mirroring how node-scope files land in
-  the node's directory; `output: root` puts it at the output root instead, where
-  `name_prefix` / `name_suffix` are needed to keep the groups apart.
-- **Group child aggregation**: group-scope templates can reference
-  `{{ .nodes_<name> }}` and `{{ .connections_<name> }}` and receive only the
-  group's own members. A connection is included only when both of its endpoints
-  are inside the group, so a link leaving the group appears in no group file.
-- **`values:` on segment classes**: `segmentclass` accepts a `values` map like the
-  other class types, so a segment can carry static attributes
-  (`values: {kind: ovs-bridge}`). Conflicting values from two classes of the same
-  tier are rejected, as they are for the other class types.
+- **`global.split_module_output: true`** puts each module's own files in a
+  directory named after it — `containerlab/topo.yaml`, `tinet/spec.yaml` —
+  while the files the topology defines stay where they are, since more than one
+  platform may read them. Bind and mount paths follow. Off by default; it is for
+  a lab whose output is large enough that the platforms get in each other's way.
 
-- **`xlabel` is read on edges and subgraphs**, not only on nodes. It was silently
-  ignored there, so `sw1 -> sw2 [xlabel="trunk"]` attached no connection class —
-  which is what `example/value_class_basic` had been doing. For a subgraph,
-  `xlabel` is also the way to give a cluster a decorative title without it being
-  taken as a group class (`label` still doubles as both). Node `label` remains
-  excluded on purpose: it collides with the record-shape node syntax.
-- **Interfaces are named `eth0`, `eth1`, ... by default** instead of `net0`,
-  `net1`. The old prefix followed TiNET's examples; `eth` is what a Linux
-  container calls its interfaces and what Kathara requires — it derives the name
-  from the index in `lab.conf` and offers no way to change it — so this is the
-  one prefix every platform accepts, and a topology can now load all three
-  modules at once.
+  Kathara is not split: its lab *is* the directory, holding `lab.conf` and every
+  `<device>.startup`, and those startup files are written by the topology.
+- **`frrLogFile`**: a class from the FRR module that makes the log file and names
+  it to a running FRR. FRR cannot do it itself — its daemons run as the frr user
+  and `/var/log` belongs to root, so a log file named in a configuration read at
+  boot is one FRR reports it cannot open, and mounting the file in was the old
+  answer. That answer does not survive Kathara, which mounts directories and
+  would have to replace `/var/log` wholesale. Doing it from `startup` costs the
+  messages FRR logged before it runs, and nothing after.
 
-  The exception is containerlab's management network, which keeps `eth0` for
-  itself. Turning it back on with
-  `module_config.containerlab.management_network` means naming the interfaces
-  something else through an interface class `prefix`; dot2net says so while
-  generating rather than letting containerlab refuse at deploy time.
-- **containerlab nodes are emitted with `network-mode: none` by default.** A lab
-  now has only the links its topology describes. The management network containerlab
-  attaches by default is convenient — `clab exec`, `clab-*` names — but it is
-  also a second path between every pair of nodes, and a reachability test that
-  should have failed can pass through it without anyone noticing. TiNET runs its
-  nodes with `--net none` and Kathara gives them no management network either,
-  so this also brings the three into line.
+  `topologies/ospf_topo1`, `ospf6_topo1`, `rip_topo1`, `bgp_features` and
+  `bgp_evpn_vxlan_topo1` use it and no longer generate a log file of their own.
+- **containerlab writes `setup-bridges.sh` itself** when a topology pulls in
+  `clabOvsBridgeSetup` or `clabLinuxBridgeSetup`, instead of a topology
+  declaring the file and assembling it from a module's blocks. A lab whose
+  bridges are provisioned some other way leaves the `use:` line out and gets no
+  script.
+- **Ready-made bridge setup classes (containerlab)**: `clabOvsBridgeSetup` and
+  `clabLinuxBridgeSetup` carry the command that creates the bridge containerlab
+  requires to exist before deploy. A topology opts in with
+  `use: [clabOvsBridgeSetup]`; both define a `clab_bridge_setup` template, so
+  `{{ .nodes_clab_bridge_setup }}` collects one line per switch node.
 
-  It frees `eth0` as well: containerlab refuses a data interface by that name
-  while the management network is attached, which is what kept a topology from
-  loading the Kathara module alongside the other two.
-- **`raw` on a config entry**: hands a source file through as read instead of
-  reading it as a template. For a file that is material rather than a template —
-  one dot2net has nothing to fill in, and that may carry `{{` of its own meant
-  for whoever reads it later. Until now every `sourcefile:` was expanded, so
-  such a file either failed to parse or, worse, had an action quietly filled in
-  because its name happened to match a parameter. The bundled examples use it
-  for the FRR `daemons` and `vtysh.conf` files they ship.
-- **`delimiters` on a config entry**: replaces `{{` and `}}` for that template
-  alone, e.g. `delimiters: ["[[", "]]"]`. Generating a file that is itself a
-  template for another tool — an Ansible playbook, a TENTOU `infra.yml` — would
-  otherwise mean escaping every one of its actions, and an action naming a
-  parameter dot2net knows would be swallowed without a word. With different
-  marks the downstream syntax passes through and dot2net's own values are still
-  filled in, in the same file.
-- **A config entry naming both `template` and `sourcefile` is now rejected.**
-  Which came first was decided in the code and written down nowhere; nothing
-  used it. Write two entries and order them with `blocks:`.
+  They are never applied automatically. Which command creates a bridge is not
+  decided by the kind — the same `ovs-bridge` may be provisioned by Ansible,
+  need sudo, or live in another OVS database — so a topology that does it
+  differently names neither class and writes its own `clab_bridge_setup`.
 - **An unknown or duplicate key in the config file is now an error.** A key the
   config does not know used to be dropped without a word, which looks exactly
   like a setting that had no effect: `example/address_reservation` wrote
@@ -570,6 +562,15 @@ further down.
   file it writes are separate things — `name_prefix`/`name_suffix` build the
   filename — so `startup` and `kathara_startup` were different definitions both
   writing `r1.startup`. The message names both definitions and the file.
+
+- **A config entry naming both `template` and `sourcefile` is now rejected.**
+  Which came first was decided in the code and written down nowhere; nothing
+  used it. Write two entries and order them with `blocks:`.
+- **A class a module attaches now loses to one you wrote, instead of colliding
+  with it** (`LabelOwner.AddModuleClassLabels`, for module authors). A module
+  classifying objects through the `ObjectClassifier` hook had only
+  `AddClassLabels`, which files labels as user-written, contrary to the rule that
+  module-provided classes are the weakest.
 
 ### Changed
 
