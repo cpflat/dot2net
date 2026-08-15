@@ -4,9 +4,6 @@ class_policy:
   interface:
     base: [all]
 
-# Kathara is not among the modules below: the VXLAN bridges are named (pe1:br101), and Kathara derives an
-# interface's name from its index in lab.conf, so a name of the topology's
-# choosing cannot be honoured.
 module:
   - frr
   - tinet
