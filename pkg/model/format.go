@@ -1033,7 +1033,15 @@ func checkConfigTemplateConditions(ns types.NameSpacer, configTemplate *types.Co
 		// reaches further than the object it is written on, because a node
 		// nobody deploys leaves its interfaces and the links to them with
 		// nothing at their end either - resolveDeployForms works that out.
-		if lo.IsVirtual() {
+		//
+		// A wiring template is exempt from the first. It is not the object's
+		// configuration: it tells the platform to lay a link, which is deploy's
+		// question, not virtual's. Withholding it here would make virtual mean
+		// different things on different platforms - containerlab writes its
+		// wiring per connection and would keep the link, while TiNET and Kathara
+		// write theirs per interface and would lose it, leaving Kathara with a
+		// gap in lab.conf that nothing reports.
+		if lo.IsVirtual() && !configTemplate.RequiredLink {
 			return "virtual object", false
 		}
 		if !lo.IsMaterialised() {

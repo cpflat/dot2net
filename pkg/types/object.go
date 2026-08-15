@@ -1376,6 +1376,11 @@ func (n *Node) SetClasses(cfg *Config, nm *NetworkModel) error {
 			return err
 		}
 
+		// check virtual
+		if nc.Virtual {
+			n.SetVirtual(true)
+		}
+
 		tier := n.ClassTier(nc.Name)
 
 		// check ippolicy flags
