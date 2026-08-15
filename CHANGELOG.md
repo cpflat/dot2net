@@ -36,7 +36,7 @@ further down.
   `virtual: true` meant "this is not deployed". You do not have to find them by
   reading: a class setting `virtual: true` without also naming a `deploy` is an
   error, so a 0.7.x topology stops on the first one. That error is a migration
-  aid and will be removed in a later release.
+  aid and is removed in 0.9.0.
 - **The Kathara module owns `<device>.startup`.** The pattern documented in
   0.7.0 — a topology declaring the file itself with `name_suffix: .startup` and
   `output: root` — still works on its own, but collides once the Kathara module

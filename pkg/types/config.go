@@ -144,6 +144,10 @@ var wiringDeployForms = []string{DeployLink, DeployLogical, DeployNone}
 // configuration is not written, which is a different question from what puts the
 // object in place, and the two are set independently. A class written for v0.7,
 // where one flag answered both, is rejected rather than guessed at.
+//
+// That rejection is a migration aid, not part of the design: it exists so that a
+// v0.7 topology stops instead of coming up in a shape nobody asked for. Remove it
+// in 0.9.0 - after which virtual on its own simply withholds the configuration.
 func deployClaimOf(kind, className, deploy string, virtual bool, forms []string) (string, error) {
 	if deploy != "" {
 		known := false
