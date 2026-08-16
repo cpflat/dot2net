@@ -204,6 +204,13 @@ further down.
   that writes an FRR log does, since the class that makes the log asks for it —
   needs a script for the copying to happen at all.
 
+  **Anything written after `deploy` is passed on** to the platform's own command,
+  so a caller can place a lab's management network itself
+  (`deploy --network lab7 --ipv4-subnet 172.29.7.0/24`) and run several labs side
+  by side. TiNET brings a lab up in two commands and so has nowhere to put an
+  extra argument: its script says so rather than dropping it, which is the case
+  that costs a caller the most to find out about later.
+
   Chosen per module, and on wherever a lab needs one: every bundled topology
   that writes a log or names a bridge turns them on, so what the scripts hold is
   checked against `expected/` like everything else — in both scopes, since a
