@@ -80,6 +80,7 @@ run_collect() {
 
 case "${1:-deploy}" in
   deploy)
+
     # Bringing a lab up here is two of TiNET's own commands, so there is no one
     # place to put an extra argument. Rather than guess - or drop it in silence,
     # which is how a caller finds out too late - say so.
@@ -91,17 +92,20 @@ case "${1:-deploy}" in
     run_teardown
     run_collect
     run down || note_failure "destroy"
+
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
     run_collect
+
     report
     ;;
   exec)
     shift
     [ $# -ge 2 ] || { echo "usage: $0 exec <node> <command>..." >&2; exit 2; }
     node="$1"; shift
+
     exec $SUDO docker exec "$(container_id "$node")" "$@"
     ;;
   *)

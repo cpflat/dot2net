@@ -248,8 +248,8 @@ further down.
   `files` has to list what `build` wrote, and `clean` has to delete it.
 - **`destroy` in an entry script now takes the lab down in four steps**: the
   lab's `teardown` commands, the files to collect, the platform's own destroy,
-  and — for containerlab — deleting the bridges `setup-bridges.sh` made, which
-  nothing did before. A step that fails is named and the rest still run: a lab
+  and the lab's own `worker_destroy` commands. A step that fails is named and
+  the rest still run: a lab
   left standing because something could not be copied is worse than the missing
   file. The script ends non-zero so that whatever called it knows.
 
@@ -263,6 +263,24 @@ further down.
   every container running. containerlab's maintainer names this as a known
   limitation. To run one topology more than once at a time, generate it more
   than once under different names.
+- **Commands a topology runs on the machine, on every platform**: four hooks
+  named after the entry script's own commands — `worker_deploy`, `worker_exec`,
+  `worker_collect` and `worker_destroy` — run outside the nodes, where `startup`
+  and `teardown` run inside them. `worker_deploy` runs before the platform is
+  asked to bring the lab up, `worker_destroy` after it has taken it down,
+  `worker_collect` beside the files copied out of the nodes, and `worker_exec`
+  before a command is carried into one. Anything the lab needs of its machine —
+  a bridge to attach to, an interface put into a namespace, a capture started
+  and stopped — has somewhere to go.
+
+  They are written on a node class like any other block, and each machine runs
+  what its own nodes asked for: a lab spanning machines does not run one
+  machine's commands on another. A block that fails is named and the rest still
+  run, and `deploy` stops rather than bringing up a lab whose machine is not
+  ready.
+
+  `worker` because that is what dot2net already calls a machine a lab is
+  deployed onto — see the `worker` group class.
 - **`collect` on a node class**: files to copy out of a node before the lab is
   destroyed — and the entry script's `destroy` is what does the copying, so a
   topology that collects anything needs one. Each entry is a template, so a path
@@ -489,7 +507,7 @@ further down.
   `dot2net files -v` lists the delivery beside each file. The plain listing
   stays a list of paths, since `dot2net clean` reads it.
 - **`executable` on a file definition** writes the file with the executable bit
-  set. The generated entry scripts and `setup-bridges.sh` use it: a script that
+  set. The generated entry scripts use it: a script that
   has to be `chmod`'ed before it works is one that will be run wrong once.
 - **`raw` on a config entry**: hands a source file through as read instead of
   reading it as a template. For a file that is material rather than a template —
@@ -569,21 +587,18 @@ further down.
 
   `topologies/ospf_topo1`, `ospf6_topo1`, `rip_topo1`, `bgp_features` and
   `bgp_evpn_vxlan_topo1` use it and no longer generate a log file of their own.
-- **containerlab writes `setup-bridges.sh` itself** when a topology pulls in
-  `clabOvsBridgeSetup` or `clabLinuxBridgeSetup`, instead of a topology
-  declaring the file and assembling it from a module's blocks. A lab whose
-  bridges are provisioned some other way leaves the `use:` line out and gets no
-  script.
 - **Ready-made bridge setup classes (containerlab)**: `clabOvsBridgeSetup` and
-  `clabLinuxBridgeSetup` carry the command that creates the bridge containerlab
-  requires to exist before deploy. A topology opts in with
-  `use: [clabOvsBridgeSetup]`; both define a `clab_bridge_setup` template, so
-  `{{ .nodes_clab_bridge_setup }}` collects one line per switch node.
+  `clabLinuxBridgeSetup` carry the commands that create and delete the bridge
+  containerlab requires to exist before deploy. A topology opts in with
+  `use: [clabOvsBridgeSetup]`; both write `worker_deploy` and `worker_destroy`,
+  so the entry script makes the bridges before deploying and takes them down
+  after destroying. Deploying a multi-machine lab is one step again — nothing
+  has to be run by hand beforehand, and nothing is left behind afterwards.
 
   They are never applied automatically. Which command creates a bridge is not
   decided by the kind — the same `ovs-bridge` may be provisioned by Ansible,
   need sudo, or live in another OVS database — so a topology that does it
-  differently names neither class and writes its own `clab_bridge_setup`.
+  differently names neither class and writes its own `worker_deploy`.
 - **An unknown or duplicate key in the config file is now an error.** A key the
   config does not know used to be dropped without a word, which looks exactly
   like a setting that had no effect: `example/address_reservation` wrote

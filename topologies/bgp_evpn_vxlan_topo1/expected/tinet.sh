@@ -81,8 +81,34 @@ run_collect() {
   collect_file pe3 /var/log/frr.log
 }
 
+# What the lab asked to have run on this machine, one function per command this
+# script takes. Each is a function rather than the commands themselves so that a
+# block of several lines lands where a single line was written, and so that
+# note_failure and report work on it like anything else here.
+run_worker_deploy() {
+  :
+
+}
+
+run_worker_exec() {
+  :
+
+}
+
+run_worker_collect() {
+  :
+
+}
+
+run_worker_destroy() {
+  :
+
+}
+
 case "${1:-deploy}" in
   deploy)
+    run_worker_deploy
+    report
     # Bringing a lab up here is two of TiNET's own commands, so there is no one
     # place to put an extra argument. Rather than guess - or drop it in silence,
     # which is how a caller finds out too late - say so.
@@ -94,17 +120,21 @@ case "${1:-deploy}" in
     run_teardown
     run_collect
     run down || note_failure "destroy"
+    run_worker_destroy
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
     run_collect
+    run_worker_collect
     report
     ;;
   exec)
     shift
     [ $# -ge 2 ] || { echo "usage: $0 exec <node> <command>..." >&2; exit 2; }
     node="$1"; shift
+    run_worker_exec
+    report
     exec $SUDO docker exec "$(container_id "$node")" "$@"
     ;;
   *)

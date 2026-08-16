@@ -1,2 +1,6 @@
-ip link add {{ .name }} type bridge
-ip link set {{ .name }} up
+  # ip link add has no --may-exist, so ask first: a bridge left behind by a lab
+  # that was not destroyed cleanly must not stop this one deploying.
+  if ! ip link show {{ .name }} >/dev/null 2>&1; then
+    $SUDO ip link add {{ .name }} type bridge || note_failure "create bridge {{ .name }}"
+  fi
+  $SUDO ip link set {{ .name }} up || note_failure "bring up bridge {{ .name }}"

@@ -1,1 +1,1 @@
-ovs-vsctl --may-exist add-br {{ .name }}
+  $SUDO ovs-vsctl --may-exist add-br {{ .name }} || note_failure "create bridge {{ .name }}"

@@ -2,9 +2,9 @@ package types
 
 import (
 	"fmt"
-	"regexp"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"text/template"
@@ -83,6 +83,19 @@ var HookConfigNames = map[string]bool{
 	// lab is destroyed. Dumping state, flushing what a program buffers, putting
 	// a mounted file's permissions back. The entry script runs them.
 	"teardown": true,
+	// The four below run on the machine rather than in a node, one for each of
+	// the entry script's own commands, and each named after the command it hangs
+	// off so that when it runs needs no looking up. What belongs here is what the
+	// lab needs of the machine and no platform can do from inside: a bridge, a
+	// host interface enslaved to one, a capture taken beside the lab.
+	//
+	// worker, because that is what dot2net already calls the machine a lab is
+	// deployed onto - see WorkerGroupClassName. A topology that declares no
+	// worker groups still has one machine, and these still run on it.
+	"worker_deploy":  true, // before the platform is asked to bring the lab up
+	"worker_exec":    true, // before a command is carried into a node
+	"worker_collect": true, // beside the files copied out of the nodes
+	"worker_destroy": true, // after the platform has taken the lab down
 }
 
 const ClassTypeNetwork string = "network"

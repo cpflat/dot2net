@@ -235,6 +235,20 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	if err != nil {
 		return err
 	}
+	// The four the entry script runs on the machine, one per command it takes.
+	workerHooks := make([]*types.ConfigTemplate, 0, 4)
+	for _, hook := range []string{"worker_deploy", "worker_exec", "worker_collect", "worker_destroy"} {
+		ct, err := readEntryTemplate("templates/"+hook+".node_tn_"+hook, &types.ConfigTemplate{
+			Name:           "tn_" + hook,
+			Depends:        []string{hook},
+			RequiredParams: []string{"self_" + hook},
+		})
+		if err != nil {
+			return err
+		}
+		workerHooks = append(workerHooks, ct)
+	}
+
 	ctCollect, err := readEntryTemplate("templates/collect.node_tn_collect", &types.ConfigTemplate{
 		Name:           "tn_collect",
 		RequiredParams: []string{"values_tn_collect_entry"},
@@ -258,7 +272,7 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
 		Parameters:      []string{"tinet_binds", "tinet_copies", "tn_collects"},
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ctCopies, ctTeardown, ctCollect},
+		ConfigTemplates: append([]*types.ConfigTemplate{ct1, ct2, ct3, ctCopies, ctTeardown, ctCollect}, workerHooks...),
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: ClassifyObjects picks between this class and

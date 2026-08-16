@@ -88,13 +88,11 @@ run_collect() {
 
 case "${1:-deploy}" in
   deploy)
-    # The bridges a topology names have to exist before containerlab will
-    # deploy: its check runs before any stage, so nothing inside the lab can
-    # make them. setup-bridges.sh is written beside this script when the
-    # topology asks for a bridge, and destroy takes the same ones down again.
-    if [ -f ./setup-bridges.sh ]; then
-      $SUDO ./setup-bridges.sh || { note_failure "setup-bridges"; exit 1; }
-    fi
+    # What the lab needs of the machine before the platform is asked for
+    # anything: the bridges a topology names have to exist before containerlab
+    # will deploy, since its check runs before any stage and nothing inside the
+    # lab can make them. worker_destroy takes the same ones down again.
+
     # Anything after "deploy" goes to containerlab: a caller running labs in
     # parallel has to place each one's management network itself
     # (--network, --ipv4-subnet), and there is nothing in a topology to say it
@@ -113,6 +111,7 @@ case "${1:-deploy}" in
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
     run_collect
+
     report
     ;;
   exec)
@@ -126,6 +125,7 @@ case "${1:-deploy}" in
     # way, for the same reason.
     cid=$(container_id "$node")
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
+
     exec $SUDO docker exec "$cid" "$@"
     ;;
   *)

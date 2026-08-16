@@ -269,6 +269,20 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	if err != nil {
 		return err
 	}
+	// The four the entry script runs on the machine, one per command it takes.
+	workerHooks := make([]*types.ConfigTemplate, 0, 4)
+	for _, hook := range []string{"worker_deploy", "worker_exec", "worker_collect", "worker_destroy"} {
+		ct, err := readEntryTemplate("templates/"+hook+".node_kathara_"+hook, &types.ConfigTemplate{
+			Name:           "kathara_" + hook,
+			Depends:        []string{hook},
+			RequiredParams: []string{"self_" + hook},
+		})
+		if err != nil {
+			return err
+		}
+		workerHooks = append(workerHooks, ct)
+	}
+
 	ctCollect, err := readEntryTemplate("templates/collect.node_kathara_collect", &types.ConfigTemplate{
 		Name:           "kathara_collect",
 		RequiredParams: []string{"values_kathara_collect_entry"},
@@ -292,7 +306,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	cfg.AddNodeClass(&types.NodeClass{
 		Name:            NodeClassName,
 		Parameters:      []string{VolumeParamRuleName, CopyParamRuleName, "kathara_collects"},
-		ConfigTemplates: []*types.ConfigTemplate{ct, ctImage, ctStartup, ctStartupBody, ctCopies, ctVolumes, ctTeardown, ctCollect},
+		ConfigTemplates: append([]*types.ConfigTemplate{ct, ctImage, ctStartup, ctStartupBody, ctCopies, ctVolumes, ctTeardown, ctCollect}, workerHooks...),
 	})
 
 	entry, err := templateFrom(cfg, "templates/lab.conf.value_kathara_volume_entry", &types.ConfigTemplate{

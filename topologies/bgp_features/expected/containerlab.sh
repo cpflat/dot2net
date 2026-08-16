@@ -88,15 +88,38 @@ run_collect() {
   collect_file r5 /var/log/frr.log
 }
 
+# What the lab asked to have run on this machine, one function per command this
+# script takes. Each is a function rather than the commands themselves so that a
+# block of several lines lands where a single line was written, and so that
+# note_failure and report work on it like anything else here.
+run_worker_deploy() {
+  :
+
+}
+
+run_worker_exec() {
+  :
+
+}
+
+run_worker_collect() {
+  :
+
+}
+
+run_worker_destroy() {
+  :
+
+}
+
 case "${1:-deploy}" in
   deploy)
-    # The bridges a topology names have to exist before containerlab will
-    # deploy: its check runs before any stage, so nothing inside the lab can
-    # make them. setup-bridges.sh is written beside this script when the
-    # topology asks for a bridge, and destroy takes the same ones down again.
-    if [ -f ./setup-bridges.sh ]; then
-      $SUDO ./setup-bridges.sh || { note_failure "setup-bridges"; exit 1; }
-    fi
+    # What the lab needs of the machine before the platform is asked for
+    # anything: the bridges a topology names have to exist before containerlab
+    # will deploy, since its check runs before any stage and nothing inside the
+    # lab can make them. worker_destroy takes the same ones down again.
+    run_worker_deploy
+    report
     # Anything after "deploy" goes to containerlab: a caller running labs in
     # parallel has to place each one's management network itself
     # (--network, --ipv4-subnet), and there is nothing in a topology to say it
@@ -109,12 +132,13 @@ case "${1:-deploy}" in
     run_teardown
     run_collect
     $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
-
+    run_worker_destroy
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
     run_collect
+    run_worker_collect
     report
     ;;
   exec)
@@ -128,6 +152,8 @@ case "${1:-deploy}" in
     # way, for the same reason.
     cid=$(container_id "$node")
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
+    run_worker_exec
+    report
     exec $SUDO docker exec "$cid" "$@"
     ;;
   *)

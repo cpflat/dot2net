@@ -47,26 +47,17 @@ const WorkerGroupClassName = "_clabWorkerGroup"
 // decided by the kind - the same ovs-bridge may be provisioned by Ansible, need
 // sudo, or live in another OVS database - so the choice belongs to the
 // topology. A topology that provisions its bridges some other way names neither
-// class and writes its own clab_bridge_setup template, or none at all.
+// class and writes its own worker_deploy template, or none at all.
 //
 // The names carry no underscore because they are meant to be written by users.
 const OvsBridgeSetupClassName = "clabOvsBridgeSetup"
 const LinuxBridgeSetupClassName = "clabLinuxBridgeSetup"
 
-// BridgeSetupConfigName is the config template name both classes above define,
-// and the one a topology overrides or supplies itself. Aggregate it with
-// {{ .nodes_clab_bridge_setup }}.
-const BridgeSetupConfigName = "clab_bridge_setup"
-
-// BridgeSetupFile is where those blocks end up. The module writes the script
-// itself rather than leaving a topology to assemble it: what goes in it is the
-// module's own doing, and a topology that says use: [clabOvsBridgeSetup] has
-// said everything it needs to.
-const BridgeSetupFile = "setup-bridges.sh"
-
-// BridgeCleanupConfigName is the same block the other way round: what the entry
-// script runs once the lab is down.
-const BridgeCleanupConfigName = "clab_bridge_cleanup"
+// Both classes write into worker_deploy and worker_destroy - the hooks dot2net
+// owns for what runs on the machine rather than in a node. A topology adds its
+// own commands under the same names, so making a bridge and attaching a host
+// interface to it are written the same way, and neither has to know about the
+// other.
 const InterfaceClassName = "_clabInterface"
 const ConnectionClassName = "_clabConnection"
 
@@ -190,29 +181,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct1.Template = []string{string(bytes)}
 
-	// The bridges a topology names have to exist before containerlab will
-	// deploy it, so a topology that asks for one gets a script that makes them.
-	// The module writes it rather than leaving a topology to assemble it, and
-	// only when some node class pulls in one of the bridge setup classes -
-	// which is knowable here, from the topology's own configuration.
 	owns := []*types.ConfigTemplate{ct1}
-	if usesBridgeSetup(cfg) {
-		cfg.AddFileDefinition(&types.FileDefinition{
-			Name:       BridgeSetupFile,
-			Path:       "",
-			Scope:      scope,
-			Subdir:     subdir,
-			Executable: true,
-		})
-		bridgeScript, err := templates.ReadFile("templates/setup-bridges.sh.clab_bridge_script")
-		if err != nil {
-			return err
-		}
-		owns = append(owns, &types.ConfigTemplate{
-			File:     BridgeSetupFile,
-			Template: []string{string(bridgeScript)},
-		})
-	}
 
 	// The entry script joins the same class, rather than getting one of its
 	// own: a class of its own is a class no group carries a label for, and the
@@ -339,6 +308,32 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	if err != nil {
 		return err
 	}
+	// The four the entry script runs on the machine, one per command it takes.
+	// Each carries whatever the topology wrote under the matching hook name, and
+	// produces nothing for a node that wrote none.
+	// A fresh set per class: a ConfigTemplate is applied to the node it is
+	// reached through, so one shared between two classes is applied twice to a
+	// node holding both.
+	workerHooks := func() ([]*types.ConfigTemplate, error) {
+		cts := make([]*types.ConfigTemplate, 0, 4)
+		for _, hook := range []string{"worker_deploy", "worker_exec", "worker_collect", "worker_destroy"} {
+			ct, err := readTemplate("templates/"+hook+".node_clab_"+hook, &types.ConfigTemplate{
+				Name:           "clab_" + hook,
+				Depends:        []string{hook},
+				RequiredParams: []string{"self_" + hook},
+			})
+			if err != nil {
+				return nil, err
+			}
+			cts = append(cts, ct)
+		}
+		return cts, nil
+	}
+	nodeHooks, err := workerHooks()
+	if err != nil {
+		return err
+	}
+
 	ctCollect, err := readTemplate("templates/collect.node_clab_collect", &types.ConfigTemplate{
 		Name:           "clab_collect",
 		RequiredParams: []string{"values_clab_collect_entry"},
@@ -350,7 +345,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
 		Parameters:      []string{"clab_binds", "clab_copies", "clab_collects"},
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4, ctCopies, ctExecBody, ctTeardown, ctCollect},
+		ConfigTemplates: append([]*types.ConfigTemplate{ct1, ct2, ct3, ct4, ctCopies, ctExecBody, ctTeardown, ctCollect}, nodeHooks...),
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: which of the two node classes a node gets is
@@ -366,9 +361,16 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct6.Template = []string{string(bytes)}
 
+	// A switch node carries the hooks too: a bridge the platform will not make
+	// is exactly what worker_deploy is for, and the topology hangs the commands
+	// off the same names it would on any other node.
+	switchHooks, err := workerHooks()
+	if err != nil {
+		return err
+	}
 	cfg.AddNodeClass(&types.NodeClass{
 		Name:            SwitchNodeClassName,
-		ConfigTemplates: []*types.ConfigTemplate{ct6},
+		ConfigTemplates: append([]*types.ConfigTemplate{ct6}, switchHooks...),
 	})
 
 	// A bridge the module made is a bridge the module takes away: the setup
@@ -389,8 +391,8 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		cfg.AddNodeClass(&types.NodeClass{
 			Name: setup.className,
 			ConfigTemplates: []*types.ConfigTemplate{
-				{Name: BridgeSetupConfigName, Template: []string{string(bytes)}},
-				{Name: BridgeCleanupConfigName, Template: []string{string(cleanup)}},
+				{Name: "worker_deploy", Template: []string{string(bytes)}},
+				{Name: "worker_destroy", Template: []string{string(cleanup)}},
 			},
 		})
 	}
@@ -758,21 +760,6 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 		})
 	}
 	return results, nil
-}
-
-// usesBridgeSetup reports whether any node class in the topology pulls in one of
-// the bridge setup classes. It reads the topology's own configuration, which is
-// loaded before the modules are, so the answer is available while the module is
-// still deciding what to register.
-func usesBridgeSetup(cfg *types.Config) bool {
-	for _, nc := range cfg.NodeClasses {
-		for _, used := range nc.Use {
-			if used == OvsBridgeSetupClassName || used == LinuxBridgeSetupClassName {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 // readTemplate fills a config template in from the module's own files.

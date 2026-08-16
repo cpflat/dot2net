@@ -85,8 +85,34 @@ run_collect() {
   collect_file r4 /var/log/frr.log
 }
 
+# What the lab asked to have run on this machine, one function per command this
+# script takes. Each is a function rather than the commands themselves so that a
+# block of several lines lands where a single line was written, and so that
+# note_failure and report work on it like anything else here.
+run_worker_deploy() {
+  :
+
+}
+
+run_worker_exec() {
+  :
+
+}
+
+run_worker_collect() {
+  :
+
+}
+
+run_worker_destroy() {
+  :
+
+}
+
 case "${1:-deploy}" in
   deploy)
+    run_worker_deploy
+    report
     # Anything after "deploy" goes to kathara, the way it does for the other
     # platforms' scripts.
     [ $# -gt 0 ] && shift
@@ -96,11 +122,13 @@ case "${1:-deploy}" in
     run_teardown
     run_collect
     $SUDO kathara lclean || note_failure "destroy"
+    run_worker_destroy
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
     run_collect
+    run_worker_collect
     report
     ;;
   exec)
@@ -109,6 +137,8 @@ case "${1:-deploy}" in
     node="$1"; shift
     cid=$(container_id "$node")
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
+    run_worker_exec
+    report
     exec $SUDO docker exec "$cid" "$@"
     ;;
   *)

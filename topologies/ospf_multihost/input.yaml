@@ -15,10 +15,9 @@
 #
 # Deploying it:
 #   1. put host1/ on one machine and host2/ on the other
-#   2. run setup-bridges.sh on each - containerlab refuses to deploy when an
-#      ovs-bridge node names a bridge that does not exist yet
-#   3. containerlab deploy -t topo.yaml on each
-#   4. join br1 and br2 by hand. They are on different machines, so no topology
+#   2. ./containerlab.sh on each. The bridges an ovs-bridge node names have to
+#      exist before containerlab will deploy, and the entry script makes them.
+#   3. join br1 and br2 by hand. They are on different machines, so no topology
 #      file can do it; inter-host-links.txt is what names the link to make.
 name: ospf_multihost
 
@@ -116,9 +115,10 @@ nodeclass:
       kind: ovs-bridge
     # containerlab refuses to deploy when the bridge does not already exist.
     # clabOvsBridgeSetup is a ready-made class the containerlab module offers:
-    # with it, the module writes setup-bridges.sh itself. A lab whose bridges
-    # are provisioned by Ansible, or need sudo, or live in another OVS
-    # database, leaves the use: line out and gets no script.
+    # it writes the entry script's worker_deploy and worker_destroy, so the
+    # bridge is made before the lab comes up and removed after it goes down. A
+    # lab whose bridges are provisioned by Ansible, or need sudo, or live in
+    # another OVS database, leaves the use: line out and writes its own.
     use: [clabOvsBridgeSetup]
 
 interfaceclass:

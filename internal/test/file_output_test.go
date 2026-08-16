@@ -882,6 +882,10 @@ networkclass:
 // containerlab module offers. They are opt-in: which command creates a bridge
 // is not decided by the kind, so a topology that provisions its bridges
 // differently names neither class and writes its own template.
+//
+// What they write is worker_deploy, the hook every platform's entry script
+// runs on the machine - the classes are containerlab's because the kinds are,
+// not because the hook is.
 func TestClabBridgeSetupClasses(t *testing.T) {
 	const dot = `digraph {
 		r1 [xlabel="router"];
@@ -927,7 +931,7 @@ networkclass:
     config:
       - file: setup.sh
         template:
-          - "{{ .nodes_clab_bridge_setup }}"
+          - "{{ .nodes_clab_worker_deploy }}"
 `
 	}
 
@@ -939,18 +943,37 @@ networkclass:
 		{
 			name: "the OVS class supplies its command",
 			yaml: head("    use: [clabOvsBridgeSetup]\n"),
-			want: "ovs-vsctl --may-exist add-br sw",
+			want: "  $SUDO ovs-vsctl --may-exist add-br sw || note_failure \"create bridge sw\"",
 		},
 		{
 			name: "the Linux bridge class supplies a different one",
 			yaml: head("    use: [clabLinuxBridgeSetup]\n"),
-			want: "ip link add sw type bridge\nip link set sw up",
+			want: "  # ip link add has no --may-exist, so ask first: a bridge left behind by a lab\n" +
+				"  # that was not destroyed cleanly must not stop this one deploying.\n" +
+				"  if ! ip link show sw >/dev/null 2>&1; then\n" +
+				"    $SUDO ip link add sw type bridge || note_failure \"create bridge sw\"\n" +
+				"  fi\n" +
+				"  $SUDO ip link set sw up || note_failure \"bring up bridge sw\"",
+		},
+		{
+			// What the module has to do comes first, so the topology's own
+			// commands run on ground it has prepared - here, a bridge that
+			// exists by the time anything is attached to it.
+			name: "a topology adds to the class, and the class goes first",
+			yaml: head(`    use: [clabOvsBridgeSetup]
+    config:
+      - name: worker_deploy
+        template:
+          - "ovs-vsctl add-port {{ .name }} eth9"
+`),
+			want: "  $SUDO ovs-vsctl --may-exist add-br sw || note_failure \"create bridge sw\"\n" +
+				"ovs-vsctl add-port sw eth9",
 		},
 		{
 			// Opting out is the point: nothing is chosen from the kind.
 			name: "a topology can write its own instead",
 			yaml: head(`    config:
-      - name: clab_bridge_setup
+      - name: worker_deploy
         template:
           - "ansible-playbook provision-bridge.yml -e name={{ .name }}"
 `),
