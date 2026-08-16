@@ -112,7 +112,9 @@ var HookConfigNames = map[string]HookOrder{
 // This decides an order between two contributors. Several modules writing one
 // hook would need an order among themselves, which this cannot express; if that
 // becomes real, the answer is a priority a topology can also set, with the
-// values here as its defaults. Nothing today needs it - only the FRR module
+// values here as its defaults - most likely the existing ConfigTemplate.Priority,
+// which already means the same thing one step out (where a block sits among the
+// blocks gathered with it). Nothing today needs it: only the FRR module
 // (startup) and the containerlab module (worker_deploy, worker_destroy) write
 // hooks at all.
 type HookOrder int
