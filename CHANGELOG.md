@@ -587,6 +587,12 @@ further down.
 
   `topologies/ospf_topo1`, `ospf6_topo1`, `rip_topo1`, `bgp_features` and
   `bgp_evpn_vxlan_topo1` use it and no longer generate a log file of their own.
+
+  **The log now lives only inside the node.** It used to be a file in the
+  generated directory that FRR wrote through a bind mount, so anything watching
+  that directory saw it grow; there is nothing there to watch any more. Use
+  `collect` to copy it out — see
+  [Entry point scripts](https://github.com/cpflat/dot2net/wiki/Command-Reference#entry-point-scripts).
 - **Ready-made bridge setup classes (containerlab)**: `clabOvsBridgeSetup` and
   `clabLinuxBridgeSetup` carry the commands that create and delete the bridge
   containerlab requires to exist before deploy. A topology opts in with
