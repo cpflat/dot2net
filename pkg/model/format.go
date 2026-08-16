@@ -901,11 +901,16 @@ func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, ct
 		if ns.HasRelativeParam(name) {
 			prev, _ := ns.GetParamValue(name)
 			if prev != "" {
-				// A hook name carries both a module's part and the topology's.
-				// The module's comes first whichever is rendered first, so that
-				// what a topology asked for runs after the ground is prepared.
-				if ct != nil && types.HookConfigNames[strings.TrimPrefix(name, types.SelfConfigHeader)] {
-					if ct.ModuleProvided {
+				// A hook name carries both a module's part and the topology's,
+				// and a module's part wraps the topology's: laid down first
+				// where the hook sets something up, taken up last where it
+				// takes something apart. Whichever of the two is rendered first
+				// gets the same result.
+				hook := strings.TrimPrefix(name, types.SelfConfigHeader)
+				if order, isHook := types.HookConfigNames[hook]; ct != nil && isHook {
+					moduleGoesFirst := order == types.ModuleOutside
+					// This one goes first if its side is the side that leads.
+					if goesFirst := ct.ModuleProvided == moduleGoesFirst; goesFirst {
 						ns.SetRelativeParam(name, joinHookBlocks(new, prev))
 					} else {
 						ns.SetRelativeParam(name, joinHookBlocks(prev, new))

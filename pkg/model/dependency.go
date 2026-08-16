@@ -207,7 +207,7 @@ func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
 		// an answer: a module reading one depends on it being rendered first if
 		// it is there at all, which is not the same as naming a template that
 		// does not exist.
-		if types.HookConfigNames[depName] {
+		if _, isHook := types.HookConfigNames[depName]; isHook {
 			continue
 		}
 		return nil, fmt.Errorf("dependency %s not found for template %v", depName, ct)

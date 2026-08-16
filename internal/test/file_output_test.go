@@ -970,6 +970,21 @@ networkclass:
 				"ovs-vsctl add-port sw eth9",
 		},
 		{
+			// The same rule seen from the other side: worker_destroy takes
+			// something apart, so the module's part is taken up last. The
+			// bridge outlives what was attached to it, which is the reverse of
+			// the order it was built in.
+			name: "the class goes last where the hook undoes something",
+			yaml: strings.Replace(head(`    use: [clabOvsBridgeSetup]
+    config:
+      - name: worker_destroy
+        template:
+          - "ovs-vsctl del-port {{ .name }} eth9"
+`), "{{ .nodes_clab_worker_deploy }}", "{{ .nodes_clab_worker_destroy }}", 1),
+			want: "ovs-vsctl del-port sw eth9\n" +
+				"  $SUDO ovs-vsctl --if-exists del-br sw || note_failure \"delete bridge sw\"",
+		},
+		{
 			// Opting out is the point: nothing is chosen from the kind.
 			name: "a topology can write its own instead",
 			yaml: head(`    config:

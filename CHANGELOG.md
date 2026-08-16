@@ -279,6 +279,12 @@ further down.
   run, and `deploy` stops rather than bringing up a lab whose machine is not
   ready.
 
+  Where a class pulled in with `use:` writes the same hook, **the module's part
+  wraps yours**: ahead of it where the hook sets something up, after it where the
+  hook takes something apart. A bridge is made before anything is attached to it
+  and removed after everything has let go, without either half saying so. This
+  applies to `teardown` as well, which is the other hook that undoes.
+
   `worker` because that is what dot2net already calls a machine a lab is
   deployed onto — see the `worker` group class.
 - **`collect` on a node class**: files to copy out of a node before the lab is

@@ -75,14 +75,14 @@ func defaultGlobalSettings() GlobalSettings {
 // names are its business, and a topology naming one of them would be reaching
 // into a module's insides, which is how the ways the two can talk to each other
 // multiply until nobody can say what they are.
-var HookConfigNames = map[string]bool{
+var HookConfigNames = map[string]HookOrder{
 	// startup: commands to run once the node is up. containerlab puts them in
 	// exec:, TiNET in cmds:, Kathara in <device>.startup.
-	"startup": true,
+	"startup": ModuleOutside,
 	// teardown: commands to run in the node while it is still up, before the
 	// lab is destroyed. Dumping state, flushing what a program buffers, putting
 	// a mounted file's permissions back. The entry script runs them.
-	"teardown": true,
+	"teardown": ModuleUndoes,
 	// The four below run on the machine rather than in a node, one for each of
 	// the entry script's own commands, and each named after the command it hangs
 	// off so that when it runs needs no looking up. What belongs here is what the
@@ -92,11 +92,38 @@ var HookConfigNames = map[string]bool{
 	// worker, because that is what dot2net already calls the machine a lab is
 	// deployed onto - see WorkerGroupClassName. A topology that declares no
 	// worker groups still has one machine, and these still run on it.
-	"worker_deploy":  true, // before the platform is asked to bring the lab up
-	"worker_exec":    true, // before a command is carried into a node
-	"worker_collect": true, // beside the files copied out of the nodes
-	"worker_destroy": true, // after the platform has taken the lab down
+	"worker_deploy":  ModuleOutside, // before the platform is asked to bring the lab up
+	"worker_exec":    ModuleOutside, // before a command is carried into a node
+	"worker_collect": ModuleOutside, // beside the files copied out of the nodes
+	"worker_destroy": ModuleUndoes,  // after the platform has taken the lab down
 }
+
+// HookOrder says where a module's contribution to a hook goes relative to the
+// topology's, when both write one. There is one rule and these are its two
+// faces: a module's contribution wraps the topology's. What the module does is
+// the ground the topology's commands run on, so it is laid first and taken up
+// last - the bridge is made before anything is attached to it, and removed
+// after everything has let go.
+//
+// Which face a hook wears follows from what the hook is for, not from what any
+// particular module happens to write there, so it is settled here beside the
+// name rather than per module.
+//
+// This decides an order between two contributors. Several modules writing one
+// hook would need an order among themselves, which this cannot express; if that
+// becomes real, the answer is a priority a topology can also set, with the
+// values here as its defaults. Nothing today needs it - only the FRR module
+// (startup) and the containerlab module (worker_deploy, worker_destroy) write
+// hooks at all.
+type HookOrder int
+
+const (
+	// ModuleOutside: the module's part is laid down first.
+	ModuleOutside HookOrder = iota
+	// ModuleUndoes: the hook takes something apart, so the module's part goes
+	// last - the reverse order of the setup it undoes.
+	ModuleUndoes
+)
 
 const ClassTypeNetwork string = "network"
 const ClassTypeNode string = "node"
