@@ -31,6 +31,9 @@ nodes:
 node_configs:
   - name: r1
     cmds:
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - cmd: /usr/lib/frr/frr start
       - cmd: ip addr add 10.0.0.1/30 dev eth0
       - cmd: ip addr add 10.0.0.5/30 dev eth1
@@ -40,6 +43,9 @@ node_configs:
       - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.8/30 area 0"
   - name: r2
     cmds:
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - cmd: /usr/lib/frr/frr start
       - cmd: ip addr add 10.0.0.2/30 dev eth0
       - cmd: ip addr add 10.0.0.13/30 dev eth1
@@ -47,6 +53,9 @@ node_configs:
       - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.12/30 area 0"
   - name: r3
     cmds:
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - cmd: /usr/lib/frr/frr start
       - cmd: ip addr add 10.0.0.6/30 dev eth0
       - cmd: ip addr add 10.0.0.17/30 dev eth1
@@ -56,6 +65,9 @@ node_configs:
       - cmd: vtysh -c "conf t" -c "router ospf" -c "network 10.0.0.20/30 area 0"
   - name: r4
     cmds:
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - cmd: /usr/lib/frr/frr start
       - cmd: ip addr add 10.0.0.14/30 dev eth0
       - cmd: ip addr add 10.0.0.18/30 dev eth1

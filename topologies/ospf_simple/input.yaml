@@ -23,6 +23,7 @@ module_config:
     mount_dirs: [/etc/frr]
 
 module:
+  - frr
   - kathara
   - tinet
   - containerlab
@@ -48,6 +49,7 @@ layer:
 
 nodeclass:
   - name: router
+    use: [frrLogFile]
     values:
       kind: linux
       image: quay.io/frrouting/frr:8.5.4

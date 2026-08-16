@@ -383,8 +383,10 @@ func (m *TinetModule) generateFilemountParams(
 		return nil, fmt.Errorf("filemounts generator requires Node target, got %T", target)
 	}
 
-	// Skip virtual nodes
-	if !node.IsMaterialised() {
+	// Nothing to deliver to a node that is not there, and nothing to deliver to
+	// one whose configuration is withheld: no file was written for it, so a mount
+	// naming one would point at a path that does not exist.
+	if !node.IsMaterialised() || node.IsVirtual() {
 		return nil, nil
 	}
 

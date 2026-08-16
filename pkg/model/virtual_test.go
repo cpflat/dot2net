@@ -111,7 +111,7 @@ func TestVirtualNodeIsStillDeployed(t *testing.T) {
 	dir := generateInto(t, strings.Replace(virtualWiringYAML,
 		"nodeclass:\n", "nodeclass:\n  - name: unwritten\n    deploy: container\n    virtual: true\n", 1),
 		strings.Replace(virtualWiringDot,
-			`r2 [xlabel="router"];`, `r2 [xlabel="router,unwritten"];`, 1))
+			`r2 [xlabel="router"];`, `r2 [xlabel="router;unwritten"];`, 1))
 
 	for _, c := range []struct {
 		file, want, platform string
@@ -132,8 +132,19 @@ func TestVirtualNodeIsStillDeployed(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "r2", "etc", "frr", "frr.conf")); err == nil {
 		t.Error("the configuration of a virtual node must not be written")
 	}
-	if strings.Contains(readGenerated(t, dir, "topo.yaml"), "r2/etc/frr") {
-		t.Error("a virtual node must not carry binds for files that were not written")
+	// Every platform delivers a file its own way, and each of them has to leave
+	// the delivery out: a mount naming a file nobody wrote points at a path that
+	// does not exist. TiNET got this wrong while the other two were right, which
+	// is why all three are named here.
+	for _, c := range []struct{ file, mount, platform string }{
+		{"topo.yaml", "r2/etc/frr", "containerlab"},
+		{"spec.yaml", "r2/etc/frr", "TiNET"},
+		{filepath.Join("kathara", "lab.conf"), "r2[volume]", "Kathara"},
+	} {
+		if got := readGenerated(t, dir, c.file); strings.Contains(got, c.mount) {
+			t.Errorf("%s: a virtual node must not be given %s - no file was written for it:\n%s",
+				c.platform, c.mount, got)
+		}
 	}
 }
 

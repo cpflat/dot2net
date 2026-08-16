@@ -404,3 +404,21 @@ func TestReorderConfigTemplates_InputOrderIndependence(t *testing.T) {
 		})
 	}
 }
+
+// TestAnEmptyBlockIsNotFormattedIntoOne guards a blank entry in a platform's
+// file. A config entry can render to nothing - a template that only embeds
+// another block, on an object where that block was not produced - and a line
+// prefix applied to no text turns that nothing into something: containerlab
+// would find an empty command in exec: and try to run it. The merge phase has
+// always dropped empty blocks; this is the same rule one step earlier.
+func TestAnEmptyBlockIsNotFormattedIntoOne(t *testing.T) {
+	// The format is named but never registered: an empty block has to be turned
+	// away before anything looks a format up, which is the property under test.
+	got, err := formatSingleConfigBlock(&types.Config{}, "", []string{"clabCmd"})
+	if err != nil {
+		t.Fatalf("formatSingleConfigBlock: %v", err)
+	}
+	if got != EmptyOutput {
+		t.Errorf("an empty block formatted into %q; it must stay nothing", got)
+	}
+}

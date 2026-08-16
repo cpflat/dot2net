@@ -28,7 +28,14 @@ global:
 
 # Kathara is not among the modules below: a lab.conf describes one machine,
 # and this topology places its nodes on more than one.
+module_config:
+  kathara:
+    # dot2net supplies everything FRR needs in here.
+    mount_dirs: [/etc/frr]
+
 module:
+  - frr
+  - kathara
   - tinet
   - containerlab
 
@@ -61,6 +68,7 @@ layer:
 
 nodeclass:
   - name: router
+    use: [frrLogFile]
     # The address policy is named here rather than on the interface class, so
     # that the bridge - which carries no interface_policy - stays addressless.
     interface_policy: [ip]

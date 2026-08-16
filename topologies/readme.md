@@ -46,13 +46,24 @@ produce, which `internal/test/example_test.go` checks on every build.
 
 ## Platforms
 
-Every topology here generates for containerlab and TiNET. Most generate for
-Kathara as well; the ones that do not say why where their modules are listed:
+Every topology here generates for containerlab and TiNET, and all but one for
+Kathara too.
 
-- `basic_clos`, `bgp_evpn_vxlan_topo1` name their own interfaces, and Kathara
-  derives an interface's name from its index in lab.conf
-- `ospf_multihost`, `aggregate_crossing` place nodes on more than one machine,
-  which a lab.conf cannot express
+**`basic_clos` is the exception**, and the reason is worth knowing before you
+write your own: it names its own interfaces (`up1`, `dn1`), and those names
+belong to interfaces that are ends of real links. Kathara derives an interface's
+name from its index in `lab.conf`, so a link's end is `eth0`, `eth1`, ... and
+nothing else — a name of the topology's choosing cannot be honoured. dot2net says
+so while generating rather than letting the lab fail to start.
+
+The rule reaches only the interfaces Kathara lists. A device the node's own
+configuration builds — `deploy: logical`, such as the VXLAN bridges in
+`bgp_evpn_vxlan_topo1` — never gets a line in `lab.conf`, so Kathara has no say
+in its name and the topology keeps the one it chose. That is why naming an
+interface is not by itself a reason a topology cannot run on Kathara.
+
+See [Module: Kathara](https://github.com/cpflat/dot2net/wiki/Module-Kathara) for
+what else it cannot express.
 
 
 ## Elsewhere

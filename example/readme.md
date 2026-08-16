@@ -28,9 +28,11 @@ the notation and stop at the config blocks. `deploy_and_virtual` generates for
 all three, on purpose: what it demonstrates is decided per platform, so seeing
 one of them would not tell you it was right.
 
-One does not generate for Kathara, and says why where its modules are listed:
-`address_reservation` names its own interfaces (up1, dn1), and Kathara derives
-an interface's name from its index in lab.conf.
+One does not generate for Kathara: `address_reservation` names its own
+interfaces (`up1`, `dn1`), and those are ends of real links, whose names Kathara
+derives from their index in `lab.conf`. An interface the node's own
+configuration builds keeps whatever name the topology chose — see
+[`topologies/readme.md`](../topologies/readme.md#platforms).
 
 ## What each one shows
 

@@ -9,6 +9,9 @@ topology:
       - r1/etc/frr/daemons:/etc/frr/daemons
       - r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.1/30 dev eth0
       - ip addr add 10.0.0.5/30 dev eth1
@@ -24,6 +27,9 @@ topology:
       - r2/etc/frr/daemons:/etc/frr/daemons
       - r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.2/30 dev eth0
       - ip addr add 10.0.0.13/30 dev eth1
@@ -37,6 +43,9 @@ topology:
       - r3/etc/frr/daemons:/etc/frr/daemons
       - r3/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.6/30 dev eth0
       - ip addr add 10.0.0.17/30 dev eth1
@@ -52,6 +61,9 @@ topology:
       - r4/etc/frr/daemons:/etc/frr/daemons
       - r4/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
       exec:
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
       - /usr/lib/frr/frr start
       - ip addr add 10.0.0.14/30 dev eth0
       - ip addr add 10.0.0.18/30 dev eth1

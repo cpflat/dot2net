@@ -9,7 +9,10 @@ topology:
       - r1/etc/frr/frr.conf:/etc/frr/frr.conf
       - r1/etc/frr/daemons:/etc/frr/daemons
       - r1/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
-
+      exec:
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     r2:
       kind: linux
       image: quay.io/frrouting/frr:8.5.4
@@ -18,7 +21,10 @@ topology:
       - r2/etc/frr/frr.conf:/etc/frr/frr.conf
       - r2/etc/frr/daemons:/etc/frr/daemons
       - r2/etc/frr/vtysh.conf:/etc/frr/vtysh.conf
-
+      exec:
+      - touch /var/log/frr.log
+      - chown frr:frr /var/log/frr.log
+      - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
     sw1:
       kind: ovs-bridge
 

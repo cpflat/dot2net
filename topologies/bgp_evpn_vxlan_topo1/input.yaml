@@ -4,7 +4,13 @@ class_policy:
   interface:
     base: [all]
 
+module_config:
+  kathara:
+    # dot2net supplies everything FRR needs in here.
+    mount_dirs: [/etc/frr]
+
 module:
+  - kathara
   - frr
   - tinet
   - containerlab

@@ -562,7 +562,9 @@ func (m *KatharaModule) generateFilemountParams(
 	if !ok {
 		return nil, fmt.Errorf("filemounts generator requires Node target, got %T", target)
 	}
-	if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
+	// A node whose configuration is withheld has no files to deliver, so naming
+	// one would point at a path that does not exist.
+	if !node.IsMaterialised() || node.IsVirtual() || cfg.IsSwitchNode(node) {
 		return nil, nil
 	}
 
@@ -645,7 +647,9 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 	if !ok {
 		return nil, fmt.Errorf("copyfiles generator requires Node target, got %T", target)
 	}
-	if !node.IsMaterialised() || cfg.IsSwitchNode(node) {
+	// A node whose configuration is withheld has no files to deliver, so naming
+	// one would point at a path that does not exist.
+	if !node.IsMaterialised() || node.IsVirtual() || cfg.IsSwitchNode(node) {
 		return nil, nil
 	}
 	copies, err := types.StagedCopies(cfg, node)

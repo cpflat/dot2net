@@ -81,7 +81,9 @@ run_teardown() {
 
 run_collect() {
   :
-
+  collect_file r1 /var/log/frr.log
+  collect_file r2 /var/log/frr.log
+  collect_file r3 /var/log/frr.log
 }
 
 case "${1:-deploy}" in

@@ -14,5 +14,11 @@ nodes:
 node_configs:
   - name: r3
     cmds:
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"
   - name: r4
     cmds:
+      - cmd: touch /var/log/frr.log
+      - cmd: chown frr:frr /var/log/frr.log
+      - cmd: vtysh -c "conf t" -c "log file /var/log/frr.log informational"

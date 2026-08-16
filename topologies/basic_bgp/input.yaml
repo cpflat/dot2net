@@ -43,6 +43,7 @@ param_rule:
 
 nodeclass:
   - name: default
+    use: [frrLogFile]
     params: [lo]
     values:
       kind: linux

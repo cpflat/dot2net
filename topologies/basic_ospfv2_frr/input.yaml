@@ -39,6 +39,7 @@ layer:
 
 nodeclass:
   - name: router
+    use: [frrLogFile]
     params: [lo]
     values:
       kind: linux

@@ -1257,7 +1257,11 @@ func mergeConfigBlocks(cfg *types.Config, blocks []string, formats []string) (st
 }
 
 func formatSingleConfigBlock(cfg *types.Config, block string, formats []string) (string, error) {
-	if block == EmptyOutput {
+	// A block that came out empty is nothing, and formatting it would turn it
+	// into something: a line prefix applied to no text is a blank entry in the
+	// platform’s file, which containerlab would then try to run. The merge phase
+	// already treats the two the same way.
+	if block == "" || block == EmptyOutput {
 		return EmptyOutput, nil
 	}
 
