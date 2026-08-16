@@ -82,6 +82,10 @@ run_collect() {
 
 case "${1:-deploy}" in
   deploy)
+    # Bringing a lab up here is two of TiNET's own commands, so there is no one
+    # place to put an extra argument. Rather than guess - or drop it in silence,
+    # which is how a caller finds out too late - say so.
+    [ $# -gt 1 ] && { echo "dot2net: deploy takes no further arguments here: TiNET brings a lab up in two steps" >&2; exit 2; }
     run up
     run conf
     ;;

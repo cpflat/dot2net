@@ -97,7 +97,13 @@ case "${1:-deploy}" in
     if [ -f ./setup-bridges.sh ]; then
       $SUDO ./setup-bridges.sh || { note_failure "setup-bridges"; exit 1; }
     fi
-    exec $SUDO containerlab deploy -t "$TOPO"
+    # Anything after "deploy" goes to containerlab: a caller running labs in
+    # parallel has to place each one's management network itself
+    # (--network, --ipv4-subnet), and there is nothing in a topology to say it
+    # with. Dropping the arguments in silence would let the labs come up on one
+    # subnet and collide later.
+    [ $# -gt 0 ] && shift
+    exec $SUDO containerlab deploy -t "$TOPO" "$@"
     ;;
   destroy)
     run_teardown

@@ -85,7 +85,10 @@ run_collect() {
 
 case "${1:-deploy}" in
   deploy)
-    exec $SUDO kathara lstart --noterminals
+    # Anything after "deploy" goes to kathara, the way it does for the other
+    # platforms' scripts.
+    [ $# -gt 0 ] && shift
+    exec $SUDO kathara lstart --noterminals "$@"
     ;;
   destroy)
     run_teardown

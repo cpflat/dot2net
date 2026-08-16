@@ -47,6 +47,13 @@ further down.
   config template named `startup` if they are not there already; that template is
   what containerlab puts in `exec:` and TiNET in `cmds:`, so it is written once
   and runs on all three.
+- **A template aggregating a segment's output has to name the layer.**
+  `{{ .segments_<name> }}` becomes `{{ .segments_<layer>_<name> }}` — the layer
+  was missing, so two layers using one config name were merged silently. **What
+  to do:** add the layer. A template that still names the old parameter fails at
+  build time with `map has no entry for key "segments_<name>"`, which is late
+  enough in the run to look unrelated, so it is worth searching for before
+  upgrading. No bundled topology referenced it; one out-of-tree topology did.
 - **Most topologies move from `example/` to `topologies/`.** The directory held
   two different things: networks worth deploying, and small inputs written to
   demonstrate a piece of notation. Both are read by users and both are
@@ -688,7 +695,9 @@ further down.
   `blocks.after`) already expected and what neighbor aggregation already did.
   A parent sees the segments of every layer in one pass, so without the layer
   two layers using the same config name were merged silently. **This renames the
-  parameter**, but no example or module referenced it.
+  parameter**: no bundled topology or module referenced it, but a topology
+  outside this repository did, and the failure comes late enough to look like
+  something else. It is listed under Breaking changes for that reason.
 - **`NetworkSegment.Layer` was never assigned**, so it read as empty everywhere
   (debug messages, and now the aggregation parameter name).
 - **Missing aggregation parameters**: a named child template now contributes its
