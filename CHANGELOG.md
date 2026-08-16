@@ -188,10 +188,23 @@ further down.
   lab on the same machine may well have a node of the same name, and teardown
   and collect must not reach into it.
 
-  Off by default, and chosen per module. `topologies/ospf_simple` turns all
-  three on and `topologies/ospf_multihost` the two that run there, so what the
-  scripts hold is checked against `expected/` like everything else — in both
-  scopes, since a multi-machine lab gets one script per machine.
+  **`deploy` makes the bridges the topology names**, which containerlab requires
+  before it will deploy and which nothing inside the lab can create; `destroy`
+  takes the same ones down again. Bringing a lab up therefore needs no step
+  outside the script, and the two directions match.
+
+  **`destroy` is also what collects.** A lab that brings files back — every one
+  that writes an FRR log does, since the class that makes the log asks for it —
+  needs a script for the copying to happen at all.
+
+  Chosen per module, and on wherever a lab needs one: every bundled topology
+  that writes a log or names a bridge turns them on, so what the scripts hold is
+  checked against `expected/` like everything else — in both scopes, since a
+  multi-machine lab gets one script per machine.
+
+  Verified on two machines from the generated files alone: `containerlab.sh
+  deploy` on each brings up `topologies/aggregate_crossing` across them, and
+  `destroy` brings the logs back and leaves neither containers nor bridges.
 - **`--name` on `build`, so one topology can be two labs at once.** A lab's
   containers are named after the lab, so two labs from one topology collide
   unless they are told apart. `--name` replaces the topology's own `name:` for
@@ -230,8 +243,9 @@ further down.
   limitation. To run one topology more than once at a time, generate it more
   than once under different names.
 - **`collect` on a node class**: files to copy out of a node before the lab is
-  destroyed. Each entry is a template, so a path that follows a value stays
-  right when the value is changed:
+  destroyed — and the entry script's `destroy` is what does the copying, so a
+  topology that collects anything needs one. Each entry is a template, so a path
+  that follows a value stays right when the value is changed:
 
   ```yaml
   nodeclass:
