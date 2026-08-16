@@ -39,7 +39,7 @@ report() {
 # same name, and teardown and collect must not reach into it.
 container_id() {
   $SUDO docker ps -q \
-    --filter "label=containerlab=ospf_simple" \
+    --filter "label=containerlab=host1" \
     --filter "label=clab-node-name=$1" | head -1
 }
 
@@ -83,7 +83,6 @@ run_collect() {
   :
   collect_file r1 /var/log/frr.log
   collect_file r2 /var/log/frr.log
-  collect_file r3 /var/log/frr.log
 }
 
 case "${1:-deploy}" in
@@ -101,7 +100,7 @@ case "${1:-deploy}" in
     run_teardown
     run_collect
     $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
-
+  ovs-vsctl --if-exists del-br sw1 || note_failure "delete bridge sw1"
     report
     ;;
   collect)

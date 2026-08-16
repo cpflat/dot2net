@@ -5,11 +5,16 @@ class_policy:
     default: [default]
 
 module_config:
+  containerlab:
+    generate_scripts: true
+  tinet:
+    generate_scripts: true
   kathara:
     # Kathara mounts directories rather than files, and the mount replaces
     # what the image had there. Naming /etc/frr says the topology supplies
     # everything FRR needs in it.
     mount_dirs: [/etc/frr]
+    generate_scripts: true
 
 module:
   - kathara

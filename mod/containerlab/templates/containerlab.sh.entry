@@ -86,6 +86,13 @@ run_collect() {
 
 case "${1:-deploy}" in
   deploy)
+    # The bridges a topology names have to exist before containerlab will
+    # deploy: its check runs before any stage, so nothing inside the lab can
+    # make them. setup-bridges.sh is written beside this script when the
+    # topology asks for a bridge, and destroy takes the same ones down again.
+    if [ -f ./setup-bridges.sh ]; then
+      $SUDO ./setup-bridges.sh || { note_failure "setup-bridges"; exit 1; }
+    fi
     exec $SUDO containerlab deploy -t "$TOPO"
     ;;
   destroy)

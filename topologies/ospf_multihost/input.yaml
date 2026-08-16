@@ -34,6 +34,7 @@ global:
 module_config:
   kathara:
     mount_dirs: [/etc/frr]
+    generate_scripts: true
   # One entry script per machine, since one machine is what a lab is deployed
   # to. Each carries its own lab name, so teardown and collect on host1 cannot
   # reach a container on host2's lab.

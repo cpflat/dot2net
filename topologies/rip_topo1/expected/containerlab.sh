@@ -39,7 +39,7 @@ report() {
 # same name, and teardown and collect must not reach into it.
 container_id() {
   $SUDO docker ps -q \
-    --filter "label=containerlab=ospf_simple" \
+    --filter "label=containerlab=rip-topo1" \
     --filter "label=clab-node-name=$1" | head -1
 }
 
