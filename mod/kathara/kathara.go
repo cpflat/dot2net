@@ -437,6 +437,13 @@ func interfaceIndex(iface *types.Interface) (int, error) {
 }
 
 func (m *KatharaModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
+	var collectOpts Options
+	if _, err := cfg.DecodeModuleConfig("kathara", &collectOpts); err != nil {
+		return err
+	}
+	if err := types.CheckCollectNeedsScript(cfg, nm, "kathara", collectOpts.GenerateScripts); err != nil {
+		return err
+	}
 
 	if err := checkMountDirsUsed(cfg, nm); err != nil {
 		return err

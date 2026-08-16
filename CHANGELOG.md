@@ -85,6 +85,13 @@ further down.
   `assert` module is also loaded by `example/address_reservation`. Its own name
   had stopped being true, too — it configured no VLAN, only assigned a number and
   wrote it to a file.
+- **`empty` on a config entry** and **`sort` on a `param_rule`**: both were
+  declared and read by nothing, so writing either did exactly what leaving it out
+  did. A file that has to exist whatever the conditions is written by a template
+  that produces its empty content.
+- **`--dir` on `build`**: declared, shown in `--help`, and read by nothing. Where
+  a node's files go is decided by the file definitions and
+  `global.output_group_class`.
 
 ### Changed (repository layout)
 
@@ -279,7 +286,8 @@ further down.
 
   The entry script does the copying, which is why a topology that collects
   anything needs one. Declaring `collect` with `generate_scripts` off is an
-  error that says which class asked for it.
+  error naming the node and the file, since the declaration would otherwise sit
+  there doing nothing.
 - **`teardown` on a node class**: commands to run in a node while it is still
   up, before the lab is destroyed. Dumping state, flushing what a
   program buffers, putting a mounted file's permissions back. Written the same
@@ -705,6 +713,12 @@ further down.
   parameter**: no bundled topology or module referenced it, but a topology
   outside this repository did, and the failure comes late enough to look like
   something else. It is listed under Breaking changes for that reason.
+- **An empty config block was formatted into a blank command.** A block that
+  rendered to nothing still had the line prefix applied, so containerlab found an
+  empty entry in `exec:` and would have tried to run it. The merge phase had
+  always dropped empty blocks; the formatting step now does the same.
+- **`dot2net files` listed the configuration of a node whose configuration is
+  withheld**, which the build does not write. The list and the build now agree.
 - **`NetworkSegment.Layer` was never assigned**, so it read as empty everywhere
   (debug messages, and now the aggregation parameter name).
 - **Missing aggregation parameters**: a named child template now contributes its

@@ -1,1 +1,1 @@
-  ip link del {{ .name }} || note_failure "delete bridge {{ .name }}"
+  $SUDO ip link del {{ .name }} || note_failure "delete bridge {{ .name }}"

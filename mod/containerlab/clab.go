@@ -627,6 +627,14 @@ func (m *ClabModule) generateFilemountParams(
 }
 
 func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
+	var collectOpts Options
+	if _, err := cfg.DecodeModuleConfig("containerlab", &collectOpts); err != nil {
+		return err
+	}
+	if err := types.CheckCollectNeedsScript(cfg, nm, "containerlab", collectOpts.GenerateScripts); err != nil {
+		return err
+	}
+
 	// containerlab keeps eth0 for the management network and refuses a data
 	// interface by that name. It says so at deploy time; saying it here means
 	// the topology hears about it while it can still be changed.
@@ -688,11 +696,11 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 		if !cfg.IsSwitchNode(node) {
 			_, err := node.GetParamValue(ClabImageParamName)
 			if err != nil {
-				return fmt.Errorf("every (non-virtual) node must have {{ .image }} parameter (none for %s)", node.Name)
+				return fmt.Errorf("every deployed node must have {{ .image }} parameter (none for %s)", node.Name)
 			}
 		}
 		if _, err := node.GetParamValue(ClabKindParamName); err != nil {
-			return fmt.Errorf("every (non-virtual) node must have {{ .kind }} parameter (none for %s)", node.Name)
+			return fmt.Errorf("every deployed node must have {{ .kind }} parameter (none for %s)", node.Name)
 		}
 	}
 	return nil

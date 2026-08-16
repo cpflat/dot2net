@@ -106,7 +106,7 @@ case "${1:-deploy}" in
     run_teardown
     run_collect
     $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
-  ovs-vsctl --if-exists del-br br1 || note_failure "delete bridge br1"
+  $SUDO ovs-vsctl --if-exists del-br br1 || note_failure "delete bridge br1"
     report
     ;;
   collect)

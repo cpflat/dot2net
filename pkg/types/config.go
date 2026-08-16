@@ -1098,8 +1098,6 @@ type ParameterRule struct {
 	ParamFormat map[string]string `yaml:"param_format" mapstructure:"param_format"`
 	// ConfigTemplates defines config blocks for Values
 	ConfigTemplates []*ConfigTemplate `yaml:"config,flow" mapstructure:"config,flow"`
-	// Sort specifies ordering: "asc", "desc", or empty (preserve generation order)
-	Sort string `yaml:"sort" mapstructure:"sort"`
 }
 
 // GetMode returns the mode, defaulting to "distribute" if not specified
@@ -1468,8 +1466,6 @@ type ConfigTemplate struct {
 	// this option is valid only on NeighborClass
 	NeighborNodeClass   string   `yaml:"neighbor_node" mapstructure:"neighbor_node"`
 	NeighborNodeClasses []string `yaml:"neighbor_nodes" mapstructure:"neighbor_nodes"`
-	// put empty file or namespace if conditions are not satisfied
-	Empty bool `yaml:"empty" mapstructure:"empty"`
 	// RequiredParams specifies parameters that must exist for this template to generate output
 	// If any of the specified parameters are missing, the entire block is skipped
 	RequiredParams []string `yaml:"required_params,flow" mapstructure:"required_params,flow"`

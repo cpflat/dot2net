@@ -517,6 +517,14 @@ func (m TinetModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) 
 }
 
 func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.NetworkModel) error {
+	var collectOpts Options
+	if _, err := cfg.DecodeModuleConfig("tinet", &collectOpts); err != nil {
+		return err
+	}
+	if err := types.CheckCollectNeedsScript(cfg, nm, "tinet", collectOpts.GenerateScripts); err != nil {
+		return err
+	}
+
 	// A machine is brought up from its own directory, so everything its spec
 	// file mounts has to live under that directory. Splitting the output by
 	// some other grouping would scatter the node files elsewhere and leave no
@@ -551,7 +559,7 @@ func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 			continue
 		}
 		if _, err := node.GetParamValue(TinetImageParamName); err != nil {
-			return fmt.Errorf("every (non-virtual) node must have {{ .image }} parameter (none for %s)", node.Name)
+			return fmt.Errorf("every deployed node must have {{ .image }} parameter (none for %s)", node.Name)
 		}
 	}
 	return nil

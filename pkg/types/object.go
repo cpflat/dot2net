@@ -3462,3 +3462,27 @@ func renderWithNodeParams(raw string, node *Node) (string, error) {
 	}
 	return sb.String(), nil
 }
+
+// CheckCollectNeedsScript rejects a topology that asks for files to be brought
+// back from a platform whose entry script is off. The copying is the script's
+// work - nothing else runs while the lab is still up and can reach into a
+// container - so the declaration would otherwise sit there doing nothing, and
+// the files would be missing without a word being said about it.
+func CheckCollectNeedsScript(cfg *Config, nm *NetworkModel, module string, generateScripts bool) error {
+	if generateScripts {
+		return nil
+	}
+	// What the topology actually collects, not what some class could: a module
+	// registers its own classes whether or not anything carries them.
+	targets, err := CollectTargets(cfg, nm)
+	if err != nil {
+		return err
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"node %s asks for %s to be collected, but module_config.%s.generate_scripts is off: "+
+			"the entry script's destroy is what copies it out, so nothing would",
+		targets[0].Node, targets[0].ContainerPath, module)
+}

@@ -23,12 +23,6 @@ var commandBuild = &cli.Command{
 			Value:   "config.yaml",
 		},
 		&cli.StringFlag{
-			Name:    "dir",
-			Aliases: []string{"d"},
-			Usage:   "Specify name of directory for per-device configuration.",
-			Value:   "commands",
-		},
-		&cli.StringFlag{
 			Name:  "name",
 			Usage: "Name this lab, in place of the topology's own name. Generate the same topology under two names to deploy it twice at once.",
 			Value: "",
