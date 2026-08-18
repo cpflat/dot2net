@@ -17,6 +17,18 @@ further down.
   generated files by path has to follow.
 - **Interfaces are named `eth0`, `eth1`, ...** instead of `net0`, `net1`. A
   template naming an interface literally has to be updated.
+- **A bridge is called something else on the machine.** What a topology names
+  `sw1` reaches the machine as `br-a1b2c3`, and the veth reaching it as
+  `eth0-a1b2c3`. Anything naming a bridge or its ports on the host — a script
+  that cleans up after an interrupted run, a capture pinned to an interface —
+  has to ask for the name rather than assume it: `{{ .clab_bridge }}` and
+  `{{ .opp_clab_host_port }}` in a template, `dot2net data` from outside.
+
+  The name is worked out from the lab's name and the node's, so the same inputs
+  always give the same name and a tool that lost its files can rebuild it. **How
+  it is worked out is therefore part of the interface**: changing the inputs, the
+  length or the shape renames every bridge and orphans what an older version left
+  behind, and will be released as a breaking change.
 - **containerlab nodes get no management network by default.** A lab that relied on
   `clab exec`, the `clab-*` container names, or reachability through the
   management network has to turn it back on with

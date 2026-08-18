@@ -568,6 +568,13 @@ func clabEndpoint(cfg *types.Config, iface *types.Interface) string {
 // hostNameToken stands for the lab and the bridge in a name the machine sees.
 // Deterministic, so that destroy names what deploy made; short, because it is
 // spent out of fifteen characters.
+//
+// Being able to work the name out again is what it is for, and not only within
+// one run: a tool that lost its generated files can rebuild the lab name and ask
+// dot2net for the bridge, which is how leftovers from an interrupted run are
+// found. So the input, the length and the shape are a promise. Changing any of
+// them renames every bridge and orphans whatever an older version left behind -
+// a breaking change, to be released as one.
 func hostNameToken(cfg *types.Config, node *types.Node) string {
 	sum := sha256.Sum256([]byte(cfg.Name + "\x00" + node.LocalNameOr()))
 	return hex.EncodeToString(sum[:])[:hostTokenLength]
