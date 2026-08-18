@@ -9,9 +9,19 @@ cd topologies/ospf_simple
 ../../dot2net build -c input.yaml input.dot
 ```
 
-These are the ones worth actually running. The notation demonstrations — small
-inputs written to show what a piece of syntax does — live in [`example/`](../example)
-instead.
+**These are meant to be built on.** Another tool - a fault-injection harness, a
+testbed - starts from one of these rather than writing a network from nothing,
+so what a topology here does has to be plain to read and dependable in what it
+produces. That is why most of them are **ports of networks that already existed
+and were already trusted**, listed by where they came from below. A topology
+written here from nothing would have only itself to vouch for it.
+
+The exceptions are the ones demonstrating something only dot2net has, where
+there is no established network to port: placing nodes on machines, and
+aggregating the links that cross between them.
+
+The notation demonstrations — small inputs written to show what a piece of
+syntax does — live in [`example/`](../example) instead.
 
 Every directory carries an `expected/` holding the output dot2net should
 produce, which `internal/test/example_test.go` checks on every build.
