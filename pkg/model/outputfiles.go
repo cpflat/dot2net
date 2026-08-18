@@ -73,7 +73,15 @@ func generatedFiles(cfg *types.Config, nm *types.NetworkModel) ([]generatedFile,
 				if err != nil {
 					return nil, err
 				}
-				files = append(files, generatedFile{path: outputPath, fileDef: fileDef})
+				// OutputPath is written with forward slashes because a platform
+				// file names it too - a bind line in topo.yaml is read on the
+				// machine the lab runs on, which is not this one. This list is
+				// about files on this machine, so it is put in this machine's
+				// terms; on anything but Windows the two are the same string.
+				files = append(files, generatedFile{
+					path:    filepath.FromSlash(outputPath),
+					fileDef: fileDef,
+				})
 			}
 		}
 	}
