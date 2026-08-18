@@ -1,59 +1,59 @@
 nodes:
   - name: leaf1
     image: slankdev/frr
-    interfaces: [{name: up1, type: direct, args: spine1#dn1}, {name: up2, type: direct, args: spine2#dn1}, {name: dn1, type: direct, args: sv1#eth0}, {name: dn2, type: direct, args: sv2#eth0}]
+    interfaces: [{name: eth0, type: direct, args: spine1#eth0}, {name: eth1, type: direct, args: spine2#eth0}, {name: eth2, type: direct, args: sv1#eth0}, {name: eth3, type: direct, args: sv2#eth0}]
     mounts: []
   - name: leaf2
     image: slankdev/frr
-    interfaces: [{name: up1, type: direct, args: spine1#dn2}, {name: up2, type: direct, args: spine2#dn2}, {name: dn1, type: direct, args: sv3#eth0}, {name: dn2, type: direct, args: sv4#eth0}]
+    interfaces: [{name: eth0, type: direct, args: spine1#eth1}, {name: eth1, type: direct, args: spine2#eth1}, {name: eth2, type: direct, args: sv3#eth0}, {name: eth3, type: direct, args: sv4#eth0}]
     mounts: []
   - name: leaf3
     image: slankdev/frr
-    interfaces: [{name: up1, type: direct, args: spine1#dn3}, {name: up2, type: direct, args: spine2#dn3}, {name: dn1, type: direct, args: sv5#eth0}, {name: dn2, type: direct, args: sv6#eth0}]
+    interfaces: [{name: eth0, type: direct, args: spine1#eth2}, {name: eth1, type: direct, args: spine2#eth2}, {name: eth2, type: direct, args: sv5#eth0}, {name: eth3, type: direct, args: sv6#eth0}]
     mounts: []
   - name: leaf4
     image: slankdev/frr
-    interfaces: [{name: up1, type: direct, args: spine1#dn4}, {name: up2, type: direct, args: spine2#dn4}, {name: dn1, type: direct, args: sv7#eth0}, {name: dn2, type: direct, args: sv8#eth0}]
+    interfaces: [{name: eth0, type: direct, args: spine1#eth3}, {name: eth1, type: direct, args: spine2#eth3}, {name: eth2, type: direct, args: sv7#eth0}, {name: eth3, type: direct, args: sv8#eth0}]
     mounts: []
   - name: spine1
     image: slankdev/frr
-    interfaces: [{name: dn1, type: direct, args: leaf1#up1}, {name: dn2, type: direct, args: leaf2#up1}, {name: dn3, type: direct, args: leaf3#up1}, {name: dn4, type: direct, args: leaf4#up1}]
+    interfaces: [{name: eth0, type: direct, args: leaf1#eth0}, {name: eth1, type: direct, args: leaf2#eth0}, {name: eth2, type: direct, args: leaf3#eth0}, {name: eth3, type: direct, args: leaf4#eth0}]
     mounts: []
   - name: spine2
     image: slankdev/frr
-    interfaces: [{name: dn1, type: direct, args: leaf1#up2}, {name: dn2, type: direct, args: leaf2#up2}, {name: dn3, type: direct, args: leaf3#up2}, {name: dn4, type: direct, args: leaf4#up2}]
+    interfaces: [{name: eth0, type: direct, args: leaf1#eth1}, {name: eth1, type: direct, args: leaf2#eth1}, {name: eth2, type: direct, args: leaf3#eth1}, {name: eth3, type: direct, args: leaf4#eth1}]
     mounts: []
   - name: sv1
     image: slankdev/frr
-    interfaces: [{name: eth0, type: direct, args: leaf1#dn1}]
+    interfaces: [{name: eth0, type: direct, args: leaf1#eth2}]
     mounts: []
   - name: sv2
     image: slankdev/frr
-    interfaces: [{name: eth0, type: direct, args: leaf1#dn2}]
+    interfaces: [{name: eth0, type: direct, args: leaf1#eth3}]
     mounts: []
   - name: sv3
     image: slankdev/frr
-    interfaces: [{name: eth0, type: direct, args: leaf2#dn1}]
+    interfaces: [{name: eth0, type: direct, args: leaf2#eth2}]
     mounts: []
   - name: sv4
     image: slankdev/frr
-    interfaces: [{name: eth0, type: direct, args: leaf2#dn2}]
+    interfaces: [{name: eth0, type: direct, args: leaf2#eth3}]
     mounts: []
   - name: sv5
     image: slankdev/frr
-    interfaces: [{name: eth0, type: direct, args: leaf3#dn1}]
+    interfaces: [{name: eth0, type: direct, args: leaf3#eth2}]
     mounts: []
   - name: sv6
     image: slankdev/frr
-    interfaces: [{name: eth0, type: direct, args: leaf3#dn2}]
+    interfaces: [{name: eth0, type: direct, args: leaf3#eth3}]
     mounts: []
   - name: sv7
     image: slankdev/frr
-    interfaces: [{name: eth0, type: direct, args: leaf4#dn1}]
+    interfaces: [{name: eth0, type: direct, args: leaf4#eth2}]
     mounts: []
   - name: sv8
     image: slankdev/frr
-    interfaces: [{name: eth0, type: direct, args: leaf4#dn2}]
+    interfaces: [{name: eth0, type: direct, args: leaf4#eth3}]
     mounts: []
 
 node_configs:
@@ -62,55 +62,55 @@ node_configs:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.1/32" -c "router bgp 65000" -c "bgp router-id 10.255.0.1" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - cmd: ip addr add 172.16.0.2/16 dev mgmt
-      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.0.2/30" -c "router bgp 65000" -c "neighbor 10.0.0.1 remote-as 65004"
-      - cmd: vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.4.2/30" -c "router bgp 65000" -c "neighbor 10.0.4.1 remote-as 65005"
-      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.1/30" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65006"
-      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.5/30" -c "router bgp 65000" -c "neighbor 10.0.0.6 remote-as 65007"
+      - cmd: vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.2/30" -c "router bgp 65000" -c "neighbor 10.0.0.1 remote-as 65004"
+      - cmd: vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.4.2/30" -c "router bgp 65000" -c "neighbor 10.0.4.1 remote-as 65005"
+      - cmd: vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.1/30" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65006"
+      - cmd: vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.5/30" -c "router bgp 65000" -c "neighbor 10.0.0.6 remote-as 65007"
   - name: leaf2
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.2/32" -c "router bgp 65001" -c "bgp router-id 10.255.0.2" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - cmd: ip addr add 172.16.0.3/16 dev mgmt
-      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.1.2/30" -c "router bgp 65001" -c "neighbor 10.0.1.1 remote-as 65004"
-      - cmd: vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.5.2/30" -c "router bgp 65001" -c "neighbor 10.0.5.1 remote-as 65005"
-      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.9/30" -c "router bgp 65001" -c "neighbor 10.0.0.10 remote-as 65008"
-      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.13/30" -c "router bgp 65001" -c "neighbor 10.0.0.14 remote-as 65009"
+      - cmd: vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.1.2/30" -c "router bgp 65001" -c "neighbor 10.0.1.1 remote-as 65004"
+      - cmd: vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.5.2/30" -c "router bgp 65001" -c "neighbor 10.0.5.1 remote-as 65005"
+      - cmd: vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.9/30" -c "router bgp 65001" -c "neighbor 10.0.0.10 remote-as 65008"
+      - cmd: vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.13/30" -c "router bgp 65001" -c "neighbor 10.0.0.14 remote-as 65009"
   - name: leaf3
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.3/32" -c "router bgp 65002" -c "bgp router-id 10.255.0.3" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - cmd: ip addr add 172.16.0.4/16 dev mgmt
-      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.2.2/30" -c "router bgp 65002" -c "neighbor 10.0.2.1 remote-as 65004"
-      - cmd: vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.6.2/30" -c "router bgp 65002" -c "neighbor 10.0.6.1 remote-as 65005"
-      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.17/30" -c "router bgp 65002" -c "neighbor 10.0.0.18 remote-as 65010"
-      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.21/30" -c "router bgp 65002" -c "neighbor 10.0.0.22 remote-as 65011"
+      - cmd: vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.2.2/30" -c "router bgp 65002" -c "neighbor 10.0.2.1 remote-as 65004"
+      - cmd: vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.6.2/30" -c "router bgp 65002" -c "neighbor 10.0.6.1 remote-as 65005"
+      - cmd: vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.17/30" -c "router bgp 65002" -c "neighbor 10.0.0.18 remote-as 65010"
+      - cmd: vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.21/30" -c "router bgp 65002" -c "neighbor 10.0.0.22 remote-as 65011"
   - name: leaf4
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.4/32" -c "router bgp 65003" -c "bgp router-id 10.255.0.4" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - cmd: ip addr add 172.16.0.5/16 dev mgmt
-      - cmd: vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.3.2/30" -c "router bgp 65003" -c "neighbor 10.0.3.1 remote-as 65004"
-      - cmd: vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.7.2/30" -c "router bgp 65003" -c "neighbor 10.0.7.1 remote-as 65005"
-      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.25/30" -c "router bgp 65003" -c "neighbor 10.0.0.26 remote-as 65012"
-      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.29/30" -c "router bgp 65003" -c "neighbor 10.0.0.30 remote-as 65013"
+      - cmd: vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.3.2/30" -c "router bgp 65003" -c "neighbor 10.0.3.1 remote-as 65004"
+      - cmd: vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.7.2/30" -c "router bgp 65003" -c "neighbor 10.0.7.1 remote-as 65005"
+      - cmd: vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.25/30" -c "router bgp 65003" -c "neighbor 10.0.0.26 remote-as 65012"
+      - cmd: vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.29/30" -c "router bgp 65003" -c "neighbor 10.0.0.30 remote-as 65013"
   - name: spine1
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.5/32" -c "router bgp 65004" -c "bgp router-id 10.255.0.5" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - cmd: ip addr add 172.16.0.6/16 dev mgmt
-      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.1/30" -c "router bgp 65004" -c "neighbor 10.0.0.2 remote-as 65000"
-      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.1.1/30" -c "router bgp 65004" -c "neighbor 10.0.1.2 remote-as 65001"
-      - cmd: vtysh -c "conf t" -c "int dn3" -c "ip addr 10.0.2.1/30" -c "router bgp 65004" -c "neighbor 10.0.2.2 remote-as 65002"
-      - cmd: vtysh -c "conf t" -c "int dn4" -c "ip addr 10.0.3.1/30" -c "router bgp 65004" -c "neighbor 10.0.3.2 remote-as 65003"
+      - cmd: vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.1/30" -c "router bgp 65004" -c "neighbor 10.0.0.2 remote-as 65000"
+      - cmd: vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.1.1/30" -c "router bgp 65004" -c "neighbor 10.0.1.2 remote-as 65001"
+      - cmd: vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.2.1/30" -c "router bgp 65004" -c "neighbor 10.0.2.2 remote-as 65002"
+      - cmd: vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.3.1/30" -c "router bgp 65004" -c "neighbor 10.0.3.2 remote-as 65003"
   - name: spine2
     cmds:
       - cmd: /usr/lib/frr/frr start
       - cmd: vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.6/32" -c "router bgp 65005" -c "bgp router-id 10.255.0.6" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - cmd: ip addr add 172.16.0.7/16 dev mgmt
-      - cmd: vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.4.1/30" -c "router bgp 65005" -c "neighbor 10.0.4.2 remote-as 65000"
-      - cmd: vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.5.1/30" -c "router bgp 65005" -c "neighbor 10.0.5.2 remote-as 65001"
-      - cmd: vtysh -c "conf t" -c "int dn3" -c "ip addr 10.0.6.1/30" -c "router bgp 65005" -c "neighbor 10.0.6.2 remote-as 65002"
-      - cmd: vtysh -c "conf t" -c "int dn4" -c "ip addr 10.0.7.1/30" -c "router bgp 65005" -c "neighbor 10.0.7.2 remote-as 65003"
+      - cmd: vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.4.1/30" -c "router bgp 65005" -c "neighbor 10.0.4.2 remote-as 65000"
+      - cmd: vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.5.1/30" -c "router bgp 65005" -c "neighbor 10.0.5.2 remote-as 65001"
+      - cmd: vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.6.1/30" -c "router bgp 65005" -c "neighbor 10.0.6.2 remote-as 65002"
+      - cmd: vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.7.1/30" -c "router bgp 65005" -c "neighbor 10.0.7.2 remote-as 65003"
   - name: sv1
     cmds:
       - cmd: /usr/lib/frr/frr start

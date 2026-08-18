@@ -1,0 +1,39 @@
+name: naming
+topology:
+  nodes:
+    spine1:
+      kind: linux
+      image: alpine
+      network-mode: none
+      binds:
+      - spine1/names.txt:/names.txt
+
+    spine2:
+      kind: linux
+      image: alpine
+      network-mode: none
+      binds:
+      - spine2/names.txt:/names.txt
+
+    leaf1:
+      kind: linux
+      image: alpine
+      network-mode: none
+      binds:
+      - leaf1/names.txt:/names.txt
+
+    leaf2:
+      kind: linux
+      image: alpine
+      network-mode: none
+      binds:
+      - leaf2/names.txt:/names.txt
+
+    fabric1:
+      kind: bridge
+
+  links:
+  - endpoints: [spine1:up1, fabric1:eth0]
+  - endpoints: [spine2:up1, fabric1:eth1]
+  - endpoints: [leaf1:dn0, fabric1:eth2]
+  - endpoints: [leaf2:dn0, fabric1:eth3]

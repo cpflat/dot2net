@@ -1,0 +1,6 @@
+/usr/lib/frr/frr start
+vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.5/32" -c "router bgp 65004" -c "bgp router-id 10.255.0.5" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
+vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.1/30" -c "router bgp 65004" -c "neighbor 10.0.0.2 remote-as 65000"
+vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.0.17/30" -c "router bgp 65004" -c "neighbor 10.0.0.18 remote-as 65001"
+vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.33/30" -c "router bgp 65004" -c "neighbor 10.0.0.34 remote-as 65002"
+vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.49/30" -c "router bgp 65004" -c "neighbor 10.0.0.50 remote-as 65003"

@@ -177,6 +177,21 @@ further down.
   machines needs one change to Kathara's own settings: its default collision
   domain driver puts no bridge on the host, so `network_plugin` has to be
   `kathara/katharanp` for a cross-machine link to have anything to attach to.
+- **Every bundled topology under `topologies/` now generates for Kathara too.**
+  `basic_clos` was the last that could not: it named its own interfaces (`up1`,
+  `dn1`) on the ends of real links, and Kathara reads an interface's name from
+  its index in `lab.conf`. The names carried nothing the topology depended on, so
+  they were dropped; `example/address_reservation`, which had copied that graph,
+  went with it.
+- **`example/naming`**: what everything ends up called, and who decides it — a
+  node renamed from its class prefix (`nodeautoname`), an interface named in the
+  DOT file as `node:port`, another named from `interfaceclass.prefix`, and a
+  connection from `connectionclass.prefix`. Naming was demonstrated only as a
+  side effect of `basic_clos` before, and nowhere after it stopped.
+
+  This is the one bundled topology that does not generate for Kathara, and it
+  says why: **naming a link's interfaces and running on Kathara are mutually
+  exclusive.**
 - **`topologies/ospf_multihost`**: `topologies/ospf_simple` placed on two machines —
   the same OSPF configuration, split across a machine boundary. This is the
   one to copy when writing a multi-host topology. Deployed on two VMs: the OSPF adjacency between the

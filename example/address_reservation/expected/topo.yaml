@@ -9,10 +9,10 @@ topology:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.1/32" -c "router bgp 65000" -c "bgp router-id 10.255.0.1" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - ip addr add 172.16.0.2/16 dev mgmt
-      - vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.0.2/30" -c "router bgp 65000" -c "neighbor 10.0.0.1 remote-as 65004"
-      - vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.4.2/30" -c "router bgp 65000" -c "neighbor 10.0.4.1 remote-as 65005"
-      - vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.1/30" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65006"
-      - vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.5/30" -c "router bgp 65000" -c "neighbor 10.0.0.6 remote-as 65007"
+      - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.2/30" -c "router bgp 65000" -c "neighbor 10.0.0.1 remote-as 65004"
+      - vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.4.2/30" -c "router bgp 65000" -c "neighbor 10.0.4.1 remote-as 65005"
+      - vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.1/30" -c "router bgp 65000" -c "neighbor 10.0.0.2 remote-as 65006"
+      - vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.5/30" -c "router bgp 65000" -c "neighbor 10.0.0.6 remote-as 65007"
     leaf2:
       kind: linux
       image: slankdev/frr
@@ -21,10 +21,10 @@ topology:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.2/32" -c "router bgp 65001" -c "bgp router-id 10.255.0.2" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - ip addr add 172.16.0.3/16 dev mgmt
-      - vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.1.2/30" -c "router bgp 65001" -c "neighbor 10.0.1.1 remote-as 65004"
-      - vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.5.2/30" -c "router bgp 65001" -c "neighbor 10.0.5.1 remote-as 65005"
-      - vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.9/30" -c "router bgp 65001" -c "neighbor 10.0.0.10 remote-as 65008"
-      - vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.13/30" -c "router bgp 65001" -c "neighbor 10.0.0.14 remote-as 65009"
+      - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.1.2/30" -c "router bgp 65001" -c "neighbor 10.0.1.1 remote-as 65004"
+      - vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.5.2/30" -c "router bgp 65001" -c "neighbor 10.0.5.1 remote-as 65005"
+      - vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.9/30" -c "router bgp 65001" -c "neighbor 10.0.0.10 remote-as 65008"
+      - vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.13/30" -c "router bgp 65001" -c "neighbor 10.0.0.14 remote-as 65009"
     leaf3:
       kind: linux
       image: slankdev/frr
@@ -33,10 +33,10 @@ topology:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.3/32" -c "router bgp 65002" -c "bgp router-id 10.255.0.3" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - ip addr add 172.16.0.4/16 dev mgmt
-      - vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.2.2/30" -c "router bgp 65002" -c "neighbor 10.0.2.1 remote-as 65004"
-      - vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.6.2/30" -c "router bgp 65002" -c "neighbor 10.0.6.1 remote-as 65005"
-      - vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.17/30" -c "router bgp 65002" -c "neighbor 10.0.0.18 remote-as 65010"
-      - vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.21/30" -c "router bgp 65002" -c "neighbor 10.0.0.22 remote-as 65011"
+      - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.2.2/30" -c "router bgp 65002" -c "neighbor 10.0.2.1 remote-as 65004"
+      - vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.6.2/30" -c "router bgp 65002" -c "neighbor 10.0.6.1 remote-as 65005"
+      - vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.17/30" -c "router bgp 65002" -c "neighbor 10.0.0.18 remote-as 65010"
+      - vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.21/30" -c "router bgp 65002" -c "neighbor 10.0.0.22 remote-as 65011"
     leaf4:
       kind: linux
       image: slankdev/frr
@@ -45,10 +45,10 @@ topology:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.4/32" -c "router bgp 65003" -c "bgp router-id 10.255.0.4" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - ip addr add 172.16.0.5/16 dev mgmt
-      - vtysh -c "conf t" -c "int up1" -c "ip addr 10.0.3.2/30" -c "router bgp 65003" -c "neighbor 10.0.3.1 remote-as 65004"
-      - vtysh -c "conf t" -c "int up2" -c "ip addr 10.0.7.2/30" -c "router bgp 65003" -c "neighbor 10.0.7.1 remote-as 65005"
-      - vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.25/30" -c "router bgp 65003" -c "neighbor 10.0.0.26 remote-as 65012"
-      - vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.0.29/30" -c "router bgp 65003" -c "neighbor 10.0.0.30 remote-as 65013"
+      - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.3.2/30" -c "router bgp 65003" -c "neighbor 10.0.3.1 remote-as 65004"
+      - vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.7.2/30" -c "router bgp 65003" -c "neighbor 10.0.7.1 remote-as 65005"
+      - vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.0.25/30" -c "router bgp 65003" -c "neighbor 10.0.0.26 remote-as 65012"
+      - vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.0.29/30" -c "router bgp 65003" -c "neighbor 10.0.0.30 remote-as 65013"
     spine1:
       kind: linux
       image: slankdev/frr
@@ -57,10 +57,10 @@ topology:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.5/32" -c "router bgp 65004" -c "bgp router-id 10.255.0.5" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - ip addr add 172.16.0.6/16 dev mgmt
-      - vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.0.1/30" -c "router bgp 65004" -c "neighbor 10.0.0.2 remote-as 65000"
-      - vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.1.1/30" -c "router bgp 65004" -c "neighbor 10.0.1.2 remote-as 65001"
-      - vtysh -c "conf t" -c "int dn3" -c "ip addr 10.0.2.1/30" -c "router bgp 65004" -c "neighbor 10.0.2.2 remote-as 65002"
-      - vtysh -c "conf t" -c "int dn4" -c "ip addr 10.0.3.1/30" -c "router bgp 65004" -c "neighbor 10.0.3.2 remote-as 65003"
+      - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.1/30" -c "router bgp 65004" -c "neighbor 10.0.0.2 remote-as 65000"
+      - vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.1.1/30" -c "router bgp 65004" -c "neighbor 10.0.1.2 remote-as 65001"
+      - vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.2.1/30" -c "router bgp 65004" -c "neighbor 10.0.2.2 remote-as 65002"
+      - vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.3.1/30" -c "router bgp 65004" -c "neighbor 10.0.3.2 remote-as 65003"
     spine2:
       kind: linux
       image: slankdev/frr
@@ -69,10 +69,10 @@ topology:
       - /usr/lib/frr/frr start
       - vtysh -c "conf t" -c "ip forwarding" -c "int lo" -c "ip addr 10.255.0.6/32" -c "router bgp 65005" -c "bgp router-id 10.255.0.6" -c "bgp bestpath as-path multipath-relax" -c "bgp bestpath compare-routerid"
       - ip addr add 172.16.0.7/16 dev mgmt
-      - vtysh -c "conf t" -c "int dn1" -c "ip addr 10.0.4.1/30" -c "router bgp 65005" -c "neighbor 10.0.4.2 remote-as 65000"
-      - vtysh -c "conf t" -c "int dn2" -c "ip addr 10.0.5.1/30" -c "router bgp 65005" -c "neighbor 10.0.5.2 remote-as 65001"
-      - vtysh -c "conf t" -c "int dn3" -c "ip addr 10.0.6.1/30" -c "router bgp 65005" -c "neighbor 10.0.6.2 remote-as 65002"
-      - vtysh -c "conf t" -c "int dn4" -c "ip addr 10.0.7.1/30" -c "router bgp 65005" -c "neighbor 10.0.7.2 remote-as 65003"
+      - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.4.1/30" -c "router bgp 65005" -c "neighbor 10.0.4.2 remote-as 65000"
+      - vtysh -c "conf t" -c "int eth1" -c "ip addr 10.0.5.1/30" -c "router bgp 65005" -c "neighbor 10.0.5.2 remote-as 65001"
+      - vtysh -c "conf t" -c "int eth2" -c "ip addr 10.0.6.1/30" -c "router bgp 65005" -c "neighbor 10.0.6.2 remote-as 65002"
+      - vtysh -c "conf t" -c "int eth3" -c "ip addr 10.0.7.1/30" -c "router bgp 65005" -c "neighbor 10.0.7.2 remote-as 65003"
     sv1:
       kind: linux
       image: slankdev/frr
@@ -147,19 +147,19 @@ topology:
       - vtysh -c "conf t" -c "int eth0" -c "ip addr 10.0.0.30/30" -c "router bgp 65013" -c "neighbor 10.0.0.29 remote-as external" -c "network 10.0.0.28/30"
 
   links:
-  - endpoints: [spine1:dn1, leaf1:up1]
-  - endpoints: [spine2:dn1, leaf1:up2]
-  - endpoints: [leaf1:dn1, sv1:eth0]
-  - endpoints: [leaf1:dn2, sv2:eth0]
-  - endpoints: [spine1:dn2, leaf2:up1]
-  - endpoints: [spine2:dn2, leaf2:up2]
-  - endpoints: [leaf2:dn1, sv3:eth0]
-  - endpoints: [leaf2:dn2, sv4:eth0]
-  - endpoints: [spine1:dn3, leaf3:up1]
-  - endpoints: [spine2:dn3, leaf3:up2]
-  - endpoints: [leaf3:dn1, sv5:eth0]
-  - endpoints: [leaf3:dn2, sv6:eth0]
-  - endpoints: [spine1:dn4, leaf4:up1]
-  - endpoints: [spine2:dn4, leaf4:up2]
-  - endpoints: [leaf4:dn1, sv7:eth0]
-  - endpoints: [leaf4:dn2, sv8:eth0]
+  - endpoints: [spine1:eth0, leaf1:eth0]
+  - endpoints: [spine2:eth0, leaf1:eth1]
+  - endpoints: [leaf1:eth2, sv1:eth0]
+  - endpoints: [leaf1:eth3, sv2:eth0]
+  - endpoints: [spine1:eth1, leaf2:eth0]
+  - endpoints: [spine2:eth1, leaf2:eth1]
+  - endpoints: [leaf2:eth2, sv3:eth0]
+  - endpoints: [leaf2:eth3, sv4:eth0]
+  - endpoints: [spine1:eth2, leaf3:eth0]
+  - endpoints: [spine2:eth2, leaf3:eth1]
+  - endpoints: [leaf3:eth2, sv5:eth0]
+  - endpoints: [leaf3:eth3, sv6:eth0]
+  - endpoints: [spine1:eth3, leaf4:eth0]
+  - endpoints: [spine2:eth3, leaf4:eth1]
+  - endpoints: [leaf4:eth2, sv7:eth0]
+  - endpoints: [leaf4:eth3, sv8:eth0]

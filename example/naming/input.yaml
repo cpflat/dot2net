@@ -1,0 +1,94 @@
+# What everything ends up called, and who decides it.
+#
+# Four objects get names, and each is named the same way: the topology says a
+# name, or a class hands out one from a prefix. Nothing here changes what is
+# generated - names.txt is written only so that the result can be read.
+#
+#   node        spine1, leaf1     nodeclass prefix + global nodeautoname
+#   interface   up1               written in the DOT file as node:port
+#   interface   dn0               interfaceclass prefix
+#   connection  link0             connectionclass prefix
+#
+# Segment classes take a prefix in the same way (default seg); a segment is not
+# shown here because it needs a layer, which naming has nothing to do with.
+#
+# Interfaces are numbered from 0 and nodes from 1, which is not an oversight:
+# eth0 is the first interface everywhere, and there is no node0 anywhere.
+#
+# This topology cannot be generated for Kathara, on purpose. Kathara reads an
+# interface's name from its position in lab.conf, so the interfaces it lays are
+# eth0, eth1, ... and nothing else - up1 and dn0 are both rejected. Naming an
+# interface and generating for Kathara are mutually exclusive; a topology that
+# needs Kathara leaves the naming to dot2net.
+
+name: naming
+
+class_policy:
+  interface:
+    default: [uplink]
+  connection:
+    default: [wire]
+
+global:
+  path: local
+  # Renames every node after its class prefix, dropping the name the DOT file
+  # used. For a graph that is generated, or one whose node names carry no
+  # meaning worth keeping - the graph then only has to be right about shape.
+  nodeautoname: true
+
+module: [containerlab, tinet]
+
+file:
+  - name: names.txt
+    path: /names.txt
+
+nodeclass:
+  - name: spine
+    prefix: spine
+    values: {kind: linux, image: alpine}
+    config:
+      - name: startup
+        template: []
+      - file: names.txt
+        template:
+          - "node {{ .name }}"
+          - "{{ .interfaces_line }}"
+
+  - name: leaf
+    prefix: leaf
+    values: {kind: linux, image: alpine}
+    config:
+      - name: startup
+        template: []
+      - file: names.txt
+        template:
+          - "node {{ .name }}"
+          - "{{ .interfaces_line }}"
+
+  # The shared medium the platform provides. It is renamed too - a prefix is a
+  # prefix whatever the node turns into.
+  - name: fabric
+    prefix: fabric
+    deploy: platform
+    values: {kind: bridge}
+
+interfaceclass:
+  # No prefix, so its interfaces are eth0, eth1, ... unless the DOT file named
+  # them - which is what a:up1 does.
+  - name: uplink
+    config:
+      - name: line
+        template:
+          - "  {{ .name }} -> connection {{ .conn_name }}"
+
+  # Same block, different prefix: the name changes and nothing else does.
+  - name: downlink
+    use: [uplink]
+    prefix: dn
+
+connectionclass:
+  # A connection is not a device and has no name of its own to keep, so this is
+  # the only way it gets one. It is worth setting when templates refer to it -
+  # {{ .conn_name }} above reads it from the interface.
+  - name: wire
+    prefix: link

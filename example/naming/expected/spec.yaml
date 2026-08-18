@@ -1,0 +1,30 @@
+switches:
+  - name: fabric1
+
+nodes:
+  - name: spine1
+    image: alpine
+    interfaces: [{name: up1, type: bridge, args: fabric1}]
+    mounts: [$PWD/spine1/names.txt:/names.txt]
+  - name: spine2
+    image: alpine
+    interfaces: [{name: up1, type: bridge, args: fabric1}]
+    mounts: [$PWD/spine2/names.txt:/names.txt]
+  - name: leaf1
+    image: alpine
+    interfaces: [{name: dn0, type: bridge, args: fabric1}]
+    mounts: [$PWD/leaf1/names.txt:/names.txt]
+  - name: leaf2
+    image: alpine
+    interfaces: [{name: dn0, type: bridge, args: fabric1}]
+    mounts: [$PWD/leaf2/names.txt:/names.txt]
+
+node_configs:
+  - name: spine1
+    cmds:
+  - name: spine2
+    cmds:
+  - name: leaf1
+    cmds:
+  - name: leaf2
+    cmds:

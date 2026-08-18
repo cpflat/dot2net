@@ -46,15 +46,18 @@ produce, which `internal/test/example_test.go` checks on every build.
 
 ## Platforms
 
-Every topology here generates for containerlab and TiNET, and all but one for
-Kathara too.
+Every topology here generates for all three platforms — containerlab, TiNET and
+Kathara.
 
-**`basic_clos` is the exception**, and the reason is worth knowing before you
-write your own: it names its own interfaces (`up1`, `dn1`), and those names
-belong to interfaces that are ends of real links. Kathara derives an interface's
-name from its index in `lab.conf`, so a link's end is `eth0`, `eth1`, ... and
-nothing else — a name of the topology's choosing cannot be honoured. dot2net says
-so while generating rather than letting the lab fail to start.
+Keeping it that way costs one thing, worth knowing before you write your own:
+**a topology cannot both name a link's interfaces and run on Kathara.** Kathara
+derives an interface's name from its index in `lab.conf`, so a link's end is
+`eth0`, `eth1`, ... and nothing else. `basic_clos` used to name its own (`up1`,
+`dn1`) and could not be generated for Kathara; the names carried no meaning the
+topology depended on, so they were dropped. `example/naming` is where naming is
+demonstrated instead, and it is not generated for Kathara for exactly this
+reason. dot2net says so while generating rather than letting the lab fail to
+start.
 
 The rule reaches only the interfaces Kathara lists. A device the node's own
 configuration builds — `deploy: logical`, such as the VXLAN bridges in

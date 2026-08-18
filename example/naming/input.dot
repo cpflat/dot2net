@@ -1,0 +1,17 @@
+digraph {
+	// The node names here are placeholders. nodeautoname is on, so every node is
+	// renamed after the class it carries - see input.yaml. What the graph has to
+	// say is which class each node belongs to and what is wired to what.
+	a[xlabel="spine"];
+	b[xlabel="spine"];
+	c[xlabel="leaf"];
+	d[xlabel="leaf"];
+	e[xlabel="fabric"];
+
+	// node:port names that interface. The leaves say nothing, so their
+	// interfaces are named from their class instead.
+	a:up1->e[dir="none"];
+	b:up1->e[dir="none"];
+	c->e[dir="none", tailclass="downlink"];
+	d->e[dir="none", tailclass="downlink"];
+}

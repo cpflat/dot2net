@@ -28,10 +28,12 @@ the notation and stop at the config blocks. `deploy_and_virtual` generates for
 all three, on purpose: what it demonstrates is decided per platform, so seeing
 one of them would not tell you it was right.
 
-One does not generate for Kathara: `address_reservation` names its own
-interfaces (`up1`, `dn1`), and those are ends of real links, whose names Kathara
-derives from their index in `lab.conf`. An interface the node's own
-configuration builds keeps whatever name the topology chose — see
+One does not generate for Kathara, and means not to: `naming` gives its
+interfaces names of its own, and those are ends of real links, whose names
+Kathara derives from their index in `lab.conf`. Naming an interface and
+generating for Kathara are mutually exclusive, which is part of what that
+topology is there to show. An interface the node's own configuration builds
+keeps whatever name the topology chose — see
 [`topologies/readme.md`](../topologies/readme.md#platforms).
 
 ## What each one shows
@@ -44,6 +46,8 @@ configuration builds keeps whatever name the topology chose — see
 - **switching** — a switch node, and the segments that form around it
 - **address_reservation** — reserving an address so the automatic assignment
   works around it
+- **naming** — what everything ends up called: node, interface and connection
+  names, written in the DOT file or handed out from a class prefix
 - **param_share** — one generated parameter read from more than one object,
   through the `conn_` and `node_` cross-object prefixes
 - **value_class_basic** — the Value class, which attaches several parameter sets
