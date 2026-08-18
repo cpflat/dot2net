@@ -1,0 +1,32 @@
+# Runs the test suite on every push and pull request.
+#
+# release.yaml also tests, but only once a tag exists - and a tag is not a cheap
+# thing to be wrong about, since taking one back means deleting it from a public
+# repository. This runs the same suite on the same four systems beforehand, so
+# that a tag is only ever put on a commit already known to pass.
+name: Test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, macos-15-intel, windows-latest]
+      # One system failing should not stop the others: which ones pass is the
+      # answer being looked for, and Windows is where this repository differs.
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Run tests
+        run: go test -v ./...
