@@ -126,11 +126,15 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// of this object", and the object differs. A device's volume paths are
 	// relative to the lab directory, so ../r1/etc/frr means this machine's r1
 	// once the lab sits under that machine's own directory.
-	ct, err := templateFrom(cfg, "templates/lab.conf.network", &types.ConfigTemplate{
-		File: KatharaOutputFile,
-	})
+	// LAB_NAME is the lab's own, not a device's: it takes the run's name only
+	// when this file is written per machine and is therefore named after one.
+	labBytes, err := templates.ReadFile("templates/lab.conf.network")
 	if err != nil {
 		return err
+	}
+	ct := &types.ConfigTemplate{
+		File:     KatharaOutputFile,
+		Template: []string{strings.ReplaceAll(string(labBytes), "%%NODEPREFIX%%", cfg.LabNamePrefix(perWorker))},
 	}
 	labOwned := []*types.ConfigTemplate{ct}
 
@@ -142,7 +146,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// a class of its own is a class no group carries a label for, and the script
 	// would silently not be written for a multi-machine lab.
 	if opts.GenerateScripts {
-		entry, err := entryScriptTemplate(cfg, scope)
+		entry, err := entryScriptTemplate(cfg, scope, perWorker)
 		if err != nil {
 			return err
 		}
@@ -514,7 +518,7 @@ type Options struct {
 // commands. Kathara is not split by GlobalSettings.SplitModuleOutput: its lab
 // is the directory itself, holding lab.conf and every <device>.startup, and
 // those startup files are written by the topology rather than by this module.
-func entryScriptTemplate(cfg *types.Config, scope string) (*types.ConfigTemplate, error) {
+func entryScriptTemplate(cfg *types.Config, scope string, perWorker bool) (*types.ConfigTemplate, error) {
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:       ScriptFile,
 		Path:       "",

@@ -358,6 +358,11 @@ further down.
   works the other way on `worker_destroy`: naming the veth after the platform has
   taken the lab down is reported too.
 
+  A class a module registers may collect a file of its own — `frrLogFile` offers
+  to bring back the log it makes — and a lab generated without an entry script
+  simply does not get it. Only what the **topology** asks to collect is an error
+  without a script, since nothing else would do it.
+
   A hook block that no entry script would run — the topology writes one but
   `generate_scripts` is off, or the block belongs to a platform that is writing
   no script — is an error rather than a block that quietly does nothing.

@@ -677,6 +677,18 @@ func (cfg *Config) SetLabName(name string) {
 	cfg.nodeNamePrefix = name + "_"
 }
 
+// LabNamePrefix is what a platform module puts in front of the name it gives a
+// lab, when that name is not already this run's own. A lab written per machine
+// is named after the machine, so it needs the prefix to tell one run from
+// another; a lab written whole is named after the run already, and prefixing it
+// again would say the name twice.
+func (cfg *Config) LabNamePrefix(perMachine bool) string {
+	if !perMachine {
+		return ""
+	}
+	return cfg.nodeNamePrefix
+}
+
 // NodeNamePrefix is what a platform module puts in front of a node's name in
 // its own file. Empty unless this run was given a lab name, so a topology
 // generated the usual way is generated exactly as before.

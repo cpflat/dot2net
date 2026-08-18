@@ -3426,6 +3426,14 @@ type CollectTarget struct {
 	Node          string
 	ContainerPath string
 	OutputPath    string
+	// Class is what asked for it, and AskedByTopology says whether that class
+	// came from the topology. A module's own class collects as a convenience -
+	// the FRR log is the module's to make, so it offers to bring it back - and
+	// a lab generated without an entry script simply does not get it. What the
+	// topology asked for is different: nothing else would do it, so a lab that
+	// cannot is a lab that will not do what it was told.
+	Class           string
+	AskedByTopology bool
 }
 
 // CollectDirName is where collected files land, mirroring the container's own
@@ -3456,9 +3464,11 @@ func CollectTargets(cfg *Config, nm *NetworkModel) ([]CollectTarget, error) {
 					return nil, fmt.Errorf("collect path %q of class %s: %w", raw, nc.Name, err)
 				}
 				targets = append(targets, CollectTarget{
-					Node:          node.Name,
-					ContainerPath: target,
-					OutputPath:    path.Join(CollectDirName, node.Name, strings.TrimPrefix(target, "/")),
+					Node:            node.Name,
+					ContainerPath:   target,
+					OutputPath:      path.Join(CollectDirName, node.Name, strings.TrimPrefix(target, "/")),
+					Class:           nc.Name,
+					AskedByTopology: !nc.ModuleProvided,
 				})
 			}
 		}
@@ -3498,11 +3508,15 @@ func CheckCollectNeedsScript(cfg *Config, nm *NetworkModel, module string, gener
 	if err != nil {
 		return err
 	}
-	if len(targets) == 0 {
-		return nil
+	for _, t := range targets {
+		if !t.AskedByTopology {
+			continue
+		}
+		return fmt.Errorf(
+			"class %s asks for %s of node %s to be collected, but "+
+				"module_config.%s.generate_scripts is off: the entry script's destroy is what "+
+				"copies it out, so nothing would. Turn the scripts on, or take the collect out",
+			t.Class, t.ContainerPath, t.Node, module)
 	}
-	return fmt.Errorf(
-		"node %s asks for %s to be collected, but module_config.%s.generate_scripts is off: "+
-			"the entry script's destroy is what copies it out, so nothing would",
-		targets[0].Node, targets[0].ContainerPath, module)
+	return nil
 }

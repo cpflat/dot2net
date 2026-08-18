@@ -204,7 +204,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	// The lab's name carries this run's own, so that one machine can hold two
 	// labs made from one topology: containerlab names every container after the
 	// lab, and without it both would be clab-host1-r1.
-	ct1.Template = []string{strings.ReplaceAll(string(bytes), "%%NODEPREFIX%%", cfg.NodeNamePrefix())}
+	ct1.Template = []string{strings.ReplaceAll(string(bytes), "%%NODEPREFIX%%", cfg.LabNamePrefix(perWorker))}
 
 	owns := []*types.ConfigTemplate{ct1}
 
@@ -219,7 +219,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	cfg.DeclareParamAvailability(ClabHostPortParamName, types.PlatformCommandPriority)
 
 	if opts.GenerateScripts {
-		entry, err := entryScriptTemplate(cfg, scope, subdir)
+		entry, err := entryScriptTemplate(cfg, scope, subdir, perWorker)
 		if err != nil {
 			return err
 		}
@@ -865,7 +865,7 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 // machine's directory - even when the topology file itself has moved into a
 // directory of its own, because the point of it is to be reachable without
 // knowing that layout.
-func entryScriptTemplate(cfg *types.Config, scope, subdir string) (*types.ConfigTemplate, error) {
+func entryScriptTemplate(cfg *types.Config, scope, subdir string, perWorker bool) (*types.ConfigTemplate, error) {
 	cfg.AddFileDefinition(&types.FileDefinition{
 		Name:       ScriptFile,
 		Path:       "",
@@ -885,7 +885,7 @@ func entryScriptTemplate(cfg *types.Config, scope, subdir string) (*types.Config
 	}
 	script := strings.ReplaceAll(string(bytes), "%%TOPO%%", path)
 	script = strings.ReplaceAll(script, "%%COLLECT%%", types.CollectDirName)
-	script = strings.ReplaceAll(script, "%%NODEPREFIX%%", cfg.NodeNamePrefix())
+	script = strings.ReplaceAll(script, "%%NODEPREFIX%%", cfg.LabNamePrefix(perWorker))
 	return &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}, nil
 }
 
