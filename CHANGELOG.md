@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+
+- **`topologies/kathara_basic`.** It was written when the Kathara module was, to
+  have something that exercised it; every topology under `topologies/` generates
+  for Kathara now, so nothing was left that only it showed. A shared medium and a
+  point-to-point link are in `topologies/aggregate_crossing` and
+  `topologies/ospf_multihost`, and what Kathara will not accept — interfaces it
+  has not named, device names over thirty characters — is in `example/naming` and
+  the wiki.
+
+  It also read as though Kathara needed a topology of its own when containerlab
+  and TiNET did not, which was never true.
+
 ## [0.8.0] - 2026-08-18
 
 ### Breaking changes

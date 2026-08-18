@@ -51,7 +51,6 @@ produce, which `internal/test/example_test.go` checks on every build.
   writing a multi-host topology.
 - aggregate_crossing — one shared segment reaching two machines, drawn once.
   Shows what a link leaving a machine costs and how the count is brought down.
-- kathara_basic — a shared medium and a point-to-point link on Kathara.
 
 
 ## Platforms
