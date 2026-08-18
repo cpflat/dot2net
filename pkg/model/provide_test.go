@@ -1,6 +1,7 @@
 package model
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -48,10 +49,14 @@ func TestCopyWaitsInStaging(t *testing.T) {
 	for _, f := range files {
 		got[f.Path] = f.Provide
 	}
-	if p, ok := got["r1/etc/app/app.conf"]; !ok || p != types.ProvideMount {
+	// The listing names a file the way this machine does, so the wanted paths
+	// are built the same way - see TestListedPathsUseTheLocalSeparator.
+	mounted := filepath.Join("r1", "etc", "app", "app.conf")
+	copied := filepath.Join("r1", types.StagingDirName, "etc", "motd")
+	if p, ok := got[mounted]; !ok || p != types.ProvideMount {
 		t.Errorf("a mounted file belongs at its container path: %v", got)
 	}
-	if p, ok := got["r1/staging/etc/motd"]; !ok || p != types.ProvideCopy {
+	if p, ok := got[copied]; !ok || p != types.ProvideCopy {
 		t.Errorf("a copied file belongs under staging/: %v", got)
 	}
 }
