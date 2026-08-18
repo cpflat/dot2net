@@ -212,7 +212,9 @@ further down.
 - **Entry point scripts** (`module_config.<module>.generate_scripts: true`): a
   `containerlab.sh`, `tinet.sh` or `kathara.sh` beside the lab, taking
   `deploy`, `destroy` and `exec <node> <command>...`. Each finds its own files,
-  so it can be run from anywhere.
+  so it can be run from anywhere. `exec` gives back the command's own exit
+  status, so a harness reading it sees what ran in the node rather than whether
+  the script was happy.
 
   What it carries is the part that differs between platforms and is easy to get
   wrong: TiNET brings a lab up in two steps and its output is a shell script to
@@ -352,7 +354,13 @@ further down.
   What needs saying explicitly is a command that could not have run earlier. A
   veth reaching a bridge is made by the platform as it brings the lab up, so a
   block naming one needs a positive priority; leave it out and **dot2net says so
-  while generating** rather than letting it fail on the machine.
+  while generating** rather than letting it fail on the machine. The same check
+  works the other way on `worker_destroy`: naming the veth after the platform has
+  taken the lab down is reported too.
+
+  A hook block that no entry script would run — the topology writes one but
+  `generate_scripts` is off, or the block belongs to a platform that is writing
+  no script — is an error rather than a block that quietly does nothing.
 
   `worker` because that is what dot2net already calls a machine a lab is
   deployed onto — see the `worker` group class.

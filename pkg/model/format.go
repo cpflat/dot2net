@@ -726,7 +726,16 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 		// reach it apart, each carrying where it sits.
 		if met && types.MachineHooks[ct.Name] {
 			p := types.HookPriority(ct)
-			for _, group := range cfg.HookGroups(ct, p) {
+			groups := cfg.HookGroups(ct, p)
+			if len(groups) == 0 && strings.TrimSpace(conf) != "" && conf != EmptyOutput {
+				return fmt.Errorf(
+					"%s writes a %s block, but nothing is generated that would run it: a "+
+						"machine-side hook is run by an entry script, and none is being "+
+						"written%s. Turn on module_config.<module>.generate_scripts, or take "+
+						"the block out",
+					ns.StringForMessage(), ct.Name, types.HookScopeNote(ct))
+			}
+			for _, group := range groups {
 				ca.addConfigBlock(ns, group, &ConfigBlock{Block: conf, Priority: p}, false)
 				if verbose {
 					fmt.Fprintf(os.Stderr, " store hook %s at %d to group %s (%q)\n",

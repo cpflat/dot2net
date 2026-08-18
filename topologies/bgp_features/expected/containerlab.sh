@@ -183,9 +183,15 @@ case "${1:-deploy}" in
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
     run_worker_exec_pre
     report
-    $SUDO docker exec "$cid" "$@" || note_failure "exec $node"
+    # The command's own exit status is what a caller wants back - a test
+    # harness runs something in a node and reads the code. So it is kept over
+    # the blocks that follow and given back, rather than flattened into the
+    # script's own success or failure.
+    $SUDO docker exec "$cid" "$@"
+    status=$?
     run_worker_exec_post
     report
+    exit $status
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

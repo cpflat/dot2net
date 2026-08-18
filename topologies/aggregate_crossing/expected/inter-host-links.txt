@@ -1,1 +1,2 @@
+# connection, and the two bridge ports to join, one per machine
 conn4 br-cb308f:eth2-cb308f br-cb308f:eth2-cb308f

@@ -154,9 +154,13 @@ case "${1:-deploy}" in
     node="$1"; shift
     run_worker_exec_pre
     report
-    $SUDO docker exec "$(container_id "$node")" "$@" || note_failure "exec $node"
+    # The command's own exit status is given back - see the containerlab
+    # script for why.
+    $SUDO docker exec "$(container_id "$node")" "$@"
+    status=$?
     run_worker_exec_post
     report
+    exit $status
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

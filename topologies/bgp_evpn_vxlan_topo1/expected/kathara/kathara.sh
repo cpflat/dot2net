@@ -165,9 +165,13 @@ case "${1:-deploy}" in
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
     run_worker_exec_pre
     report
-    $SUDO docker exec "$cid" "$@" || note_failure "exec $node"
+    # The command's own exit status is given back - see the containerlab
+    # script for why.
+    $SUDO docker exec "$cid" "$@"
+    status=$?
     run_worker_exec_post
     report
+    exit $status
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

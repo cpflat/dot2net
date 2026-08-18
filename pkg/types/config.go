@@ -221,21 +221,29 @@ func (cfg *Config) DeclareParamAvailability(name string, at int) {
 }
 
 // checkParamAvailability reports a machine-side hook block that reads a
-// parameter naming something that will not exist where the block runs.
+// parameter naming something that is not there when the block runs.
 //
-// The block's position and the parameter's are numbers on one axis, so this is
-// a comparison rather than a list of special cases: a parameter added later
-// only has to declare when it becomes real.
+// What such a parameter names has a life: the platform's deploy makes the veth
+// reaching a bridge and its destroy takes it away, and the bridge itself is made
+// and removed by the module's own blocks on either side. So there are two ways
+// to be wrong, and they are mirrors - too early in the hook that makes the
+// thing, too late in the hook that unmakes it. Both are a comparison against the
+// declared point rather than a list of special cases: a parameter added later
+// only has to say when what it names appears.
+//
+// The other two hooks run while the lab is up, so nothing is checked there.
 func checkParamAvailability(cfg *Config, ct *ConfigTemplate) error {
-	if !MachineHooks[ct.Name] || ct.ParsedTemplate == nil || len(cfg.paramAvailability) == 0 {
+	if ct.ParsedTemplate == nil || len(cfg.paramAvailability) == 0 {
+		return nil
+	}
+	if ct.Name != "worker_deploy" && ct.Name != "worker_destroy" {
 		return nil
 	}
 	at := HookPriority(ct)
 	for _, ref := range templateFields(ct.ParsedTemplate) {
 		// A reference reaches the same parameter through the object it is read
 		// from - opp_ for the far end of a link, node_ for the node an interface
-		// sits on - so the prefix is taken off before asking when the thing it
-		// names comes into being. Which object supplies it does not change that.
+		// sits on - so the prefix is taken off before asking about what it names.
 		name := ref
 		for _, prefix := range ReservedPrefixes() {
 			if strings.HasPrefix(name, prefix) {
@@ -243,19 +251,40 @@ func checkParamAvailability(cfg *Config, ct *ConfigTemplate) error {
 				break
 			}
 		}
-		available, declared := cfg.paramAvailability[name]
-		if !declared || at >= available {
+		made, declared := cfg.paramAvailability[name]
+		if !declared {
 			continue
 		}
-		when := fmt.Sprintf("until priority %d", available)
-		if available == PlatformCommandPriority {
-			when = "until the platform has brought the lab up"
+		if ct.Name == "worker_deploy" {
+			if at >= made {
+				continue
+			}
+			when := fmt.Sprintf("until priority %d", made)
+			if made == PlatformCommandPriority {
+				when = "until the platform has brought the lab up"
+			}
+			return fmt.Errorf(
+				"the worker_deploy block of class %s reads %s, which names something that does "+
+					"not exist %s; the block runs before that, at priority %d. Give it a "+
+					"priority above %d",
+				ct.className, ref, when, at, made)
+		}
+		// Taken away in the mirror of where it was made: what the platform's
+		// deploy created, its destroy removes. The block that does the removing
+		// sits exactly there and has to be able to name it, so only what runs
+		// after is too late.
+		gone := -made
+		if at <= gone {
+			continue
+		}
+		when := fmt.Sprintf("by priority %d", gone)
+		if gone == PlatformCommandPriority {
+			when = "once the platform has taken the lab down"
 		}
 		return fmt.Errorf(
-			"the %s block of class %s reads %s, which names something that does not exist %s; "+
-				"the block runs before that, at priority %d. Give it a priority above %d so "+
-				"that it runs once the thing it names is there",
-			ct.Name, ct.className, ref, when, at, available)
+			"the worker_destroy block of class %s reads %s, which names something that is gone "+
+				"%s; the block runs at priority %d, after that. Give it a priority of %d or below",
+			ct.className, ref, when, at, gone)
 	}
 	return nil
 }
@@ -319,6 +348,15 @@ func templateFields(tpl *template.Template) []string {
 	return names
 }
 
+// HookScopeNote says which platform a block was tied to, for a message about it
+// reaching nobody. Empty for a block any script would run.
+func HookScopeNote(ct *ConfigTemplate) string {
+	if ct.HookScope == "" {
+		return ""
+	}
+	return " for " + ct.HookScope
+}
+
 // HookGroups are where a block of this hook is gathered: one group for what runs
 // before the platform's command and one for what runs after, because a shell
 // script cannot be cut in half after the fact - and one of those per script
@@ -333,9 +371,18 @@ func (cfg *Config) HookGroups(ct *ConfigTemplate, priority int) []string {
 	if priority < PlatformCommandPriority {
 		side = "_pre"
 	}
+	// Only scripts that are actually being written. A block tied to one
+	// platform reaches nobody when that platform writes no script, and saying
+	// so is the caller's business - see HookScopeNote.
 	consumers := cfg.hookConsumers
 	if ct.HookScope != "" {
-		consumers = []string{ct.HookScope}
+		consumers = nil
+		for _, c := range cfg.hookConsumers {
+			if c == ct.HookScope {
+				consumers = []string{c}
+				break
+			}
+		}
 	}
 	groups := make([]string, 0, len(consumers))
 	for _, c := range consumers {
@@ -1710,9 +1757,15 @@ type ConfigTemplate struct {
 	// Group is used for sort config templates
 	// A sort config template will aggregate all config blocks generated in child (or grandchild) objects of the same group
 	Group string `yaml:"group" mapstructure:"group"`
-	// Priority is used to reorder config templates in sort style
-	// Config blocks with smaller priority should be on the top of generated config files
-	// Default is 0, so users should specify negative values to make a config block top of a file
+	// Priority orders config blocks that are gathered into one place. Smaller is
+	// earlier, so a negative value puts a block at the top of a file its group
+	// is sorted into.
+	//
+	// A machine-side hook reads it as well, and there it means where the block
+	// sits relative to the command the entry script gives the platform: below
+	// zero runs before that command, above it runs after. Zero says nothing -
+	// there is no useful block at the command's own position - so a block that
+	// leaves it out gets the default for its kind. See HookPriority.
 	Priority int `yaml:"priority" mapstructure:"priority"`
 	// Used for hierarchy config templates
 	// Config template names on same object that need to be embeded

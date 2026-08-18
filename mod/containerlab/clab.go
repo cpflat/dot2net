@@ -41,6 +41,12 @@ const SwitchNodeClassName = "_clabSwitchNode"
 // topology included: a command putting the machine's own NIC into the bridge
 // cannot be written without it. No leading underscore for that reason - the
 // module's own names carry one, and this is not one of them.
+// HookPrefix names this module's gathering points and ties a block to its
+// script. One constant, so that a block's scope and the slots that read it
+// cannot be spelled differently - they would not meet, and the block would be
+// dropped with only the "nothing would run it" error to say so.
+const HookPrefix = "clab"
+
 const ClabBridgeParamName = "clab_bridge"
 
 // ClabHostPortParamName carries what the veth reaching a bridge is called on
@@ -217,7 +223,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		if err != nil {
 			return err
 		}
-		slots, names := cfg.MachineHookSlots("clab")
+		slots, names := cfg.MachineHookSlots(HookPrefix)
 		owns = append(owns, slots...)
 		entry.Depends = names
 		owns = append(owns, entry)
@@ -387,8 +393,8 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		cfg.AddNodeClass(&types.NodeClass{
 			Name: setup.className,
 			ConfigTemplates: []*types.ConfigTemplate{
-				{Name: "worker_deploy", HookScope: "clab", Template: []string{string(bytes)}},
-				{Name: "worker_destroy", HookScope: "clab", Template: []string{string(cleanup)}},
+				{Name: "worker_deploy", HookScope: HookPrefix, Template: []string{string(bytes)}},
+				{Name: "worker_destroy", HookScope: HookPrefix, Template: []string{string(cleanup)}},
 			},
 		})
 	}

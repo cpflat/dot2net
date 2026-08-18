@@ -14,9 +14,12 @@
 # first form. The addresses do not move either way: bridges carry none, so a
 # search for a segment passes through them and all four routers stay in one /24.
 #
-# Deploying it works like topologies/ospf_multihost, except that the bridge to
-# create on the second machine is named
-# sw1_host2, which is dot2net's name for "the sw1 side that stands on host2".
+# Deploying it takes nothing by hand: each machine's entry script makes its own
+# bridge and takes it down again. The bridge is called sw1 in the model, but the
+# machine sees a short name ending in a hash - a name on a machine has fifteen
+# characters and has to tell one lab's bridge from another's. Write
+# {{ .clab_bridge }} for it; {{ .name }} is the model's name and not what the
+# machine calls it.
 name: aggregate_crossing
 
 global:
@@ -26,8 +29,8 @@ global:
   # directory holding the topology file.
   output_group_class: worker
 
-# Kathara is not among the modules below: a lab.conf describes one machine,
-# and this topology places its nodes on more than one.
+# Kathara is here too: a lab.conf describes one machine, and this topology is
+# split into one directory per machine, so each gets its own.
 module_config:
   # The bridges this topology names have to exist before containerlab will
   # deploy, and the entry script is what makes them. Without it the lab cannot
@@ -160,6 +163,13 @@ networkclass:
   - name: _default
     config:
       # The links no topology file can create, for whoever wires the machines.
+      #
+      # Both ends name the same bridge, and that is not a mistake: one segment
+      # becomes one bridge per machine, and a machine only ever sees its own, so
+      # they are given the same name. What the line does not say is which
+      # machine each end is on - the machines are listed in the order their
+      # groups are named in the DOT file.
       - file: inter-host-links.txt
         template:
+          - "# connection, and the two bridge ports to join, one per machine"
           - "{{ .connections_crossing_entry }}"
