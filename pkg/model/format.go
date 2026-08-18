@@ -720,6 +720,21 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 			conf = EmptyOutput
 		}
 
+		// A machine-side hook is gathered by the entry script rather than merged
+		// into one block per node. The script puts the platform's own command
+		// between what runs before it and what runs after, so the blocks have to
+		// reach it apart, each carrying where it sits.
+		if met && types.MachineHooks[ct.Name] {
+			p := types.HookPriority(ct)
+			for _, group := range cfg.HookGroups(ct, p) {
+				ca.addConfigBlock(ns, group, &ConfigBlock{Block: conf, Priority: p}, false)
+				if verbose {
+					fmt.Fprintf(os.Stderr, " store hook %s at %d to group %s (%q)\n",
+						ct.Name, p, group, headN(conf, NChars))
+				}
+			}
+		}
+
 		// Store config block for grouping (Group accumulation)
 		// Note: For sort style, this is already handled in processConfigTemplateWithBlocks
 		if met && ct.Group != "" && ct.Style != types.ConfigTemplateStyleSort {

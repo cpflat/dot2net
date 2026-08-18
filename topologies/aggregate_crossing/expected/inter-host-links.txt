@@ -1,1 +1,1 @@
-conn4 sw1:eth2 sw1_host2:eth2
+conn4 br-cb308f:eth2-cb308f br-cb308f:eth2-cb308f

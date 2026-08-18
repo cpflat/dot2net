@@ -1,6 +1,7 @@
-  # ip link add has no --may-exist, so ask first: a bridge left behind by a lab
-  # that was not destroyed cleanly must not stop this one deploying.
-  if ! ip link show {{ .name }} >/dev/null 2>&1; then
-    $SUDO ip link add {{ .name }} type bridge || note_failure "create bridge {{ .name }}"
+  # Refuse a bridge this lab did not make - see the OVS class for why.
+  if ip link show {{ .clab_bridge }} >/dev/null 2>&1; then
+    note_failure "bridge {{ .clab_bridge }} already exists: destroy the lab that made it, or remove it by hand"
+  else
+    $SUDO ip link add {{ .clab_bridge }} type bridge || note_failure "create bridge {{ .clab_bridge }}"
+    $SUDO ip link set {{ .clab_bridge }} up || note_failure "bring up bridge {{ .clab_bridge }}"
   fi
-  $SUDO ip link set {{ .name }} up || note_failure "bring up bridge {{ .name }}"

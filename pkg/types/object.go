@@ -1159,9 +1159,29 @@ type Node struct {
 
 	NamePrefix string
 
+	// LocalName is what this node is called on the machine it stands on, when
+	// that differs from Name. Only a shared segment split across machines sets
+	// it: the pieces need names of their own in the model, which holds every
+	// machine's objects at once, but a machine's own file names only what is on
+	// that machine, where the piece is simply the segment. It matters because a
+	// bridge's name reaches the machine's namespace, where names are 15
+	// characters - and sw1_host100 spends eight of them saying where it is, to
+	// a file that could not be about anywhere else.
+	LocalName string
+
 	mgmtInterface      *Interface
 	mgmtInterfaceClass *InterfaceClass
 	interfaceMap       map[string]*Interface
+}
+
+// LocalNameOr returns the name this node goes by on its own machine, falling
+// back to its model name. Use it for anything a machine sees; use Name for
+// identity within the model.
+func (n *Node) LocalNameOr() string {
+	if n.LocalName != "" {
+		return n.LocalName
+	}
+	return n.Name
 }
 
 // Interfaces implemented by Node. ObjectInstance is omitted: it is embedded in

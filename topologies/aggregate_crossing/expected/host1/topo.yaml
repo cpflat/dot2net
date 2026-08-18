@@ -25,10 +25,10 @@ topology:
       - touch /var/log/frr.log
       - chown frr:frr /var/log/frr.log
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
-    sw1:
+    br-cb308f:
       kind: ovs-bridge
 
   links:
-  - endpoints: [r1:eth0, sw1:eth0]
-  - endpoints: [r2:eth0, sw1:eth1]
+  - endpoints: [r1:eth0, br-cb308f:eth0-cb308f]
+  - endpoints: [r2:eth0, br-cb308f:eth1-cb308f]
 

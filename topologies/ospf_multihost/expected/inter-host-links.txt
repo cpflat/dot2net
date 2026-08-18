@@ -1,1 +1,1 @@
-conn0 br1:eth0 br2:eth0
+conn0 br-ae63ed:eth0-ae63ed br-6a3144:eth0-6a3144

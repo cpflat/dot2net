@@ -128,6 +128,9 @@ func aggregateAtSharedSegment(cfg *types.Config, nm *types.NetworkModel, seg *ty
 				machine, seg.Name, name)
 		}
 		bridge := nm.NewNode(name)
+		// On its own machine it is the segment, and nothing else there is. The
+		// suffix is for the model, which holds every machine at once.
+		bridge.LocalName = seg.Name
 		bridge.ParsedLabels = seg.ParsedLabels.CloneLabels()
 		placeOn(bridge, group)
 		bridges[machine] = bridge

@@ -29,11 +29,11 @@ topology:
       binds:
       - leaf2/names.txt:/names.txt
 
-    fabric1:
+    br-c8f0ae:
       kind: bridge
 
   links:
-  - endpoints: [spine1:up1, fabric1:eth0]
-  - endpoints: [spine2:up1, fabric1:eth1]
-  - endpoints: [leaf1:dn0, fabric1:eth2]
-  - endpoints: [leaf2:dn0, fabric1:eth3]
+  - endpoints: [spine1:up1, br-c8f0ae:eth0-c8f0ae]
+  - endpoints: [spine2:up1, br-c8f0ae:eth1-c8f0ae]
+  - endpoints: [leaf1:dn0, br-c8f0ae:eth2-c8f0ae]
+  - endpoints: [leaf2:dn0, br-c8f0ae:eth3-c8f0ae]

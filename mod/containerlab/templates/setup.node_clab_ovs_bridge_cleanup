@@ -1,1 +1,1 @@
-  $SUDO ovs-vsctl --if-exists del-br {{ .name }} || note_failure "delete bridge {{ .name }}"
+  $SUDO ovs-vsctl --if-exists del-br {{ .clab_bridge }} || note_failure "delete bridge {{ .clab_bridge }}"

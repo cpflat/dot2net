@@ -278,6 +278,42 @@ further down.
   every container running. containerlab's maintainer names this as a known
   limitation. To run one topology more than once at a time, generate it more
   than once under different names.
+- **Two labs made from one topology can be deployed on one machine.** A bridge
+  reached the machine under the name the topology gave it, so a second lab
+  silently joined the first one's bridge — one L2 domain where the topologies
+  said two — and whichever was destroyed first took it away from the other.
+  Neither said a word.
+
+  Three names had to be told apart, not one: the bridge, the veth reaching it,
+  and the lab as containerlab knows it — which for a multi-machine topology was
+  the machine's name, so `--name` never reached it. All three now carry the
+  run's own name.
+
+  **This also fixes multi-host on ordinary hardware.** A bridge's ports were
+  named after the interface at the far end, so a lab whose switch had `eth0`
+  asked the machine for a device called `eth0` — the name of the first NIC on
+  most machines. Reported by the netroub project, who also worked out that the
+  bridge's name alone would not be enough.
+- **Names that reach the machine are short and end in a hash**: a bridge is
+  `br-a1b2c3` and the veth reaching it `eth0-a1b2c3`, rather than the names the
+  topology used. A Linux interface name is at most 15 characters — `IFNAMSIZ` is
+  16 and counts the terminator, and an OVS bridge comes with an internal device
+  of the same name, so it is subject to the same limit. Fifteen cannot hold a lab
+  name, a machine name and a node name, and going over is worse than refused:
+  `ovs-vsctl` reports the failure and records the bridge anyway.
+
+  Nobody types these names — a topology writes `{{ .clab_bridge }}` and
+  `{{ .opp_clab_host_port }}`, and `dot2net data` says which is which. It is the
+  same answer docker gives when it names a container's host-side veth
+  `vethXXXXXXX`.
+
+  What is left is eight characters for an interface's own name, so **an interface
+  prefix of five leaves room for a thousand ports**. Longer is reported while
+  generating.
+- **`deploy` stops rather than adopting something that is already there.** A
+  bridge left behind by a lab that was not destroyed used to be used as it was
+  found; now the script names it and refuses. Deploying builds the same thing
+  whatever the machine happens to be holding.
 - **Commands a topology runs on the machine, on every platform**: four hooks
   named after the entry script's own commands — `worker_deploy`, `worker_exec`,
   `worker_collect` and `worker_destroy` — run outside the nodes, where `startup`
@@ -294,11 +330,17 @@ further down.
   run, and `deploy` stops rather than bringing up a lab whose machine is not
   ready.
 
-  Where a class pulled in with `use:` writes the same hook, **the module's part
-  wraps yours**: ahead of it where the hook sets something up, after it where the
-  hook takes something apart. A bridge is made before anything is attached to it
-  and removed after everything has let go, without either half saying so. This
-  applies to `teardown` as well, which is the other hook that undoes.
+  Each of the four straddles a command the script gives the platform, and
+  **`priority` says which side a block falls on**: the platform's command is the
+  origin, below it runs before and above it runs after. Writing no priority gives
+  the ordinary case — a module's part is the ground yours stands on, so the bridge
+  exists before you attach anything to it, and on `worker_destroy` the order
+  reverses so your cleanup runs before the bridge goes.
+
+  What needs saying explicitly is a command that could not have run earlier. A
+  veth reaching a bridge is made by the platform as it brings the lab up, so a
+  block naming one needs a positive priority; leave it out and **dot2net says so
+  while generating** rather than letting it fail on the machine.
 
   `worker` because that is what dot2net already calls a machine a lab is
   deployed onto — see the `worker` group class.

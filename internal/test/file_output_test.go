@@ -900,9 +900,9 @@ class_policy:
   interface:
     default: [default]
 
-file:
-  - name: setup.sh
-    scope: network
+module_config:
+  containerlab:
+    generate_scripts: true
 
 layer:
   - name: ip
@@ -926,34 +926,24 @@ nodeclass:
 interfaceclass:
   - name: default
 
-networkclass:
-  - name: _default
-    config:
-      - file: setup.sh
-        template:
-          - "{{ .nodes_clab_worker_deploy }}"
 `
 	}
 
 	tests := []struct {
-		name string
-		yaml string
-		want string
+		name  string
+		yaml  string
+		block string   // which function of the script the block lands in
+		want  []string // substrings, in the order they must appear
 	}{
 		{
 			name: "the OVS class supplies its command",
 			yaml: head("    use: [clabOvsBridgeSetup]\n"),
-			want: "  $SUDO ovs-vsctl --may-exist add-br sw || note_failure \"create bridge sw\"",
+			want: []string{"ovs-vsctl br-exists", "ovs-vsctl add-br"},
 		},
 		{
 			name: "the Linux bridge class supplies a different one",
 			yaml: head("    use: [clabLinuxBridgeSetup]\n"),
-			want: "  # ip link add has no --may-exist, so ask first: a bridge left behind by a lab\n" +
-				"  # that was not destroyed cleanly must not stop this one deploying.\n" +
-				"  if ! ip link show sw >/dev/null 2>&1; then\n" +
-				"    $SUDO ip link add sw type bridge || note_failure \"create bridge sw\"\n" +
-				"  fi\n" +
-				"  $SUDO ip link set sw up || note_failure \"bring up bridge sw\"",
+			want: []string{"ip link show", "ip link add", "type bridge", "ip link set"},
 		},
 		{
 			// What the module has to do comes first, so the topology's own
@@ -964,25 +954,22 @@ networkclass:
     config:
       - name: worker_deploy
         template:
-          - "ovs-vsctl add-port {{ .name }} eth9"
+          - "ovs-vsctl add-port {{ .clab_bridge }} eth9"
 `),
-			want: "  $SUDO ovs-vsctl --may-exist add-br sw || note_failure \"create bridge sw\"\n" +
-				"ovs-vsctl add-port sw eth9",
+			want: []string{"ovs-vsctl add-br", "ovs-vsctl add-port"},
 		},
 		{
 			// The same rule seen from the other side: worker_destroy takes
-			// something apart, so the module's part is taken up last. The
-			// bridge outlives what was attached to it, which is the reverse of
-			// the order it was built in.
+			// something apart, so the module's part is taken up last.
 			name: "the class goes last where the hook undoes something",
-			yaml: strings.Replace(head(`    use: [clabOvsBridgeSetup]
+			yaml: head(`    use: [clabOvsBridgeSetup]
     config:
       - name: worker_destroy
         template:
-          - "ovs-vsctl del-port {{ .name }} eth9"
-`), "{{ .nodes_clab_worker_deploy }}", "{{ .nodes_clab_worker_destroy }}", 1),
-			want: "ovs-vsctl del-port sw eth9\n" +
-				"  $SUDO ovs-vsctl --if-exists del-br sw || note_failure \"delete bridge sw\"",
+          - "ovs-vsctl del-port {{ .clab_bridge }} eth9"
+`),
+			block: "run_worker_destroy_post() {\n  :\n",
+			want:  []string{"ovs-vsctl del-port", "ovs-vsctl --if-exists del-br"},
 		},
 		{
 			// Opting out is the point: nothing is chosen from the kind.
@@ -992,7 +979,20 @@ networkclass:
         template:
           - "ansible-playbook provision-bridge.yml -e name={{ .name }}"
 `),
-			want: "ansible-playbook provision-bridge.yml -e name=sw",
+			want: []string{"ansible-playbook provision-bridge.yml -e name=sw"},
+		},
+		{
+			// A block that has to wait for the platform: priority says so, and
+			// it lands in the other half of the script.
+			name: "a positive priority puts the block after the platform's command",
+			yaml: head(`    config:
+      - name: worker_deploy
+        priority: 10
+        template:
+          - "tc qdisc add dev {{ .clab_bridge }} root netem delay 1ms"
+`),
+			block: "run_worker_deploy_post() {\n  :\n",
+			want:  []string{"tc qdisc add dev"},
 		},
 	}
 
@@ -1002,13 +1002,37 @@ networkclass:
 			if err != nil {
 				t.Fatalf("failed to build config files: %v", err)
 			}
-			got, err := os.ReadFile(filepath.Join(tmpDir, "setup.sh"))
+			got, err := os.ReadFile(filepath.Join(tmpDir, "containerlab.sh"))
 			if err != nil {
-				t.Fatalf("failed to read setup.sh: %v", err)
+				t.Fatalf("failed to read containerlab.sh: %v", err)
 			}
-			if string(got) != tt.want {
-				t.Errorf("setup.sh mismatch:\n  got:      %q\n  expected: %q", string(got), tt.want)
+			opening := tt.block
+			if opening == "" {
+				opening = "run_worker_deploy_pre() {\n  :\n"
+			}
+			body := between(string(got), opening, "\n}\n")
+			at := 0
+			for _, want := range tt.want {
+				i := strings.Index(body[at:], want)
+				if i < 0 {
+					t.Fatalf("%q not found after position %d in:\n%s", want, at, body)
+				}
+				at += i + len(want)
 			}
 		})
 	}
+}
+
+// between returns what lies between two markers, or "" if either is missing.
+func between(s, open, close string) string {
+	i := strings.Index(s, open)
+	if i < 0 {
+		return ""
+	}
+	rest := s[i+len(open):]
+	j := strings.Index(rest, close)
+	if j < 0 {
+		return ""
+	}
+	return rest[:j]
 }

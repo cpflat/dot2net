@@ -1,7 +1,9 @@
 package containerlab
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -33,6 +35,20 @@ const ClabLinkFormatName = "_clabLink"
 const NetworkClassName = "_clabNetwork"
 const NodeClassName = "_clabNode"
 const SwitchNodeClassName = "_clabSwitchNode"
+
+// ClabBridgeParamName carries what a switch node is called on the machine, as
+// opposed to in the model. Everything that names the bridge reads it, the
+// topology included: a command putting the machine's own NIC into the bridge
+// cannot be written without it. No leading underscore for that reason - the
+// module's own names carry one, and this is not one of them.
+const ClabBridgeParamName = "clab_bridge"
+
+// ClabHostPortParamName carries what the veth reaching a bridge is called on
+// the machine. A topology writing host-side commands - a capture on one link, a
+// machine's own NIC put into the bridge - needs to name these, and cannot know
+// them otherwise. Set on a switch node's interfaces, so the node facing one
+// reads it as {{ .opp_clab_host_port }}.
+const ClabHostPortParamName = "clab_host_port"
 
 // WorkerGroupClassName carries the topology file when the topology declares
 // placement units, so that each machine gets one it can deploy on its own.
@@ -179,18 +195,31 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	if err != nil {
 		return err
 	}
-	ct1.Template = []string{string(bytes)}
+	// The lab's name carries this run's own, so that one machine can hold two
+	// labs made from one topology: containerlab names every container after the
+	// lab, and without it both would be clab-host1-r1.
+	ct1.Template = []string{strings.ReplaceAll(string(bytes), "%%NODEPREFIX%%", cfg.NodeNamePrefix())}
 
 	owns := []*types.ConfigTemplate{ct1}
 
 	// The entry script joins the same class, rather than getting one of its
 	// own: a class of its own is a class no group carries a label for, and the
 	// script would silently not be written for a multi-machine lab.
+	// What these two name comes into being at different moments, and a block
+	// reading one too early is caught rather than left to fail on the machine.
+	// The bridge is made by the module's own worker_deploy; the veth reaching it
+	// is made by containerlab as it brings the lab up.
+	cfg.DeclareParamAvailability(ClabBridgeParamName, types.ModuleHookPriority)
+	cfg.DeclareParamAvailability(ClabHostPortParamName, types.PlatformCommandPriority)
+
 	if opts.GenerateScripts {
 		entry, err := entryScriptTemplate(cfg, scope, subdir)
 		if err != nil {
 			return err
 		}
+		slots, names := cfg.MachineHookSlots("clab")
+		owns = append(owns, slots...)
+		entry.Depends = names
 		owns = append(owns, entry)
 	}
 
@@ -308,32 +337,6 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	if err != nil {
 		return err
 	}
-	// The four the entry script runs on the machine, one per command it takes.
-	// Each carries whatever the topology wrote under the matching hook name, and
-	// produces nothing for a node that wrote none.
-	// A fresh set per class: a ConfigTemplate is applied to the node it is
-	// reached through, so one shared between two classes is applied twice to a
-	// node holding both.
-	workerHooks := func() ([]*types.ConfigTemplate, error) {
-		cts := make([]*types.ConfigTemplate, 0, 4)
-		for _, hook := range []string{"worker_deploy", "worker_exec", "worker_collect", "worker_destroy"} {
-			ct, err := readTemplate("templates/"+hook+".node_clab_"+hook, &types.ConfigTemplate{
-				Name:           "clab_" + hook,
-				Depends:        []string{hook},
-				RequiredParams: []string{"self_" + hook},
-			})
-			if err != nil {
-				return nil, err
-			}
-			cts = append(cts, ct)
-		}
-		return cts, nil
-	}
-	nodeHooks, err := workerHooks()
-	if err != nil {
-		return err
-	}
-
 	ctCollect, err := readTemplate("templates/collect.node_clab_collect", &types.ConfigTemplate{
 		Name:           "clab_collect",
 		RequiredParams: []string{"values_clab_collect_entry"},
@@ -345,7 +348,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
 		Parameters:      []string{"clab_binds", "clab_copies", "clab_collects"},
-		ConfigTemplates: append([]*types.ConfigTemplate{ct1, ct2, ct3, ct4, ctCopies, ctExecBody, ctTeardown, ctCollect}, nodeHooks...),
+		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4, ctCopies, ctExecBody, ctTeardown, ctCollect},
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: which of the two node classes a node gets is
@@ -361,16 +364,9 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct6.Template = []string{string(bytes)}
 
-	// A switch node carries the hooks too: a bridge the platform will not make
-	// is exactly what worker_deploy is for, and the topology hangs the commands
-	// off the same names it would on any other node.
-	switchHooks, err := workerHooks()
-	if err != nil {
-		return err
-	}
 	cfg.AddNodeClass(&types.NodeClass{
 		Name:            SwitchNodeClassName,
-		ConfigTemplates: append([]*types.ConfigTemplate{ct6}, switchHooks...),
+		ConfigTemplates: []*types.ConfigTemplate{ct6},
 	})
 
 	// A bridge the module made is a bridge the module takes away: the setup
@@ -391,8 +387,8 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		cfg.AddNodeClass(&types.NodeClass{
 			Name: setup.className,
 			ConfigTemplates: []*types.ConfigTemplate{
-				{Name: "worker_deploy", Template: []string{string(bytes)}},
-				{Name: "worker_destroy", Template: []string{string(cleanup)}},
+				{Name: "worker_deploy", HookScope: "clab", Template: []string{string(bytes)}},
+				{Name: "worker_destroy", HookScope: "clab", Template: []string{string(cleanup)}},
 			},
 		})
 	}
@@ -465,6 +461,132 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 // ClassifyObjects gives every node one of the module's two node classes. The
 // choice cannot be made through AddModuleNodeClassLabel, which applies one class
 // to all nodes before this hook runs.
+// maxHostNetdevName is what Linux allows an interface to be called: IFNAMSIZ is
+// 16 and includes the terminator. An OVS bridge is subject to it too, because
+// it comes with an internal device of the same name - and an over-long one is
+// worse than refused, since ovs-vsctl reports the failure but still records the
+// bridge, leaving one that no device answers for.
+const maxHostNetdevName = 15
+
+// hostTokenLength is how much of the hash is kept. Six hex digits is 16 million
+// values, against the few dozen names one machine holds at a time; four would
+// be 65536, where eighty names already collide about one time in twenty. What
+// is left is eight characters for the interface's own name.
+const hostTokenLength = 6
+
+// maxHostPortOwnName is what an interface on a switch node may be called, once
+// the token and its separator are taken out of the fifteen. Stated as a rule
+// the topology can follow: an automatic name is a prefix and a number, so a
+// prefix of five leaves room for a thousand ports.
+const maxHostPortOwnName = maxHostNetdevName - hostTokenLength - 1
+
+// checkHostNamesFit reports a name that will not fit on the machine, and a
+// machine that would be given one name twice.
+//
+// Both are settled while generating rather than at deploy time, where an
+// over-long name appears as an ip or ovs-vsctl error naming nothing the
+// topology wrote - and where OVS makes it worse, reporting the failure but
+// recording the bridge anyway, leaving one that no device answers for.
+func checkHostNamesFit(cfg *types.Config, nm *types.NetworkModel) error {
+	// Per machine: two labs cannot be checked against each other from here, but
+	// one machine's own names are all made in this pass.
+	seen := map[string]map[string]string{} // machine -> host name -> what claimed it
+
+	for _, node := range nm.Nodes {
+		if !cfg.IsSwitchNode(node) || !node.IsMaterialised() {
+			continue
+		}
+		machine := ""
+		for _, group := range node.Groups {
+			if cfg.IsWorkerGroup(group) {
+				machine = group.Name
+			}
+		}
+		if seen[machine] == nil {
+			seen[machine] = map[string]string{}
+		}
+		claim := func(name, by string) error {
+			if other, taken := seen[machine][name]; taken {
+				return fmt.Errorf(
+					"%s and %s would both be called %s on the machine: "+
+						"give one of them a name of its own",
+					other, by, name)
+			}
+			seen[machine][name] = by
+			return nil
+		}
+		if err := claim(HostBridgeName(cfg, node), "node "+node.Name); err != nil {
+			return err
+		}
+
+		for _, iface := range node.Interfaces {
+			if len(iface.Name) > maxHostPortOwnName {
+				return fmt.Errorf(
+					"interface %s of node %s is %d characters where a switch node's "+
+						"interfaces may have %d: on the machine it becomes %s, and Linux "+
+						"allows an interface name %d characters (IFNAMSIZ). An automatic "+
+						"name is a prefix and a number, so a prefix of %d leaves room for "+
+						"a thousand ports",
+					iface.Name, node.Name, len(iface.Name), maxHostPortOwnName,
+					HostPortName(cfg, iface), maxHostNetdevName, maxHostPortOwnName-3)
+			}
+			if err := claim(HostPortName(cfg, iface), "interface "+iface.Name+" of node "+node.Name); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// clabEndpoint is how a link names one of its ends in topo.yaml.
+//
+// For a container both halves are the node's own business: the interface is
+// made inside its network namespace, where nothing else can be reached, and
+// eth0 there is eth0 no matter how many labs the machine is holding.
+//
+// A bridge has no namespace to be inside - it is a device, and the veth that
+// reaches it has to sit in the same namespace it does, which is the machine's
+// own. So both the bridge and every veth reaching it are named next to the
+// machine's own equipment, where eth0 is its first NIC. containerlab hands
+// that naming to whoever writes the topology and says so:
+//
+//	When choosing names of the interfaces that need to be connected to the
+//	bridge make sure that these names are not clashing with existing interfaces.
+//
+// Here that is dot2net. The names it makes therefore carry a token standing for
+// the lab and the bridge, the way docker names a container's host-side veth
+// vethXXXXXXX rather than eth0 - for the same reason, and to no worse effect,
+// since nobody types these: a topology writing host-side commands reads them
+// from the parameters below.
+func clabEndpoint(cfg *types.Config, iface *types.Interface) string {
+	if !cfg.IsSwitchNode(iface.Node) {
+		return fmt.Sprintf("%s:%s", iface.Node.Name, iface.Name)
+	}
+	return fmt.Sprintf("%s:%s", HostBridgeName(cfg, iface.Node), HostPortName(cfg, iface))
+}
+
+// hostNameToken stands for the lab and the bridge in a name the machine sees.
+// Deterministic, so that destroy names what deploy made; short, because it is
+// spent out of fifteen characters.
+func hostNameToken(cfg *types.Config, node *types.Node) string {
+	sum := sha256.Sum256([]byte(cfg.Name + "\x00" + node.LocalNameOr()))
+	return hex.EncodeToString(sum[:])[:hostTokenLength]
+}
+
+// HostPortName is the veth reaching a bridge, as the machine sees it. The
+// interface keeps its own name in front so that the port is recognisable, and
+// the token behind it makes the whole unique on a machine holding more than one
+// lab.
+func HostPortName(cfg *types.Config, iface *types.Interface) string {
+	return iface.Name + "-" + hostNameToken(cfg, iface.Node)
+}
+
+// HostBridgeName is what a switch node is called on the machine, as opposed to
+// in the model. Exported because the bridge setup classes name the same thing.
+func HostBridgeName(cfg *types.Config, node *types.Node) string {
+	return "br-" + hostNameToken(cfg, node)
+}
+
 func (m *ClabModule) ClassifyObjects(cfg *types.Config, nm *types.NetworkModel) error {
 	for _, node := range nm.Nodes {
 		if cfg.IsSwitchNode(node) {
@@ -494,9 +616,22 @@ func (m *ClabModule) GenerateParameters(cfg *types.Config, nm *types.NetworkMode
 	// network-wide string could not be split per output file, which host-scoped
 	// topologies need. Connections to virtual nodes are dropped by the template
 	// condition, so they are not special-cased here.
+	// What a switch node is called on the machine. One parameter, so that the
+	// entry in topo.yaml and the commands that make and remove the bridge
+	// cannot disagree about it.
+	for _, node := range nm.Nodes {
+		if !cfg.IsSwitchNode(node) {
+			continue
+		}
+		node.AddParam(ClabBridgeParamName, HostBridgeName(cfg, node))
+		for _, iface := range node.Interfaces {
+			iface.AddParam(ClabHostPortParamName, HostPortName(cfg, iface))
+		}
+	}
+
 	for _, conn := range nm.Connections {
-		conn.AddParam(ClabSrcEndpointParamName, fmt.Sprintf("%s:%s", conn.Src.Node.Name, conn.Src.Name))
-		conn.AddParam(ClabDstEndpointParamName, fmt.Sprintf("%s:%s", conn.Dst.Node.Name, conn.Dst.Name))
+		conn.AddParam(ClabSrcEndpointParamName, clabEndpoint(cfg, conn.Src))
+		conn.AddParam(ClabDstEndpointParamName, clabEndpoint(cfg, conn.Dst))
 	}
 
 	// Note: bind mounts are now generated through Value class mechanism
@@ -637,6 +772,10 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 		return err
 	}
 
+	if err := checkHostNamesFit(cfg, nm); err != nil {
+		return err
+	}
+
 	// containerlab keeps eth0 for the management network and refuses a data
 	// interface by that name. It says so at deploy time; saying it here means
 	// the topology hears about it while it can still be changed.
@@ -733,6 +872,7 @@ func entryScriptTemplate(cfg *types.Config, scope, subdir string) (*types.Config
 	}
 	script := strings.ReplaceAll(string(bytes), "%%TOPO%%", path)
 	script = strings.ReplaceAll(script, "%%COLLECT%%", types.CollectDirName)
+	script = strings.ReplaceAll(script, "%%NODEPREFIX%%", cfg.NodeNamePrefix())
 	return &types.ConfigTemplate{File: ScriptFile, Template: []string{script}}, nil
 }
 

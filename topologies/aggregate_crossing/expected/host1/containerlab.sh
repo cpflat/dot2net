@@ -85,37 +85,67 @@ run_collect() {
   collect_file r2 /var/log/frr.log
 }
 
-# What the lab asked to have run on this machine, one function per command this
-# script takes. Each is a function rather than the commands themselves so that a
-# block of several lines lands where a single line was written, and so that
-# note_failure and report work on it like anything else here.
-run_worker_deploy() {
+# What the lab asked to have run on this machine, two functions per command
+# this script takes: what goes before the command it gives containerlab, and
+# what goes after. A block says which by its priority, and the blocks reach here
+# already in order - see the wiki on machine-side hooks. Functions rather than
+# the commands themselves, so that a block of several lines lands where a single
+# line was written and note_failure works on it like anything else here.
+run_worker_deploy_pre() {
   :
-  $SUDO ovs-vsctl --may-exist add-br sw1 || note_failure "create bridge sw1"
+  # Refuse a bridge this lab did not make. Adopting one silently joins two labs
+  # into a single L2 domain, and destroy then takes it out from under whichever
+  # is still running - neither says a word. A bridge left over from a lab that
+  # was not destroyed is the same problem wearing a different hat.
+  if $SUDO ovs-vsctl br-exists br-cb308f; then
+    note_failure "bridge br-cb308f already exists: destroy the lab that made it, or remove it by hand"
+  else
+    $SUDO ovs-vsctl add-br br-cb308f || note_failure "create bridge br-cb308f"
+  fi
 }
 
-run_worker_exec() {
+run_worker_deploy_post() {
   :
 
 }
 
-run_worker_collect() {
+run_worker_exec_pre() {
   :
 
 }
 
-run_worker_destroy() {
+run_worker_exec_post() {
   :
-  $SUDO ovs-vsctl --if-exists del-br sw1 || note_failure "delete bridge sw1"
+
+}
+
+run_worker_collect_pre() {
+  :
+
+}
+
+run_worker_collect_post() {
+  :
+
+}
+
+run_worker_destroy_pre() {
+  :
+
+}
+
+run_worker_destroy_post() {
+  :
+  $SUDO ovs-vsctl --if-exists del-br br-cb308f || note_failure "delete bridge br-cb308f"
 }
 
 case "${1:-deploy}" in
   deploy)
-    # What the lab needs of the machine before the platform is asked for
-    # anything: the bridges a topology names have to exist before containerlab
-    # will deploy, since its check runs before any stage and nothing inside the
-    # lab can make them. worker_destroy takes the same ones down again.
-    run_worker_deploy
+    # What the lab needs of the machine before containerlab is asked for
+    # anything: the bridges a topology names have to exist before it will
+    # deploy, since its check runs before any stage and nothing inside the lab
+    # can make them.
+    run_worker_deploy_pre
     report
     # Anything after "deploy" goes to containerlab: a caller running labs in
     # parallel has to place each one's management network itself
@@ -123,19 +153,26 @@ case "${1:-deploy}" in
     # with. Dropping the arguments in silence would let the labs come up on one
     # subnet and collide later.
     [ $# -gt 0 ] && shift
-    exec $SUDO containerlab deploy -t "$TOPO" "$@"
+    $SUDO containerlab deploy -t "$TOPO" "$@" || note_failure "deploy"
+    # Anything that could not exist until now: the veth reaching a bridge is
+    # made by containerlab as it brings the lab up, so a capture or a qdisc on
+    # one is written here rather than above.
+    run_worker_deploy_post
+    report
     ;;
   destroy)
     run_teardown
     run_collect
+    run_worker_destroy_pre
     $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
-    run_worker_destroy
+    run_worker_destroy_post
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
+    run_worker_collect_pre
     run_collect
-    run_worker_collect
+    run_worker_collect_post
     report
     ;;
   exec)
@@ -149,9 +186,11 @@ case "${1:-deploy}" in
     # way, for the same reason.
     cid=$(container_id "$node")
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
-    run_worker_exec
+    run_worker_exec_pre
     report
-    exec $SUDO docker exec "$cid" "$@"
+    $SUDO docker exec "$cid" "$@" || note_failure "exec $node"
+    run_worker_exec_post
+    report
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

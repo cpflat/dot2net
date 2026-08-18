@@ -39,7 +39,7 @@ report() {
 # same name, and teardown and collect must not reach into it.
 container_id() {
   $SUDO docker ps -q \
-    --filter "label=containerlab={{ .name }}" \
+    --filter "label=containerlab=%%NODEPREFIX%%{{ .name }}" \
     --filter "label=clab-node-name=$1" | head -1
 }
 
@@ -84,37 +84,59 @@ run_collect() {
 {{ .nodes_clab_collect }}
 }
 
-# What the lab asked to have run on this machine, one function per command this
-# script takes. Each is a function rather than the commands themselves so that a
-# block of several lines lands where a single line was written, and so that
-# note_failure and report work on it like anything else here.
-run_worker_deploy() {
+# What the lab asked to have run on this machine, two functions per command
+# this script takes: what goes before the command it gives containerlab, and
+# what goes after. A block says which by its priority, and the blocks reach here
+# already in order - see the wiki on machine-side hooks. Functions rather than
+# the commands themselves, so that a block of several lines lands where a single
+# line was written and note_failure works on it like anything else here.
+run_worker_deploy_pre() {
   :
-{{ .nodes_clab_worker_deploy }}
+{{ .self_clab_worker_deploy_pre }}
 }
 
-run_worker_exec() {
+run_worker_deploy_post() {
   :
-{{ .nodes_clab_worker_exec }}
+{{ .self_clab_worker_deploy_post }}
 }
 
-run_worker_collect() {
+run_worker_exec_pre() {
   :
-{{ .nodes_clab_worker_collect }}
+{{ .self_clab_worker_exec_pre }}
 }
 
-run_worker_destroy() {
+run_worker_exec_post() {
   :
-{{ .nodes_clab_worker_destroy }}
+{{ .self_clab_worker_exec_post }}
+}
+
+run_worker_collect_pre() {
+  :
+{{ .self_clab_worker_collect_pre }}
+}
+
+run_worker_collect_post() {
+  :
+{{ .self_clab_worker_collect_post }}
+}
+
+run_worker_destroy_pre() {
+  :
+{{ .self_clab_worker_destroy_pre }}
+}
+
+run_worker_destroy_post() {
+  :
+{{ .self_clab_worker_destroy_post }}
 }
 
 case "${1:-deploy}" in
   deploy)
-    # What the lab needs of the machine before the platform is asked for
-    # anything: the bridges a topology names have to exist before containerlab
-    # will deploy, since its check runs before any stage and nothing inside the
-    # lab can make them. worker_destroy takes the same ones down again.
-    run_worker_deploy
+    # What the lab needs of the machine before containerlab is asked for
+    # anything: the bridges a topology names have to exist before it will
+    # deploy, since its check runs before any stage and nothing inside the lab
+    # can make them.
+    run_worker_deploy_pre
     report
     # Anything after "deploy" goes to containerlab: a caller running labs in
     # parallel has to place each one's management network itself
@@ -122,19 +144,26 @@ case "${1:-deploy}" in
     # with. Dropping the arguments in silence would let the labs come up on one
     # subnet and collide later.
     [ $# -gt 0 ] && shift
-    exec $SUDO containerlab deploy -t "$TOPO" "$@"
+    $SUDO containerlab deploy -t "$TOPO" "$@" || note_failure "deploy"
+    # Anything that could not exist until now: the veth reaching a bridge is
+    # made by containerlab as it brings the lab up, so a capture or a qdisc on
+    # one is written here rather than above.
+    run_worker_deploy_post
+    report
     ;;
   destroy)
     run_teardown
     run_collect
+    run_worker_destroy_pre
     $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
-    run_worker_destroy
+    run_worker_destroy_post
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
+    run_worker_collect_pre
     run_collect
-    run_worker_collect
+    run_worker_collect_post
     report
     ;;
   exec)
@@ -148,9 +177,11 @@ case "${1:-deploy}" in
     # way, for the same reason.
     cid=$(container_id "$node")
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
-    run_worker_exec
+    run_worker_exec_pre
     report
-    exec $SUDO docker exec "$cid" "$@"
+    $SUDO docker exec "$cid" "$@" || note_failure "exec $node"
+    run_worker_exec_post
+    report
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

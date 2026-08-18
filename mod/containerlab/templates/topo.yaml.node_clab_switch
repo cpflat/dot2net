@@ -1,2 +1,2 @@
-    {{ .name }}:
+    {{ .clab_bridge }}:
       kind: {{ .kind }}

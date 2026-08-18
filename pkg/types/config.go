@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"text/template"
+	"text/template/parse"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/goccy/go-yaml"
@@ -126,6 +127,222 @@ const (
 	// last - the reverse order of the setup it undoes.
 	ModuleUndoes
 )
+
+// MachineHooks are the hooks the entry script runs on the machine, as opposed
+// to inside a node. Only these are ordered by priority: they sit around a
+// command the script gives the platform, which is the fixed point the ordering
+// is stated against. startup and teardown run inside a node, where no such
+// point exists, and keep the plain merge.
+var MachineHooks = map[string]bool{
+	"worker_deploy":  true,
+	"worker_exec":    true,
+	"worker_collect": true,
+	"worker_destroy": true,
+}
+
+// Where a block sits is a number on one axis, and the platform's own command is
+// its origin: below it runs before the platform is asked to act, above it runs
+// after. Smaller is earlier, as everywhere else priority is used.
+//
+// A module's contribution is the ground the platform command stands on - the
+// bridge has to be there before containerlab will deploy - so it is laid first
+// and, where the command releases it rather than uses it, taken up last. What a
+// topology writes sits between: it can name what a module made (the module
+// publishes a parameter for it) and a module can never name what a topology
+// wrote, so the one that is referred to goes first.
+const (
+	PlatformCommandPriority = 0
+	ModuleHookPriority      = -100
+	TopologyHookPriority    = -50
+)
+
+// HookPriority is where this block sits. Zero means the entry said nothing:
+// there is no useful block at the origin, which is the platform's own command,
+// so zero is free to mean "wherever this kind of block belongs".
+func HookPriority(ct *ConfigTemplate) int {
+	if ct.Priority != 0 {
+		return ct.Priority
+	}
+	after := HookConfigNames[ct.Name] == ModuleUndoes
+	switch {
+	case ct.ModuleProvided && after:
+		return -ModuleHookPriority
+	case ct.ModuleProvided:
+		return ModuleHookPriority
+	case after:
+		return -TopologyHookPriority
+	default:
+		return TopologyHookPriority
+	}
+}
+
+// MachineHookOrder is the machine-side hooks in the order they are declared
+// above, so that a module registering gathering points and the script that
+// names them cannot drift apart.
+var MachineHookOrder = []string{"worker_deploy", "worker_exec", "worker_collect", "worker_destroy"}
+
+// MachineHookSlots are the gathering points an entry script needs: one per hook
+// per side of the platform's own command. The blocks arrive from the nodes
+// carrying where they sit and are put in that order here; the script names the
+// results as {{ .self_<prefix>_worker_deploy_pre }} and so on.
+//
+// Every platform needs the same eight, because the hooks are dot2net's rather
+// than any module's. The prefix keeps one module's gathering points out of
+// another's.
+func (cfg *Config) MachineHookSlots(prefix string) ([]*ConfigTemplate, []string) {
+	cfg.hookConsumers = append(cfg.hookConsumers, prefix)
+	cts := make([]*ConfigTemplate, 0, len(MachineHookOrder)*2)
+	names := make([]string, 0, len(MachineHookOrder)*2)
+	for _, hook := range MachineHookOrder {
+		for _, side := range []string{"pre", "post"} {
+			group := prefix + "/" + hook + "_" + side
+			name := prefix + "_" + hook + "_" + side
+			cts = append(cts, &ConfigTemplate{
+				Name:      name,
+				Style:     ConfigTemplateStyleSort,
+				SortGroup: group,
+			})
+			names = append(names, name)
+		}
+	}
+	return cts, names
+}
+
+// DeclareParamAvailability says that what this parameter names does not exist
+// until the given point on the hook axis. A module publishing the name of
+// something the platform makes says so here, and a block that reads the name too
+// early is reported while generating rather than failing on the machine with an
+// error naming nothing the topology wrote.
+func (cfg *Config) DeclareParamAvailability(name string, at int) {
+	if cfg.paramAvailability == nil {
+		cfg.paramAvailability = map[string]int{}
+	}
+	cfg.paramAvailability[name] = at
+}
+
+// checkParamAvailability reports a machine-side hook block that reads a
+// parameter naming something that will not exist where the block runs.
+//
+// The block's position and the parameter's are numbers on one axis, so this is
+// a comparison rather than a list of special cases: a parameter added later
+// only has to declare when it becomes real.
+func checkParamAvailability(cfg *Config, ct *ConfigTemplate) error {
+	if !MachineHooks[ct.Name] || ct.ParsedTemplate == nil || len(cfg.paramAvailability) == 0 {
+		return nil
+	}
+	at := HookPriority(ct)
+	for _, ref := range templateFields(ct.ParsedTemplate) {
+		// A reference reaches the same parameter through the object it is read
+		// from - opp_ for the far end of a link, node_ for the node an interface
+		// sits on - so the prefix is taken off before asking when the thing it
+		// names comes into being. Which object supplies it does not change that.
+		name := ref
+		for _, prefix := range ReservedPrefixes() {
+			if strings.HasPrefix(name, prefix) {
+				name = strings.TrimPrefix(name, prefix)
+				break
+			}
+		}
+		available, declared := cfg.paramAvailability[name]
+		if !declared || at >= available {
+			continue
+		}
+		when := fmt.Sprintf("until priority %d", available)
+		if available == PlatformCommandPriority {
+			when = "until the platform has brought the lab up"
+		}
+		return fmt.Errorf(
+			"the %s block of class %s reads %s, which names something that does not exist %s; "+
+				"the block runs before that, at priority %d. Give it a priority above %d so "+
+				"that it runs once the thing it names is there",
+			ct.Name, ct.className, ref, when, at, available)
+	}
+	return nil
+}
+
+// templateFields is every {{ .name }} a template reads. Taken from the parse
+// tree rather than the text, so that spacing and quoting cannot hide one.
+func templateFields(tpl *template.Template) []string {
+	seen := map[string]bool{}
+	var names []string
+	var walk func(parse.Node)
+	walk = func(n parse.Node) {
+		switch v := n.(type) {
+		case nil:
+			return
+		case *parse.ListNode:
+			if v == nil {
+				return
+			}
+			for _, c := range v.Nodes {
+				walk(c)
+			}
+		case *parse.ActionNode:
+			walk(v.Pipe)
+		case *parse.PipeNode:
+			if v == nil {
+				return
+			}
+			for _, c := range v.Cmds {
+				walk(c)
+			}
+		case *parse.CommandNode:
+			for _, a := range v.Args {
+				walk(a)
+			}
+		case *parse.IfNode:
+			walk(v.Pipe)
+			walk(v.List)
+			walk(v.ElseList)
+		case *parse.RangeNode:
+			walk(v.Pipe)
+			walk(v.List)
+			walk(v.ElseList)
+		case *parse.WithNode:
+			walk(v.Pipe)
+			walk(v.List)
+			walk(v.ElseList)
+		case *parse.FieldNode:
+			for _, ident := range v.Ident {
+				if !seen[ident] {
+					seen[ident] = true
+					names = append(names, ident)
+				}
+			}
+		}
+	}
+	for _, t := range tpl.Templates() {
+		if t.Tree != nil {
+			walk(t.Tree.Root)
+		}
+	}
+	return names
+}
+
+// HookGroups are where a block of this hook is gathered: one group for what runs
+// before the platform's command and one for what runs after, because a shell
+// script cannot be cut in half after the fact - and one of those per script
+// being written, since each platform writes its own.
+//
+// A block usually goes to every script: what a topology asks of the machine is
+// asked of it whichever platform brings the lab up. A block a module wrote goes
+// only to that module's script, because it speaks that platform's language -
+// containerlab's bridge is made under a name only containerlab's files use.
+func (cfg *Config) HookGroups(ct *ConfigTemplate, priority int) []string {
+	side := "_post"
+	if priority < PlatformCommandPriority {
+		side = "_pre"
+	}
+	consumers := cfg.hookConsumers
+	if ct.HookScope != "" {
+		consumers = []string{ct.HookScope}
+	}
+	groups := make([]string, 0, len(consumers))
+	for _, c := range consumers {
+		groups = append(groups, c+"/"+ct.Name+side)
+	}
+	return groups
+}
 
 const ClassTypeNetwork string = "network"
 const ClassTypeNode string = "node"
@@ -337,6 +554,15 @@ type Config struct {
 	// registeringModule is true while a module's UpdateConfig runs, so that the
 	// classes it adds are recorded as module-provided.
 	registeringModule bool
+
+	// hookConsumers are the prefixes of the entry scripts being written, one per
+	// platform module that asked for gathering points.
+	hookConsumers []string
+
+	// paramAvailability records, for a parameter naming something that comes
+	// into being partway through a deployment, the point at which it does. A
+	// machine-side hook block reading one has to sit after it.
+	paramAvailability map[string]int
 
 	fileDefinitionMap map[string]*FileDefinition
 	formatStyleMap    map[string]*FormatStyle
@@ -1477,6 +1703,10 @@ type ConfigTemplate struct {
 	// topology both contribute to one of the hook names below: what the module
 	// has to do comes first.
 	ModuleProvided bool `yaml:"-" mapstructure:"-"`
+	// HookScope keeps a machine-side hook block out of the other platforms'
+	// scripts. Set by a module whose block names something only its own files
+	// use; empty on anything a topology wrote, which every script runs.
+	HookScope string `yaml:"-" mapstructure:"-"`
 	// Group is used for sort config templates
 	// A sort config template will aggregate all config blocks generated in child (or grandchild) objects of the same group
 	Group string `yaml:"group" mapstructure:"group"`
@@ -2041,6 +2271,9 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 		return fmt.Errorf("failed to load template %+v: %w", ct, err)
 	}
 	ct.ParsedTemplate = tpl
+	if err := checkParamAvailability(cfg, ct); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -2049,102 +2282,102 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 	// className is set only for LabelOwners, for checking config template conditions of classnames
 	for _, networkClass := range cfg.NetworkClasses {
 		for _, ct := range networkClass.ConfigTemplates {
+			ct.className = networkClass.Name
+			ct.classType = ClassTypeNetwork
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
-			ct.className = networkClass.Name
-			ct.classType = ClassTypeNetwork
 		}
 	}
 	for _, nc := range cfg.NodeClasses {
 		for _, ct := range nc.ConfigTemplates {
+			ct.className = nc.Name
+			ct.classType = ClassTypeNode
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
-			ct.className = nc.Name
-			ct.classType = ClassTypeNode
 		}
 		for _, mc := range nc.MemberClasses {
 			for _, ct := range mc.ConfigTemplates {
+				ct.className = ""
+				ct.classType = ClassTypeMember(ClassTypeNode, "")
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
-				ct.className = ""
-				ct.classType = ClassTypeMember(ClassTypeNode, "")
 			}
 		}
 	}
 	for _, ic := range cfg.InterfaceClasses {
 		for _, ct := range ic.ConfigTemplates {
+			ct.className = ic.Name
+			ct.classType = ClassTypeInterface
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
-			ct.className = ic.Name
-			ct.classType = ClassTypeInterface
 		}
 		for _, nc := range ic.NeighborClasses {
 			for _, ct := range nc.ConfigTemplates {
+				ct.className = ""
+				ct.classType = ClassTypeNeighbor("")
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
-				ct.className = ""
-				ct.classType = ClassTypeNeighbor("")
 			}
 		}
 		for _, mc := range ic.MemberClasses {
 			for _, ct := range mc.ConfigTemplates {
+				ct.className = ""
+				ct.classType = ClassTypeMember(ClassTypeInterface, "")
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
-				ct.className = ""
-				ct.classType = ClassTypeMember(ClassTypeInterface, "")
 			}
 		}
 	}
 	for _, cc := range cfg.ConnectionClasses {
 		for _, ct := range cc.ConfigTemplates {
+			ct.className = cc.Name
+			ct.classType = ClassTypeConnection
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
-			ct.className = cc.Name
-			ct.classType = ClassTypeConnection
 		}
 		for _, mc := range cc.MemberClasses {
 			for _, ct := range mc.ConfigTemplates {
+				ct.className = ""
+				ct.classType = ClassTypeMember(ClassTypeConnection, "")
 				if err := initConfigTemplate(cfg, ct); err != nil {
 					return nil, err
 				}
-				ct.className = ""
-				ct.classType = ClassTypeMember(ClassTypeConnection, "")
 			}
 		}
 	}
 	for _, sc := range cfg.SegmentClasses {
 		for _, ct := range sc.ConfigTemplates {
+			ct.className = sc.Name
+			ct.classType = ClassTypeSegment
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
-			ct.className = sc.Name
-			ct.classType = ClassTypeSegment
 		}
 	}
 	for _, gc := range cfg.GroupClasses {
 		for _, ct := range gc.ConfigTemplates {
+			ct.className = gc.Name
+			ct.classType = ClassTypeGroup
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
-			ct.className = gc.Name
-			ct.classType = ClassTypeGroup
 		}
 	}
 	// Parse ConfigTemplates in ParameterRules (for attach mode)
 	for _, pr := range cfg.ParameterRules {
 		for _, ct := range pr.ConfigTemplates {
+			ct.className = ""
+			ct.classType = ClassTypeValue(pr.Name)
 			if err := initConfigTemplate(cfg, ct); err != nil {
 				return nil, err
 			}
-			ct.className = ""
-			ct.classType = ClassTypeValue(pr.Name)
 		}
 	}
 	return cfg, nil

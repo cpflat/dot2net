@@ -1,4 +1,4 @@
-name: {{ .name }}
+name: %%NODEPREFIX%%{{ .name }}
 topology:
   nodes:
 {{ .nodes_clab_topo }}

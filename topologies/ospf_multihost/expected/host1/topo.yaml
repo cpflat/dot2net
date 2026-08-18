@@ -1,7 +1,7 @@
 name: host1
 topology:
   nodes:
-    br1:
+    br-ae63ed:
       kind: ovs-bridge
     r1:
       kind: linux
@@ -29,6 +29,6 @@ topology:
       - vtysh -c "conf t" -c "log file /var/log/frr.log informational"
 
   links:
-  - endpoints: [r2:eth0, br1:eth1]
+  - endpoints: [r2:eth0, br-ae63ed:eth1-ae63ed]
   - endpoints: [r1:eth0, r2:eth1]
 
