@@ -348,10 +348,12 @@ func collectGeneratedFiles(tmpDir string) []string {
 
 		// Exclude input files
 		if relPath != TopologyFileName && relPath != DefinitionFileName {
-			// Normalize path separators to forward slashes for cross-platform consistency
-			// ListGeneratedFiles uses "/" consistently, so we need to match
-			normalizedPath := filepath.ToSlash(relPath)
-			files = append(files, normalizedPath)
+			// The path is left as the filesystem gives it. dot2net names a
+			// generated file with filepath.Join, so its list is in the
+			// separator this machine uses and so is this walk - comparing the
+			// two is the point of the test, and normalising either would hide a
+			// difference rather than allow for one.
+			files = append(files, relPath)
 		}
 		return nil
 	})

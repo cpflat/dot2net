@@ -235,7 +235,10 @@ func TestCmdFiles_ListsPerMachineTopologyFiles(t *testing.T) {
 		listed[f] = true
 	}
 	for _, want := range []string{"host1/topo.yaml", "host2/topo.yaml"} {
-		if _, err := os.Stat(filepath.FromSlash(want)); err != nil {
+		// The list names a file the way this machine does, so the wanted path
+		// is put in the same terms before either is used.
+		want = filepath.FromSlash(want)
+		if _, err := os.Stat(want); err != nil {
 			t.Fatalf("the build did not write %s: %v", want, err)
 		}
 		if !listed[want] {
