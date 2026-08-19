@@ -8,6 +8,12 @@
 //
 // Read from the source rather than maintained by hand, because a hand-written
 // list drifts: the count in .claude/rules/topologies.md was wrong within days.
+//
+// What it does not do: follow a value once it leaves the field. Platform is read
+// twice here and still does nothing, because both readers only copy it into a
+// set nobody looks at. Seeing that needs to follow the value through a local
+// variable, which is a different kind of tool - a linter. So READS = 0 means
+// dead, but READS > 0 does not mean alive.
 package main
 
 import (
@@ -27,8 +33,10 @@ type field struct {
 	Name    string
 	YAML    string // "" when the field is not written in YAML at all
 	Comment string
-	Uses    int // bundled topologies that write this key
-	SetBy   int // places in mod/ that set this field from Go
+	Uses    int  // bundled topologies that write this key
+	SetBy   int  // places in mod/ that set this field from Go
+	Reads   int  // places that read the field back
+	Ambig   bool // the same field name is on more than one struct
 }
 
 // yamlKey pulls the key out of a struct tag, dropping ",flow" and friends.
@@ -140,6 +148,58 @@ func countUses(roots []string, key string) int {
 	return n
 }
 
+// countReads counts where the field is read rather than written: a selector
+// (x.Field) that is not the left of an assignment. A field set from a struct
+// literal appears as a plain key, not a selector, so it is not counted here -
+// that is what SetBy is for.
+//
+// A field nobody reads does nothing, whatever else the numbers say. That is the
+// column this report exists for: Platform was declared, documented, and read by
+// no one, and a second field was written to do the same job because nothing said
+// so.
+//
+// Names are matched without resolving types, so a name carried by more than one
+// struct pools their reads. Such names are marked ambiguous rather than
+// silently trusted.
+func countReads(dirs []string, name string) int {
+	n := 0
+	for _, dir := range dirs {
+		_ = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".go") ||
+				strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, path, nil, 0)
+			if err != nil {
+				return nil
+			}
+			written := map[*ast.SelectorExpr]bool{}
+			ast.Inspect(f, func(nd ast.Node) bool {
+				as, ok := nd.(*ast.AssignStmt)
+				if !ok {
+					return true
+				}
+				for _, lhs := range as.Lhs {
+					if se, ok := lhs.(*ast.SelectorExpr); ok {
+						written[se] = true
+					}
+				}
+				return true
+			})
+			ast.Inspect(f, func(nd ast.Node) bool {
+				se, ok := nd.(*ast.SelectorExpr)
+				if ok && se.Sel.Name == name && !written[se] {
+					n++
+				}
+				return true
+			})
+			return nil
+		})
+	}
+	return n
+}
+
 func main() {
 	fields, err := collect("pkg/types/config.go")
 	if err != nil {
@@ -150,7 +210,18 @@ func main() {
 	for i := range fields {
 		fields[i].Uses = countUses(roots, fields[i].YAML)
 		fields[i].SetBy = countSetBy(fields[i].Name)
+		fields[i].Reads = countReads([]string{"pkg", "mod", "."}, fields[i].Name)
 	}
+	// Mark the names that more than one struct carries: their read counts are
+	// pooled and cannot be trusted on their own.
+	byName := map[string]int{}
+	for _, f := range fields {
+		byName[f.Name]++
+	}
+	for i := range fields {
+		fields[i].Ambig = byName[fields[i].Name] > 1
+	}
+
 	sort.SliceStable(fields, func(i, j int) bool {
 		if fields[i].Struct != fields[j].Struct {
 			return fields[i].Struct < fields[j].Struct
@@ -158,14 +229,18 @@ func main() {
 		return fields[i].Name < fields[j].Name
 	})
 
-	fmt.Printf("%-20s %-20s %-22s %5s %5s  %s\n",
-		"STRUCT", "FIELD", "YAML KEY", "TOPO", "MOD", "WHAT IT IS")
+	fmt.Printf("%-20s %-20s %-22s %5s %5s %6s  %s\n",
+		"STRUCT", "FIELD", "YAML KEY", "TOPO", "MOD", "READS", "WHAT IT IS")
 	for _, f := range fields {
 		key := f.YAML
 		if key == "-" {
 			key = "(module only)"
 		}
-		fmt.Printf("%-20s %-20s %-22s %5d %5d  %s\n",
-			f.Struct, f.Name, key, f.Uses, f.SetBy, f.Comment)
+		reads := fmt.Sprintf("%d", f.Reads)
+		if f.Ambig {
+			reads += "?"
+		}
+		fmt.Printf("%-20s %-20s %-22s %5d %5d %6s  %s\n",
+			f.Struct, f.Name, key, f.Uses, f.SetBy, reads, f.Comment)
 	}
 }
