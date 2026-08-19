@@ -37,6 +37,10 @@ type field struct {
 	SetBy   int  // places in mod/ that set this field from Go
 	Reads   int  // places that read the field back
 	Ambig   bool // the same field name is on more than one struct
+	// AmbigKey marks a yaml key more than one struct declares. The topologies
+	// are searched for the key alone, so the count is the two keys together:
+	// `after` is both a config's anchor and an entry of blocks:.
+	AmbigKey bool
 }
 
 // yamlKey pulls the key out of a struct tag, dropping ",flow" and friends.
@@ -124,11 +128,16 @@ func countSetBy(name string) int {
 // countUses is a plain search of the bundled topologies for "<key>:". It can
 // be fooled - a key that is also an ordinary word will over-count - so the
 // number is a signal, not a measurement. Zero is the interesting value.
+//
+// A key is written either on its own line or as the first key of a list entry,
+// "- group: x". Missing the second form is what makes the number lie in the
+// direction that matters: config templates are a list, so their keys are read
+// as unused.
 func countUses(roots []string, key string) int {
 	if key == "" || key == "-" {
 		return 0
 	}
-	pat := regexp.MustCompile(`(?m)^\s*` + regexp.QuoteMeta(key) + `\s*:`)
+	pat := regexp.MustCompile(`(?m)^\s*(-\s+)?` + regexp.QuoteMeta(key) + `\s*:`)
 	n := 0
 	for _, root := range roots {
 		dirs, _ := os.ReadDir(root)
@@ -218,8 +227,15 @@ func main() {
 	for _, f := range fields {
 		byName[f.Name]++
 	}
+	byYAML := map[string]int{}
+	for _, f := range fields {
+		if f.YAML != "-" {
+			byYAML[f.YAML]++
+		}
+	}
 	for i := range fields {
 		fields[i].Ambig = byName[fields[i].Name] > 1
+		fields[i].AmbigKey = byYAML[fields[i].YAML] > 1
 	}
 
 	sort.SliceStable(fields, func(i, j int) bool {
@@ -240,7 +256,11 @@ func main() {
 		if f.Ambig {
 			reads += "?"
 		}
-		fmt.Printf("%-20s %-20s %-22s %5d %5d %6s  %s\n",
-			f.Struct, f.Name, key, f.Uses, f.SetBy, reads, f.Comment)
+		uses := fmt.Sprintf("%d", f.Uses)
+		if f.AmbigKey {
+			uses += "?"
+		}
+		fmt.Printf("%-20s %-20s %-22s %5s %5d %6s  %s\n",
+			f.Struct, f.Name, key, uses, f.SetBy, reads, f.Comment)
 	}
 }
