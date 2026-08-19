@@ -632,6 +632,13 @@ type Config struct {
 	LoadedModules              []Module           // reference to loaded modules, internal
 	SorterConfigTemplateGroups mapset.Set[string] // list of sort-style config template groups
 
+	// groupContributions are the config templates that write blocks into a
+	// group, kept so that the group names can be checked against the sorters
+	// once every template is loaded. A contribution to a group no sorter
+	// collects is generated and then dropped, so a mistyped name would
+	// otherwise take the block out of the output without saying anything.
+	groupContributions []*ConfigTemplate
+
 	// nodeNamePrefix separates one deployment of a topology from another. It is
 	// set from the command line rather than read from YAML, because it varies
 	// per run and not per topology: the same inputs generated twice under two
@@ -1833,8 +1840,8 @@ type ConfigTemplate struct {
 	// This option is valid only on InterfaceClass or ConnectionClass
 	// If specified, add config only for included output (e.g., tinet only, clab only, etc)
 	Platform []string `yaml:"platform,flow" mapstructure:"platform,flow"`
-	Format  string   `yaml:"format" mapstructure:"format"`
-	Formats []string `yaml:"formats" mapstructure:"formats"`
+	Format   string   `yaml:"format" mapstructure:"format"`
+	Formats  []string `yaml:"formats" mapstructure:"formats"`
 	// Load config template
 	Template []string `yaml:"template" mapstructure:"template"`
 	// Load config template from external file
@@ -2284,6 +2291,8 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 		} else {
 			cfg.SorterConfigTemplateGroups.Add(ct.SortGroup)
 		}
+	} else if ct.Group != "" {
+		cfg.groupContributions = append(cfg.groupContributions, ct)
 	}
 
 	// A config entry is one thing or the other. Holding both would leave the
@@ -2441,7 +2450,49 @@ func LoadTemplates(cfg *Config) (*Config, error) {
 			}
 		}
 	}
+
+	if err := checkSortGroups(cfg); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
+}
+
+// checkSortGroups rejects a config template that writes into a group no
+// sort-style config template collects.
+//
+// Such a block is generated and then goes nowhere: the aggregator keeps blocks
+// per sorter, so a group with no sorter has nothing to hand them to. The usual
+// cause is a typo in either name, and until this check the only symptom was
+// output that quietly lacked a section.
+//
+// It runs once every template is loaded, modules included, because a topology
+// may write into a group a module declares the sorter for, and either may be
+// read first.
+func checkSortGroups(cfg *Config) error {
+	for _, ct := range cfg.groupContributions {
+		if cfg.SorterConfigTemplateGroups.Contains(ct.Group) {
+			continue
+		}
+		known := cfg.SorterConfigTemplateGroups.ToSlice()
+		sort.Strings(known)
+		classType, className := ct.GetClassInfo()
+		where := fmt.Sprintf("%s %s", classType, className)
+		if className == "" {
+			where = classType
+		}
+		if len(known) == 0 {
+			return fmt.Errorf(
+				"config %s in %s writes into group %q, but no config template sorts any group; "+
+					"a sorter is a config template with style: sort and sort_group: %s",
+				ct, where, ct.Group, ct.Group)
+		}
+		return fmt.Errorf(
+			"config %s in %s writes into group %q, which no config template sorts; "+
+				"sorted groups are: %s",
+			ct, where, ct.Group, strings.Join(known, ", "))
+	}
+	return nil
 }
 
 // PlatformDeclaration reports whether this template's output is the platform's

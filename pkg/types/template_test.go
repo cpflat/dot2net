@@ -226,3 +226,51 @@ module_config:
 		t.Fatal("a misspelled key inside module_config must be rejected")
 	}
 }
+
+// TestGroupWithoutSorterIsRejected covers what the check exists for: a block
+// written into a group nothing collects never reaches a file, and before the
+// check the only sign of it was output missing a section.
+func TestGroupWithoutSorterIsRejected(t *testing.T) {
+	_, err := loadConfigFrom(t, `
+name: group_typo
+nodeclass:
+  - name: router
+    config:
+      - file: frr.conf
+        style: sort
+        sort_group: frr_config
+      - group: frr_conf
+        template:
+          - "router ospf"
+`, nil)
+	if err == nil {
+		t.Fatal("a group no sorter collects must be an error")
+	}
+	if !strings.Contains(err.Error(), "frr_conf") || !strings.Contains(err.Error(), "frr_config") {
+		t.Errorf("the message must name both the group written and the ones sorted, got: %v", err)
+	}
+}
+
+// TestGroupOfALaterClassIsFound checks that the sorter may be declared after
+// the block that writes into its group - and, the case this is really for, in
+// another class or a module.
+func TestGroupOfALaterClassIsFound(t *testing.T) {
+	_, err := loadConfigFrom(t, `
+name: group_order
+nodeclass:
+  - name: router
+    config:
+      - group: frr_config
+        template:
+          - "router ospf"
+interfaceclass:
+  - name: ip
+    config:
+      - file: frr.conf
+        style: sort
+        sort_group: frr_config
+`, nil)
+	if err != nil {
+		t.Fatalf("the sorter is there, only later: %v", err)
+	}
+}

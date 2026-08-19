@@ -28,8 +28,7 @@ import (
 // knownUnread are the ones already found and not yet decided. The list is a
 // debt, not an exemption: it must only shrink. See doc/ROADMAP.md TODO 93.
 var knownUnread = map[string]string{
-	"platformSet":                "TODO 93: decide whether ConfigTemplate.Platform lives or goes",
-	"SorterConfigTemplateGroups": "TODO 91(c): to be given a reader - it checks group names for typos",
+	"platformSet": "TODO 93: decide whether ConfigTemplate.Platform lives or goes",
 }
 
 // fieldUse counts, for every struct field name in the repository, the places
