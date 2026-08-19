@@ -632,6 +632,12 @@ type Config struct {
 	LoadedModules              []Module           // reference to loaded modules, internal
 	SorterConfigTemplateGroups mapset.Set[string] // list of sort-style config template groups
 
+	// configTemplateNames are the names any config template declares, used to
+	// tell an after:/before: anchor apart from a typo. A name that exists but
+	// reaches no column is not an error - a block cannot know which objects
+	// its anchor is generated for - so only a name written nowhere is.
+	configTemplateNames map[string]bool
+
 	// groupContributions are the config templates that write blocks into a
 	// group, kept so that the group names can be checked against the sorters
 	// once every template is loaded. A contribution to a group no sorter
@@ -1786,6 +1792,22 @@ type ConfigTemplate struct {
 	// Group is used for sort config templates
 	// A sort config template will aggregate all config blocks generated in child (or grandchild) objects of the same group
 	Group string `yaml:"group" mapstructure:"group"`
+	// After and Before place this block relative to a named block of the same
+	// column, instead of at a number on the priority axis. The name is a
+	// config template name; if no block of that name is in the column, there
+	// is nothing to sit next to and the block keeps its place.
+	//
+	// A number is a poor contract between a topology and a module: it only
+	// works while both agree on what the numbers mean, and the module cannot
+	// move its own blocks afterwards without breaking the topology. A name is
+	// the module's to keep.
+	//
+	// These are not blocks: before/after, which merge other blocks into this
+	// template's output, nor depends:, which says what has to be generated
+	// first. This pair only says where in a sorted column the block goes, and
+	// is refused on a config that writes into no group.
+	After  string `yaml:"after" mapstructure:"after"`
+	Before string `yaml:"before" mapstructure:"before"`
 	// Priority orders config blocks that are gathered into one place. Smaller is
 	// earlier, so a negative value puts a block at the top of a file its group
 	// is sorted into.
@@ -2331,6 +2353,31 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 		cfg.groupContributions = append(cfg.groupContributions, ct)
 	}
 
+	if ct.Name != "" {
+		if cfg.configTemplateNames == nil {
+			cfg.configTemplateNames = map[string]bool{}
+		}
+		cfg.configTemplateNames[ct.Name] = true
+	}
+
+	if ct.After != "" || ct.Before != "" {
+		if ct.Group == "" {
+			return fmt.Errorf(
+				"config %s says after/before, which places a block among the others of a "+
+					"sorted column, but the config writes into no group. To order the "+
+					"generation of templates instead, use depends:; to merge other blocks "+
+					"into this one, use blocks:", ct)
+		}
+		if ct.Priority != 0 {
+			return fmt.Errorf(
+				"config %s says both a priority and after/before; a block is placed either "+
+					"at a number or next to a named block, not both", ct)
+		}
+		if ct.Name != "" && (ct.After == ct.Name || ct.Before == ct.Name) {
+			return fmt.Errorf("config %s is placed relative to itself", ct)
+		}
+	}
+
 	// A config entry is one thing or the other. Holding both would leave the
 	// order between them to be decided somewhere, and it was decided silently:
 	// the inline lines came first and the file after, which nothing said and
@@ -2528,6 +2575,21 @@ func checkSortGroups(cfg *Config) error {
 				"sorted groups are: %s",
 			ct, where, ct.Group, strings.Join(known, ", "))
 	}
+
+	for _, ct := range cfg.groupContributions {
+		for _, anchor := range []string{ct.After, ct.Before} {
+			if anchor == "" || cfg.configTemplateNames[anchor] {
+				continue
+			}
+			if _, isHook := HookConfigNames[anchor]; isHook {
+				continue
+			}
+			return fmt.Errorf(
+				"config %s is placed relative to %q, which no config template is named",
+				ct, anchor)
+		}
+	}
+
 	return nil
 }
 

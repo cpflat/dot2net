@@ -115,7 +115,7 @@ func (ca *ConfigAggregator) addConfigBlock(ns types.NameSpacer, group string, bl
 // order. The groups are concatenated in the order the sorter names them and
 // then sorted by priority, stably, so blocks of equal priority keep that order:
 // which group a block came from decides nothing on its own.
-func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, groups []string, verbose bool) []string {
+func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, groups []string, verbose bool) ([]string, error) {
 	var blocks []*ConfigBlock
 	for _, group := range groups {
 		blocks = append(blocks, ca.groups[sorterKey{sorter: ns, group: group}]...)
@@ -139,11 +139,117 @@ func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, groups []string
 		}
 	}
 
+	blocks, err := orderByAnchors(blocks)
+	if err != nil {
+		return nil, fmt.Errorf("group %s of %s: %w", group, ns.StringForMessage(), err)
+	}
+
+	if verbose && len(blocks) > 0 {
+		fmt.Fprintf(os.Stderr, " after placing anchored blocks:\n")
+		for i, cb := range blocks {
+			fmt.Fprintf(os.Stderr, "  [%d] Priority=%d: %q\n", i, cb.Priority, headN(cb.Block, NChars))
+		}
+	}
+
 	ret := make([]string, 0, len(blocks))
 	for _, cb := range blocks {
 		ret = append(ret, cb.Block)
 	}
-	return ret
+	return ret, nil
+}
+
+// orderByAnchors moves the blocks that name a neighbour to where they asked to
+// be, and leaves the rest where the priority sort put them.
+//
+// The blocks arrive in priority order, and that order is what the result keeps
+// wherever an anchor does not say otherwise: among the blocks that may go next,
+// the earliest one does. So adding an anchor to one block does not shuffle the
+// others, which is the point - a topology places one thing next to a module's
+// block without learning the numbers behind the rest.
+func orderByAnchors(blocks []*ConfigBlock) ([]*ConfigBlock, error) {
+	anchored := false
+	for _, cb := range blocks {
+		if cb.After != "" || cb.Before != "" {
+			anchored = true
+			break
+		}
+	}
+	if !anchored {
+		return blocks, nil
+	}
+
+	byName := map[string][]int{}
+	for i, cb := range blocks {
+		if cb.Name != "" {
+			byName[cb.Name] = append(byName[cb.Name], i)
+		}
+	}
+
+	follows := make([]map[int]bool, len(blocks)) // block -> blocks that come after it
+	waiting := make([]int, len(blocks))          // how many blocks must come first
+	for i := range follows {
+		follows[i] = map[int]bool{}
+	}
+	addEdge := func(first, second int) {
+		if first == second || follows[first][second] {
+			return
+		}
+		follows[first][second] = true
+		waiting[second]++
+	}
+	for i, cb := range blocks {
+		for _, j := range byName[cb.After] {
+			addEdge(j, i)
+		}
+		for _, j := range byName[cb.Before] {
+			addEdge(i, j)
+		}
+	}
+
+	placed := make([]bool, len(blocks))
+	ordered := make([]*ConfigBlock, 0, len(blocks))
+	for len(ordered) < len(blocks) {
+		next := -1
+		for i := range blocks {
+			if !placed[i] && waiting[i] == 0 {
+				next = i
+				break
+			}
+		}
+		if next < 0 {
+			var stuck []string
+			for i, cb := range blocks {
+				if !placed[i] {
+					stuck = append(stuck, describeBlock(cb))
+				}
+			}
+			return nil, fmt.Errorf(
+				"these blocks are placed relative to each other in a circle: %s",
+				strings.Join(stuck, "; "))
+		}
+		placed[next] = true
+		ordered = append(ordered, blocks[next])
+		for i := range follows[next] {
+			waiting[i]--
+		}
+	}
+	return ordered, nil
+}
+
+func describeBlock(cb *ConfigBlock) string {
+	name := cb.Name
+	if name == "" {
+		name = fmt.Sprintf("%q", headN(cb.Block, NChars))
+	}
+	switch {
+	case cb.After != "" && cb.Before != "":
+		return fmt.Sprintf("%s (after %s, before %s)", name, cb.After, cb.Before)
+	case cb.After != "":
+		return fmt.Sprintf("%s (after %s)", name, cb.After)
+	case cb.Before != "":
+		return fmt.Sprintf("%s (before %s)", name, cb.Before)
+	}
+	return name
 }
 
 // Parent-child config block management methods
@@ -211,6 +317,12 @@ type belongKey struct {
 type ConfigBlock struct {
 	Block    string
 	Priority int
+	// Name is the config template's name, which is what an anchor refers to.
+	Name string
+	// After and Before name blocks this one is placed relative to. They are
+	// resolved within the column, so an anchor that is not there does nothing.
+	After  string
+	Before string
 }
 
 // style
@@ -754,7 +866,10 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 		// Store config block for grouping (Group accumulation)
 		// Note: For sort style, this is already handled in processConfigTemplateWithBlocks
 		if met && ct.Group != "" && ct.Style != types.ConfigTemplateStyleSort {
-			ca.addConfigBlock(ns, ct.Group, &ConfigBlock{Block: conf, Priority: ct.Priority}, false)
+			ca.addConfigBlock(ns, ct.Group, &ConfigBlock{
+				Block: conf, Priority: ct.Priority,
+				Name: ct.Name, After: ct.After, Before: ct.Before,
+			}, false)
 			if verbose {
 				fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
 			}
@@ -843,8 +958,13 @@ func processConfigTemplateWithBlocks(cfg *types.Config, ca *ConfigAggregator, ns
 		// The sorter's own text is written into the first group it gathers, so
 		// that it sits at the head of the column among blocks of equal priority.
 		groups := ct.SortGroupNames()
-		ca.addConfigBlock(ns, groups[0], &ConfigBlock{Block: selfConf, Priority: ct.Priority}, true)
-		sortedBlocks := ca.getConfigBlocks(ns, groups, verbose)
+		ca.addConfigBlock(ns, groups[0], &ConfigBlock{
+			Block: selfConf, Priority: ct.Priority, Name: ct.Name,
+		}, true)
+		sortedBlocks, err := ca.getConfigBlocks(ns, groups, verbose)
+		if err != nil {
+			return "", err
+		}
 
 		// Append sorted blocks directly to allBlocks (not merging here)
 		// This avoids double merge: previously merged here and again at step 4
