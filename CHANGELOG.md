@@ -41,6 +41,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Blocks of equal priority come out in the order their classes are declared.**
+  Past ten config templates on one object they did not: the dependency graph
+  sorts its node ids as strings, so `template_10` was placed before
+  `template_2`. Ten is easily reached - the candidates are every class's
+  templates and a module adds its own - so the order was scrambled in any real
+  topology. None of the bundled topologies change, since none of them leans on
+  it.
+
+  Where the order between two blocks carries meaning, say it with `priority:`
+  or `after:`/`before:` rather than by the order they are written: a module's
+  classes are added after the topology's, so a tie puts the topology's block
+  first, which is the opposite of what a hook wants.
+
 - **A `group:` no sorter collects is now an error instead of a block that
   disappears.** The block was generated and then dropped, because the blocks are
   kept per sorter and a group with no sorter has nothing to hand them to. A

@@ -178,8 +178,23 @@ type ConfigTemplateDependencyNode struct {
 	grouped  map[string][]int // group -> indices
 }
 
+// templateID is the node's id in the dependency graph. The number is padded
+// because the sort that decides where unconstrained templates go is a string
+// sort: unpadded, template_10 comes before template_2, and the order stops
+// being the order the classes were written in as soon as an object has ten
+// templates to choose from - which is every real topology, since the candidates
+// include every class's templates and the modules add their own.
+//
+// The order only shows where nothing else decides it, and where that order
+// carries meaning it should be said with priority or after:/before: rather
+// than left to this. But an order nobody can explain is worse than one nobody
+// should rely on: it is read while generating with verbose output on.
+func templateID(index int) string {
+	return fmt.Sprintf("template_%06d", index)
+}
+
 func (ctdn *ConfigTemplateDependencyNode) GetID() string {
-	return fmt.Sprintf("template_%d", ctdn.index)
+	return templateID(ctdn.index)
 }
 
 func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
@@ -191,7 +206,7 @@ func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
 		for _, group := range ct.SortGroupNames() {
 			if indices, exists := ctdn.grouped[group]; exists {
 				for _, idx := range indices {
-					deps = append(deps, fmt.Sprintf("template_%d", idx))
+					deps = append(deps, templateID(idx))
 				}
 			}
 		}
@@ -201,7 +216,7 @@ func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
 	for _, depName := range ct.Depends {
 		if indices, exists := ctdn.ctmap[depName]; exists {
 			for _, idx := range indices {
-				deps = append(deps, fmt.Sprintf("template_%d", idx))
+				deps = append(deps, templateID(idx))
 			}
 			continue
 		}

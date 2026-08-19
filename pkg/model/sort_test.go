@@ -276,3 +276,82 @@ file:
 		})
 	}
 }
+
+// TestBlocksOfEqualPriorityKeepTheDeclaredOrder pins the tie-break at more than
+// ten blocks, which is where it used to come apart: the ids the dependency
+// graph sorts are strings, so template_10 sorted before template_2 and the
+// order stopped resembling anything written down. Ten is not a lot - the
+// candidates include every class's templates, modules included.
+//
+// The order is not something a topology should lean on, but it has to be
+// explicable when read.
+func TestBlocksOfEqualPriorityKeepTheDeclaredOrder(t *testing.T) {
+	cfg, nm := buildFullModel(t, `
+name: many_blocks
+global:
+  path: local
+nodeclass:
+  - name: router
+    use: [c00, c01, c02, c03, c04, c05, c06, c07, c08, c09, c10, c11]
+    config:
+      - file: out
+        style: sort
+        sort_group: column
+  - name: c00
+    config:
+      - group: column
+        template: ["B00"]
+  - name: c01
+    config:
+      - group: column
+        template: ["B01"]
+  - name: c02
+    config:
+      - group: column
+        template: ["B02"]
+  - name: c03
+    config:
+      - group: column
+        template: ["B03"]
+  - name: c04
+    config:
+      - group: column
+        template: ["B04"]
+  - name: c05
+    config:
+      - group: column
+        template: ["B05"]
+  - name: c06
+    config:
+      - group: column
+        template: ["B06"]
+  - name: c07
+    config:
+      - group: column
+        template: ["B07"]
+  - name: c08
+    config:
+      - group: column
+        template: ["B08"]
+  - name: c09
+    config:
+      - group: column
+        template: ["B09"]
+  - name: c10
+    config:
+      - group: column
+        template: ["B10"]
+  - name: c11
+    config:
+      - group: column
+        template: ["B11"]
+file:
+  - name: out
+`, hookDot)
+
+	out := strings.Join(strings.Fields(generateFor(t, cfg, nm, "r1", "out")), " ")
+	want := "B00 B01 B02 B03 B04 B05 B06 B07 B08 B09 B10 B11"
+	if out != want {
+		t.Errorf("blocks of equal priority come out in the order the classes are declared\ngot:  %s\nwant: %s", out, want)
+	}
+}
