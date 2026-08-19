@@ -120,7 +120,7 @@ nodeclass:
   - name: platform
     config:
       - group: column
-        name: deploy
+        anchor: deploy
         priority: 10
         template: ["deploy-command"]
   - name: topology
@@ -169,7 +169,7 @@ nodeclass:
   - name: elsewhere
     config:
       - group: column
-        name: deploy
+        anchor: deploy
         template: ["deploy-command"]
 file:
   - name: out
@@ -198,11 +198,11 @@ nodeclass:
   - name: topology
     config:
       - group: column
-        name: first
+        anchor: first
         after: second
         template: ["a"]
       - group: column
-        name: second
+        anchor: second
         after: first
         template: ["b"]
 file:
@@ -231,7 +231,7 @@ func TestAnchorIsRefusedOutsideAColumn(t *testing.T) {
         after: deploy
         template: ["x"]
       - group: column
-        name: deploy
+        anchor: deploy
         template: ["y"]`, "writes into no group"},
 		{"with priority", `
       - group: column
@@ -239,15 +239,15 @@ func TestAnchorIsRefusedOutsideAColumn(t *testing.T) {
         priority: 5
         template: ["x"]
       - group: column
-        name: deploy
+        anchor: deploy
         template: ["y"]`, "not both"},
 		{"unknown anchor", `
       - group: column
         after: deployy
         template: ["x"]
       - group: column
-        name: deploy
-        template: ["y"]`, "no config template is named"},
+        anchor: deploy
+        template: ["y"]`, "carries as an anchor"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			cfgPath, _ := writeTempInput(t, `
@@ -353,5 +353,42 @@ file:
 	want := "B00 B01 B02 B03 B04 B05 B06 B07 B08 B09 B10 B11"
 	if out != want {
 		t.Errorf("blocks of equal priority come out in the order the classes are declared\ngot:  %s\nwant: %s", out, want)
+	}
+}
+
+// TestBlockLevelWithAnchorIsReported: being level with a fixed point says
+// nothing, and what decides it then is the order the classes happen to be
+// declared in - which neither author chose.
+func TestBlockLevelWithAnchorIsReported(t *testing.T) {
+	cfg, nm := buildFullModel(t, `
+name: anchor_tie
+global:
+  path: local
+nodeclass:
+  - name: router
+    use: [platform, topology]
+    config:
+      - file: out
+        style: sort
+        sort_group: column
+  - name: platform
+    config:
+      - group: column
+        anchor: deploy
+        template: ["deploy-command"]
+  - name: topology
+    config:
+      - group: column
+        template: ["which side of deploy?"]
+file:
+  - name: out
+`, hookDot)
+
+	err := buildConfigFilesErr(t, cfg, nm)
+	if err == nil {
+		t.Fatal("a block level with an anchor must be reported")
+	}
+	if !strings.Contains(err.Error(), "deploy") {
+		t.Errorf("the message should name the anchor: %v", err)
 	}
 }

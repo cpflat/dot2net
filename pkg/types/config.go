@@ -632,11 +632,11 @@ type Config struct {
 	LoadedModules              []Module           // reference to loaded modules, internal
 	SorterConfigTemplateGroups mapset.Set[string] // list of sort-style config template groups
 
-	// configTemplateNames are the names any config template declares, used to
-	// tell an after:/before: anchor apart from a typo. A name that exists but
+	// configTemplateAnchors are the labels any config template carries, used to
+	// tell an after:/before: anchor apart from a typo. A label that exists but
 	// reaches no column is not an error - a block cannot know which objects
-	// its anchor is generated for - so only a name written nowhere is.
-	configTemplateNames map[string]bool
+	// its anchor is generated for - so only a label written nowhere is.
+	configTemplateAnchors map[string]bool
 
 	// groupContributions are the config templates that write blocks into a
 	// group, kept so that the group names can be checked against the sorters
@@ -1792,10 +1792,19 @@ type ConfigTemplate struct {
 	// Group is used for sort config templates
 	// A sort config template will aggregate all config blocks generated in child (or grandchild) objects of the same group
 	Group string `yaml:"group" mapstructure:"group"`
-	// After and Before place this block relative to a named block of the same
-	// column, instead of at a number on the priority axis. The name is a
-	// config template name; if no block of that name is in the column, there
-	// is nothing to sit next to and the block keeps its place.
+	// Anchor labels this block so that others can be placed relative to it.
+	//
+	// It is not Name. A name makes a namespace parameter, so it has to be
+	// unique among everything written on the object, and two platforms writing
+	// the block that stands for "the platform's own command" would collide over
+	// it. A label is only read within the column it appears in, so each of them
+	// can carry the same one and a topology can say `after: worker_deploy`
+	// without knowing which platform is being written.
+	Anchor string `yaml:"anchor" mapstructure:"anchor"`
+	// After and Before place this block relative to an anchor of the same
+	// column, instead of at a number on the priority axis. If no block carries
+	// that label in the column, there is nothing to sit next to and the block
+	// keeps its place.
 	//
 	// A number is a poor contract between a topology and a module: it only
 	// works while both agree on what the numbers mean, and the module cannot
@@ -2353,11 +2362,17 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 		cfg.groupContributions = append(cfg.groupContributions, ct)
 	}
 
-	if ct.Name != "" {
-		if cfg.configTemplateNames == nil {
-			cfg.configTemplateNames = map[string]bool{}
+	if ct.Anchor != "" {
+		if cfg.configTemplateAnchors == nil {
+			cfg.configTemplateAnchors = map[string]bool{}
 		}
-		cfg.configTemplateNames[ct.Name] = true
+		cfg.configTemplateAnchors[ct.Anchor] = true
+	}
+
+	if ct.Anchor != "" && ct.Group == "" {
+		return fmt.Errorf(
+			"config %s carries the anchor %q, which is a label read within a sorted column, "+
+				"but the config writes into no group", ct, ct.Anchor)
 	}
 
 	if ct.After != "" || ct.Before != "" {
@@ -2373,7 +2388,7 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 				"config %s says both a priority and after/before; a block is placed either "+
 					"at a number or next to a named block, not both", ct)
 		}
-		if ct.Name != "" && (ct.After == ct.Name || ct.Before == ct.Name) {
+		if ct.Anchor != "" && (ct.After == ct.Anchor || ct.Before == ct.Anchor) {
 			return fmt.Errorf("config %s is placed relative to itself", ct)
 		}
 	}
@@ -2578,14 +2593,11 @@ func checkSortGroups(cfg *Config) error {
 
 	for _, ct := range cfg.groupContributions {
 		for _, anchor := range []string{ct.After, ct.Before} {
-			if anchor == "" || cfg.configTemplateNames[anchor] {
-				continue
-			}
-			if _, isHook := HookConfigNames[anchor]; isHook {
+			if anchor == "" || cfg.configTemplateAnchors[anchor] {
 				continue
 			}
 			return fmt.Errorf(
-				"config %s is placed relative to %q, which no config template is named",
+				"config %s is placed relative to %q, which no config template carries as an anchor",
 				ct, anchor)
 		}
 	}

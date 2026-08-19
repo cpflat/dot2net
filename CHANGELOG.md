@@ -9,10 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **A block can be put next to a named block instead of at a number.** A config
-  that writes into a group may say `after: <name>` or `before: <name>`, naming
-  another block of the same sorted column; the block is placed there and the
+- **A block can be put next to a labelled block instead of at a number.** A
+  config that writes into a group may carry `anchor: <label>`, and another may
+  say `after: <label>` or `before: <label>`; the block is placed there and the
   numbers of everything around it stop mattering.
+
+  A label is not a name. A name makes a namespace parameter and has to be
+  unique on the object; a label is read only within the column it appears in,
+  so several columns can carry the same one - which is what lets a topology
+  write `after: worker_deploy` without knowing which platform's script is being
+  written.
+
+  A block level with an anchor is refused: being at the same number as a fixed
+  point says nothing, and what decides it then is the order the classes were
+  declared in, which neither author chose.
 
   A priority is a poor contract between a topology and a module: it holds only
   while both agree what the numbers mean, and the module cannot move its own

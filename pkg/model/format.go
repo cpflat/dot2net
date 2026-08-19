@@ -139,6 +139,10 @@ func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, groups []string
 		}
 	}
 
+	if err := checkAnchorTies(blocks); err != nil {
+		return nil, fmt.Errorf("group %s of %s: %w", group, ns.StringForMessage(), err)
+	}
+
 	blocks, err := orderByAnchors(blocks)
 	if err != nil {
 		return nil, fmt.Errorf("group %s of %s: %w", group, ns.StringForMessage(), err)
@@ -156,6 +160,40 @@ func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, groups []string
 		ret = append(ret, cb.Block)
 	}
 	return ret, nil
+}
+
+// checkAnchorTies reports a block that sits at exactly the priority of an
+// anchor without saying which side of it that block goes.
+//
+// An anchor is a fixed point of the column - the platform's own command is the
+// one this exists for - and being level with a fixed point says nothing. The
+// order then falls to the order the classes were declared in, which is not
+// something the author of either block chose. Saying `after:` or `before:`
+// costs one line and is what was meant.
+func checkAnchorTies(blocks []*ConfigBlock) error {
+	for _, anchor := range blocks {
+		if anchor.Anchor == "" {
+			continue
+		}
+		for _, other := range blocks {
+			if other == anchor || other.Priority != anchor.Priority {
+				continue
+			}
+			// An empty block is nothing to place. Blocks that name this anchor
+			// are placed by that, whatever their priority says.
+			if other.Block == "" || other.Block == EmptyOutput {
+				continue
+			}
+			if other.After == anchor.Anchor || other.Before == anchor.Anchor {
+				continue
+			}
+			return fmt.Errorf(
+				"%s sits at priority %d, exactly where %q does, so which of them runs first "+
+					"is not said. Write `after: %s` or `before: %s` on it",
+				describeBlock(other), other.Priority, anchor.Anchor, anchor.Anchor, anchor.Anchor)
+		}
+	}
+	return nil
 }
 
 // orderByAnchors moves the blocks that name a neighbour to where they asked to
@@ -178,10 +216,10 @@ func orderByAnchors(blocks []*ConfigBlock) ([]*ConfigBlock, error) {
 		return blocks, nil
 	}
 
-	byName := map[string][]int{}
+	byAnchor := map[string][]int{}
 	for i, cb := range blocks {
-		if cb.Name != "" {
-			byName[cb.Name] = append(byName[cb.Name], i)
+		if cb.Anchor != "" {
+			byAnchor[cb.Anchor] = append(byAnchor[cb.Anchor], i)
 		}
 	}
 
@@ -198,10 +236,10 @@ func orderByAnchors(blocks []*ConfigBlock) ([]*ConfigBlock, error) {
 		waiting[second]++
 	}
 	for i, cb := range blocks {
-		for _, j := range byName[cb.After] {
+		for _, j := range byAnchor[cb.After] {
 			addEdge(j, i)
 		}
-		for _, j := range byName[cb.Before] {
+		for _, j := range byAnchor[cb.Before] {
 			addEdge(i, j)
 		}
 	}
@@ -237,7 +275,7 @@ func orderByAnchors(blocks []*ConfigBlock) ([]*ConfigBlock, error) {
 }
 
 func describeBlock(cb *ConfigBlock) string {
-	name := cb.Name
+	name := cb.Anchor
 	if name == "" {
 		name = fmt.Sprintf("%q", headN(cb.Block, NChars))
 	}
@@ -317,8 +355,8 @@ type belongKey struct {
 type ConfigBlock struct {
 	Block    string
 	Priority int
-	// Name is the config template's name, which is what an anchor refers to.
-	Name string
+	// Anchor is the label others are placed relative to, empty on most blocks.
+	Anchor string
 	// After and Before name blocks this one is placed relative to. They are
 	// resolved within the column, so an anchor that is not there does nothing.
 	After  string
@@ -868,7 +906,7 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 		if met && ct.Group != "" && ct.Style != types.ConfigTemplateStyleSort {
 			ca.addConfigBlock(ns, ct.Group, &ConfigBlock{
 				Block: conf, Priority: ct.Priority,
-				Name: ct.Name, After: ct.After, Before: ct.Before,
+				Anchor: ct.Anchor, After: ct.After, Before: ct.Before,
 			}, false)
 			if verbose {
 				fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
@@ -959,7 +997,7 @@ func processConfigTemplateWithBlocks(cfg *types.Config, ca *ConfigAggregator, ns
 		// that it sits at the head of the column among blocks of equal priority.
 		groups := ct.SortGroupNames()
 		ca.addConfigBlock(ns, groups[0], &ConfigBlock{
-			Block: selfConf, Priority: ct.Priority, Name: ct.Name,
+			Block: selfConf, Priority: ct.Priority,
 		}, true)
 		sortedBlocks, err := ca.getConfigBlocks(ns, groups, verbose)
 		if err != nil {
