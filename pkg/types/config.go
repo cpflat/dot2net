@@ -1758,6 +1758,16 @@ type ConfigTemplate struct {
 	// sort: merge child config templates of SortTarget groups into the "sort" config templates
 	Style     string `yaml:"style" mapstructure:"style"`
 	SortGroup string `yaml:"sort_group" mapstructure:"sort_group"`
+	// SortGroups is sort_group for a sorter that gathers more than one group
+	// into the same column. The blocks of every named group are put in one
+	// list and ordered together, so a group is a place blocks are written
+	// from rather than a section of the result.
+	//
+	// It exists because who may write a block and where the block ends up are
+	// different questions. A group only its own writer knows the name of and a
+	// group anything may write into can both feed one file, and that is not
+	// expressible with a single name.
+	SortGroups []string `yaml:"sort_groups" mapstructure:"sort_groups"`
 	// Target file definition name
 	// Config templates with file will generate a file of generated text
 	File string `yaml:"file" mapstructure:"file"`
@@ -1878,6 +1888,16 @@ func (ct *ConfigTemplate) RawContent() (string, bool) {
 		return "", false
 	}
 	return *ct.rawContent, true
+}
+
+// SortGroupNames lists the groups this sorter gathers. Giving both sort_group
+// and sort_groups is refused when the config is read, so the one that is set is
+// the whole answer.
+func (ct *ConfigTemplate) SortGroupNames() []string {
+	if ct.SortGroup != "" {
+		return []string{ct.SortGroup}
+	}
+	return ct.SortGroups
 }
 
 func (ct *ConfigTemplate) String() string {
@@ -2286,10 +2306,26 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 
 	// check if the config template is sort-style
 	if ct.Style == ConfigTemplateStyleSort {
-		if ct.SortGroup == "" {
-			return fmt.Errorf("sort-style config template should have sort_group attribute")
-		} else {
-			cfg.SorterConfigTemplateGroups.Add(ct.SortGroup)
+		if ct.SortGroup != "" && len(ct.SortGroups) > 0 {
+			return fmt.Errorf(
+				"config %s gives both sort_group and sort_groups; put every group in sort_groups", ct)
+		}
+		groups := ct.SortGroupNames()
+		if len(groups) == 0 {
+			return fmt.Errorf(
+				"sort-style config template %s should have a sort_group (or sort_groups) attribute", ct)
+		}
+		seen := mapset.NewSet[string]()
+		for _, group := range groups {
+			if group == "" {
+				return fmt.Errorf("config %s has an empty group name in sort_groups", ct)
+			}
+			if !seen.Add(group) {
+				return fmt.Errorf(
+					"config %s names group %q twice in sort_groups, which would gather its blocks twice",
+					ct, group)
+			}
+			cfg.SorterConfigTemplateGroups.Add(group)
 		}
 	} else if ct.Group != "" {
 		cfg.groupContributions = append(cfg.groupContributions, ct)

@@ -188,9 +188,11 @@ func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
 
 	// sorter depends on grouped templates
 	if ct.Style == types.ConfigTemplateStyleSort {
-		if indices, exists := ctdn.grouped[ct.SortGroup]; exists {
-			for _, idx := range indices {
-				deps = append(deps, fmt.Sprintf("template_%d", idx))
+		for _, group := range ct.SortGroupNames() {
+			if indices, exists := ctdn.grouped[group]; exists {
+				for _, idx := range indices {
+					deps = append(deps, fmt.Sprintf("template_%d", idx))
+				}
 			}
 		}
 	}

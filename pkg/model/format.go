@@ -111,9 +111,16 @@ func (ca *ConfigAggregator) addConfigBlock(ns types.NameSpacer, group string, bl
 	}
 }
 
-func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, group string, verbose bool) []string {
-	sk := sorterKey{sorter: ns, group: group}
-	blocks := ca.groups[sk]
+// getConfigBlocks returns the blocks written into the given groups, in one
+// order. The groups are concatenated in the order the sorter names them and
+// then sorted by priority, stably, so blocks of equal priority keep that order:
+// which group a block came from decides nothing on its own.
+func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, groups []string, verbose bool) []string {
+	var blocks []*ConfigBlock
+	for _, group := range groups {
+		blocks = append(blocks, ca.groups[sorterKey{sorter: ns, group: group}]...)
+	}
+	group := strings.Join(groups, ", ")
 
 	if verbose && len(blocks) > 0 {
 		fmt.Fprintf(os.Stderr, " sorting %d config blocks for group %s:\n", len(blocks), group)
@@ -790,7 +797,9 @@ func checkSorterObjects(cfg *types.Config, ca *ConfigAggregator, ns types.NameSp
 		// Check if the config template is valid and sorter
 		_, met := checkConfigTemplateConditions(ns, ct, false)
 		if met && ct.Style == types.ConfigTemplateStyleSort {
-			ca.addSorter(ns, ct.SortGroup)
+			for _, group := range ct.SortGroupNames() {
+				ca.addSorter(ns, group)
+			}
 		}
 	}
 }
@@ -831,14 +840,18 @@ func processConfigTemplateWithBlocks(cfg *types.Config, ca *ConfigAggregator, ns
 		if err != nil {
 			return "", err
 		}
-		ca.addConfigBlock(ns, ct.SortGroup, &ConfigBlock{Block: selfConf, Priority: ct.Priority}, true)
-		sortedBlocks := ca.getConfigBlocks(ns, ct.SortGroup, verbose)
+		// The sorter's own text is written into the first group it gathers, so
+		// that it sits at the head of the column among blocks of equal priority.
+		groups := ct.SortGroupNames()
+		ca.addConfigBlock(ns, groups[0], &ConfigBlock{Block: selfConf, Priority: ct.Priority}, true)
+		sortedBlocks := ca.getConfigBlocks(ns, groups, verbose)
 
 		// Append sorted blocks directly to allBlocks (not merging here)
 		// This avoids double merge: previously merged here and again at step 4
 		allBlocks = append(allBlocks, sortedBlocks...)
 		if verbose {
-			fmt.Fprintf(os.Stderr, " collected %d config blocks in group %s\n", len(sortedBlocks)-1, ct.SortGroup)
+			fmt.Fprintf(os.Stderr, " collected %d config blocks in group %s\n",
+				len(sortedBlocks)-1, strings.Join(groups, ", "))
 		}
 	} else if len(ct.Template) > 0 || ct.SourceFile != "" {
 		// Normal template processing
