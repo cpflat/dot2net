@@ -1833,12 +1833,8 @@ type ConfigTemplate struct {
 	// This option is valid only on InterfaceClass or ConnectionClass
 	// If specified, add config only for included output (e.g., tinet only, clab only, etc)
 	Platform []string `yaml:"platform,flow" mapstructure:"platform,flow"`
-	// Style is used to iterpret the given config format. Style can be different on one file. As-is in default.
-	//Style string `yaml:"style" mapstructure:"style"`
 	Format  string   `yaml:"format" mapstructure:"format"`
 	Formats []string `yaml:"formats" mapstructure:"formats"`
-	// Priority is a value to be used for sorting config blocks. 0 in default.
-	// Priority int `yaml:"priority" mapstructure:"priority"`
 	// Load config template
 	Template []string `yaml:"template" mapstructure:"template"`
 	// Load config template from external file
