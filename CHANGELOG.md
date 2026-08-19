@@ -7,7 +7,67 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **A hook is a group now, not a name.** What used to be written as
+
+      - name: startup
+        template: [...]
+
+  is written as
+
+      - group: startup
+        template: [...]
+
+  The old form is still read, with a warning, so a topology keeps working; the
+  bundled ones have been moved over.
+
+  A hook was the one place where a module and a topology both wrote a config
+  template under one name, and the core carried three exemptions to let them:
+  the duplicate-name check let it pass, the parameter that two of them wrote
+  was concatenated instead of reported, and `depends:` was allowed to name
+  something that did not exist. All three are gone. A group is written into by
+  whoever has something to say, which is what a hook always meant.
+
+  Two things follow that were not possible before. **Two classes of a topology
+  may both write into one hook** - a class per role, each with its own commands
+  - where naming one hook twice used to be reported as a clash. And **a class
+  of any kind may write into one**, an interface class included, because a
+  sorter gathers from an object's descendants; only the object's own config
+  templates could carry a hook name.
+
+- **The platform's own command is one of the blocks.** An entry script has one
+  function per command it takes rather than two, and `containerlab deploy` sits
+  in the list at the position everything else is placed against, carrying the
+  hook's name as its anchor.
+
+  A block that has to run after the lab is up says `after: worker_deploy`; one
+  that has to run before says `before: worker_deploy`, and a number still works
+  for saying the same thing. A block left level with the command is refused
+  rather than placed by the order its class happened to be declared in.
+
+  A module says where its own blocks go with a priority on the block, which is
+  the ordinary mechanism; the core no longer has a rule about which side of a
+  hook a module's part belongs on.
+
+- **Blank lines at the edges of a block are not kept** when the block is
+  gathered into a column. A template read from a file ends with that file's
+  line terminator, and a block written with a blank line in front of it meant
+  to stand clear of what came before; kept, they became empty lines between
+  blocks - an empty command in a script, an empty entry in a list of them. The
+  hook path used to trim them by hand and nothing else did.
+
+- **The bridge setup classes are written only when an entry script is.**
+  `clabOvsBridgeSetup` and `clabLinuxBridgeSetup` put their commands in the
+  script, so without one there is nothing to run them. They used to be dropped
+  in silence.
+
 ### Added
+
+- **A sorter can write its result into a group.** A config template with
+  `style: sort` may carry `group:` as well, and what it gathered becomes one
+  block of that other column. It is how a topology hands a column of its own
+  to a hook.
 
 - **A block can be put next to a labelled block instead of at a number.** A
   config that writes into a group may carry `anchor: <label>`, and another may
@@ -48,6 +108,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Who may write a block and where the block ends up are different questions: a
   group only its own writer knows the name of and a group anything may write
   into can feed one file, which a single name cannot express.
+
+### Removed
+
+- **containerlab and TiNET no longer refuse a topology with no startup
+  template.** The requirement was that a node class define a config template
+  named `startup`; a hook is a group now, and a lab with nothing to run once
+  its nodes are up is an ordinary lab.
 
 ### Fixed
 
