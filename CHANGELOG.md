@@ -111,12 +111,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **`platform:` on a config template is gone.** It selected which output a
+  config belonged to, from a fixed list of `tinet`, `clab` and `command`, back
+  when a run generated for one platform chosen at generation time. Modules
+  replaced that in 0.7, and the field has had no reader since - nor was it ever
+  documented, nor used by any bundled topology.
+
+  Where a block belongs to one platform's files, the module writes it into its
+  own group (`clab/worker_deploy` and the like), which is decided by the group's
+  name rather than by a flag. If a topology ever needs to say the same thing,
+  the answer will be a condition on which modules are loaded, not a list that
+  goes stale every time a platform is added - the list here never learned about
+  Kathara.
+
 - **containerlab and TiNET no longer refuse a topology with no startup
   template.** The requirement was that a node class define a config template
   named `startup`; a hook is a group now, and a lab with nothing to run once
   its nodes are up is an ordinary lab.
 
 ### Fixed
+
+- **`include_self` works again.** A `classmembers:` entry iterates the members
+  of the classes it names, and the object doing the referring is one of them:
+  without the flag being read, a node writing a line per peer wrote one naming
+  itself. The check was written in 0.2.3 and lost when member resolution moved,
+  so every release since has included the referrer.
+
+  The default is `false`, as it was then - the referrer is not among its own
+  members. The wiki said `true`, which no version has done. What this looked
+  like in practice: `topologies/bgp_evpn_vxlan_topo1` generated a BGP neighbour
+  statement pointing at the router's own loopback.
 
 - **Blocks of equal priority come out in the order their classes are declared.**
   Past ten config templates on one object they did not: the dependency graph

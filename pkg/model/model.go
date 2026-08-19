@@ -526,6 +526,19 @@ func checkClasses(cfg *types.Config, nm *types.NetworkModel) error {
 					// return fmt.Errorf("class %v has no members", cls)
 				}
 				for _, memberObject := range members {
+					// The object doing the referring is a member of the class
+					// it names, so without this it appears among its own
+					// members: a node writing a line per peer writes one
+					// naming itself. include_self asks for it back where that
+					// is what was meant.
+					//
+					// The check is the one that was written in 0.2.3 and lost
+					// when this loop moved here; the blank it left is why
+					// bgp_evpn_vxlan_topo1 carried a BGP neighbour statement
+					// pointing at its own loopback.
+					if !mc.IncludeSelf && memberObject == types.NameSpacer(mr) {
+						continue
+					}
 					member := types.NewMember(cls, classtype, memberObject, mr)
 					mr.AddMember(member)
 				}
