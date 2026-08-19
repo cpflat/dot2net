@@ -89,70 +89,46 @@ run_collect() {
 # script takes. Each is a function rather than the commands themselves so that a
 # block of several lines lands where a single line was written, and so that
 # note_failure and report work on it like anything else here.
-run_worker_deploy_pre() {
+run_worker_deploy() {
   :
-
+  report
+  $SUDO kathara lstart --noterminals "$@" || note_failure "deploy"
 }
 
-run_worker_deploy_post() {
+run_worker_exec() {
   :
-
+  report
+  $SUDO docker exec "$cid" "$@"
+  status=$?
 }
 
-run_worker_exec_pre() {
+run_worker_collect() {
   :
-
+  run_collect
 }
 
-run_worker_exec_post() {
+run_worker_destroy() {
   :
-
-}
-
-run_worker_collect_pre() {
-  :
-
-}
-
-run_worker_collect_post() {
-  :
-
-}
-
-run_worker_destroy_pre() {
-  :
-
-}
-
-run_worker_destroy_post() {
-  :
-
+  $SUDO kathara lclean || note_failure "destroy"
 }
 
 case "${1:-deploy}" in
   deploy)
-    run_worker_deploy_pre
-    report
     # Anything after "deploy" goes to kathara, the way it does for the other
     # platforms' scripts.
     [ $# -gt 0 ] && shift
-    $SUDO kathara lstart --noterminals "$@" || note_failure "deploy"
-    run_worker_deploy_post
+    run_worker_deploy "$@"
     report
     ;;
   destroy)
     run_teardown
     run_collect
-    run_worker_destroy_pre
-    $SUDO kathara lclean || note_failure "destroy"
-    run_worker_destroy_post
+    run_worker_destroy
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
-    run_worker_collect_pre
-    run_collect
-    run_worker_collect_post
+    run_worker_collect
     report
     ;;
   exec)
@@ -161,13 +137,10 @@ case "${1:-deploy}" in
     node="$1"; shift
     cid=$(container_id "$node")
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
-    run_worker_exec_pre
-    report
     # The command's own exit status is given back - see the containerlab
     # script for why.
-    $SUDO docker exec "$cid" "$@"
-    status=$?
-    run_worker_exec_post
+    status=0
+    run_worker_exec "$@"
     report
     exit $status
     ;;

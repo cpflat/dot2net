@@ -161,7 +161,13 @@ func (ca *ConfigAggregator) getConfigBlocks(cfg *types.Config, ns types.NameSpac
 
 	ret := make([]string, 0, len(blocks))
 	for _, cb := range blocks {
-		ret = append(ret, cb.Block)
+		// A block of a column is its lines, and the empty ones at its edges are
+		// not among them: what a template read from a file ends with is that
+		// file's line terminator, and a block written with a blank line in
+		// front of it meant to stand clear of whatever came before. Kept, they
+		// become empty lines between blocks - and an empty line is an empty
+		// command in a script, or an empty entry in a list of them.
+		ret = append(ret, strings.Trim(cb.Block, "\n"))
 	}
 	return ret, nil
 }
