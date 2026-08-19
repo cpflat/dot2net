@@ -60,7 +60,7 @@ nodeclass:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - name: startup
+      - group: startup
         style: sort
         sort_group: sw
         template:

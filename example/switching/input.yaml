@@ -23,7 +23,7 @@ nodeclass:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - name: startup
+      - group: startup
         blocks:
           after: ["interfaces_link"]
         template:
@@ -36,7 +36,7 @@ nodeclass:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - name: startup
+      - group: startup
         blocks:
           after: ["interfaces_addr"]
         template: []

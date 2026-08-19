@@ -86,32 +86,66 @@ run_collect() {
   collect_file r3 /var/log/frr.log
 }
 
+# What the lab asked to have run on this machine, one function per command this
+# script takes. containerlab's own command is one of the blocks in each list,
+# not something the list is wrapped around, so a block says whether it runs
+# before or after it the same way it says anything else about its place - see
+# the wiki on machine-side hooks. The blocks reach here already in order.
+#
+# Functions rather than the commands themselves, so that a block of several
+# lines lands where a single line was written and note_failure works on it like
+# anything else here.
+run_worker_deploy() {
+  :
+  # Nothing is given to containerlab if the machine could not be made ready: a
+  # bridge that was not created is a lab that comes up wrong rather than one that
+  # fails, and this is where that is still cheap to say.
+  report
+  $SUDO containerlab deploy -t "$TOPO" "$@" || note_failure "deploy"
+}
+
+run_worker_exec() {
+  :
+  report
+  $SUDO docker exec "$cid" "$@"
+  status=$?
+}
+
+run_worker_collect() {
+  :
+  run_collect
+}
+
+run_worker_destroy() {
+  :
+  $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
+}
+
 case "${1:-deploy}" in
   deploy)
-    # What the lab needs of the machine before the platform is asked for
-    # anything: the bridges a topology names have to exist before containerlab
-    # will deploy, since its check runs before any stage and nothing inside the
-    # lab can make them. worker_destroy takes the same ones down again.
-
+    # Everything the lab needs of the machine, and containerlab's own deploy
+    # among it: the bridges a topology names have to exist before containerlab
+    # will deploy, and a capture on a veth cannot be taken until it has, so the
+    # commands sit either side of the deploy in one list.
+    #
     # Anything after "deploy" goes to containerlab: a caller running labs in
-    # parallel has to place each one's management network itself
-    # (--network, --ipv4-subnet), and there is nothing in a topology to say it
-    # with. Dropping the arguments in silence would let the labs come up on one
-    # subnet and collide later.
+    # parallel has to place each one's management network itself (--network,
+    # --ipv4-subnet), and there is nothing in a topology to say it with.
+    # Dropping the arguments in silence would let the labs come up on one subnet
+    # and collide later.
     [ $# -gt 0 ] && shift
-    exec $SUDO containerlab deploy -t "$TOPO" "$@"
+    run_worker_deploy "$@"
+    report
     ;;
   destroy)
     run_teardown
     run_collect
-    $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
-
+    run_worker_destroy
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
-    run_collect
-
+    run_worker_collect
     report
     ;;
   exec)
@@ -125,8 +159,14 @@ case "${1:-deploy}" in
     # way, for the same reason.
     cid=$(container_id "$node")
     [ -n "$cid" ] || { echo "$0: no container for node $node - is the lab up?" >&2; exit 1; }
-
-    exec $SUDO docker exec "$cid" "$@"
+    # The command's own exit status is what a caller wants back - a test harness
+    # runs something in a node and reads the code - so the block that runs it
+    # keeps the status in $status, and it is given back here rather than
+    # flattened into the script's own success or failure.
+    status=0
+    run_worker_exec "$@"
+    report
+    exit $status
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

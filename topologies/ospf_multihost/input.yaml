@@ -104,7 +104,7 @@ nodeclass:
           - " ospf router-id {{ .ip_loopback }}"
           - "{{ .interfaces_ospf_net }}"
           - "!"
-      - name: startup
+      - group: startup
         template: []
 
   # Provided by the platform, so no container is generated for it: it carries

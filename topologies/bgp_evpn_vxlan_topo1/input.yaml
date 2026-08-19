@@ -53,7 +53,7 @@ nodeclass:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - name: startup
+      - group: startup
         template:
           - "ip link add br0 type bridge"
           - "ip link set br0 up"
@@ -70,7 +70,7 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
         raw: true
-      - name: startup
+      - group: startup
         depends: [ospf_startup]
         template:
           - "{{ .self_ospf_startup }}"

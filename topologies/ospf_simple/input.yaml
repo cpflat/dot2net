@@ -71,7 +71,7 @@ nodeclass:
           - " ospf router-id {{ .ip_loopback }}"
           - "{{ .interfaces_ospf_net }}"
           - "!"
-      - name: startup
+      - group: startup
         template: []
 
 interfaceclass:

@@ -56,7 +56,7 @@ nodeclass:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - name: startup
+      - group: startup
         template:
           - "ip link add br0 type bridge"
           - "ip link set br0 up"
@@ -84,7 +84,7 @@ nodeclass:
           - " ospf router-id {{ .ip_loopback }}"
           - "{{ .interfaces_ospf_net }}"
           - "!"
-      - name: startup
+      - group: startup
         template: []
       - file: params.txt
         style: sort

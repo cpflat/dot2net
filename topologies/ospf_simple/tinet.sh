@@ -78,35 +78,64 @@ run_collect() {
   collect_file r3 /var/log/frr.log
 }
 
+# What the lab asked to have run on this machine, one function per command this
+# script takes. Each is a function rather than the commands themselves so that a
+# block of several lines lands where a single line was written, and so that
+# note_failure and report work on it like anything else here.
+run_worker_deploy() {
+  :
+  report
+  run up
+  run conf
+}
+
+run_worker_exec() {
+  :
+  report
+  $SUDO docker exec "$(container_id "$node")" "$@"
+  status=$?
+}
+
+run_worker_collect() {
+  :
+  run_collect
+}
+
+run_worker_destroy() {
+  :
+  run down || note_failure "destroy"
+}
+
 case "${1:-deploy}" in
   deploy)
-
     # Bringing a lab up here is two of TiNET's own commands, so there is no one
     # place to put an extra argument. Rather than guess - or drop it in silence,
     # which is how a caller finds out too late - say so.
     [ $# -gt 1 ] && { echo "dot2net: deploy takes no further arguments here: TiNET brings a lab up in two steps" >&2; exit 2; }
-    run up
-    run conf
+    run_worker_deploy
+    report
     ;;
   destroy)
     run_teardown
     run_collect
-    run down || note_failure "destroy"
-
+    run_worker_destroy
     report
     ;;
   collect)
     [ -n "$2" ] && COLLECT_DIR="$2"
-    run_collect
-
+    run_worker_collect
     report
     ;;
   exec)
     shift
     [ $# -ge 2 ] || { echo "usage: $0 exec <node> <command>..." >&2; exit 2; }
     node="$1"; shift
-
-    exec $SUDO docker exec "$(container_id "$node")" "$@"
+    # The command's own exit status is given back - see the containerlab
+    # script for why.
+    status=0
+    run_worker_exec "$@"
+    report
+    exit $status
     ;;
   *)
     echo "usage: $0 {deploy|destroy|collect [<dir>]|exec <node> <command>...}" >&2

@@ -53,7 +53,7 @@ nodeclass:
       image: nicolaka/netshoot
     interface_policy: [ip]
     config:
-      - name: startup
+      - group: startup
         template:
           - "ip link set lo up"
       - file: net.conf

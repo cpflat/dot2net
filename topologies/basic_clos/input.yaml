@@ -47,7 +47,7 @@ nodeclass:
           - bgp bestpath compare-routerid
   - name: router
     config:
-      - name: startup
+      - group: startup
         depends: [frr_cmds]
         template:
           - /usr/lib/frr/frr start
@@ -55,7 +55,7 @@ nodeclass:
           after: ["self_frr_cmds", "interfaces_router_cmds"]
   - name: server
     config:
-      - name: startup
+      - group: startup
         depends: [frr_cmds]
         template:
           - /usr/lib/frr/frr start

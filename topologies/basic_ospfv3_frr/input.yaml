@@ -72,7 +72,7 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
         raw: true
-      - name: startup
+      - group: startup
         depends: [common, cmds]
         blocks:
           before: [
@@ -93,7 +93,7 @@ nodeclass:
       kind: linux
       image: quay.io/frrouting/frr:8.5.0
     config:
-      - name: startup
+      - group: startup
         depends: [common]
         blocks:
           before: [

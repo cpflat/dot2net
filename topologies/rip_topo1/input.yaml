@@ -52,7 +52,7 @@ nodeclass:
       kind: linux
       image: nicolaka/netshoot
     config:
-      - name: startup
+      - group: startup
         template:
           - "ip link add br0 type bridge"
           - "ip link set br0 up"

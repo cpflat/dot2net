@@ -47,7 +47,7 @@ nodeclass:
     prefix: spine
     values: {kind: linux, image: alpine}
     config:
-      - name: startup
+      - group: startup
         template: []
       - file: names.txt
         template:
@@ -58,7 +58,7 @@ nodeclass:
     prefix: leaf
     values: {kind: linux, image: alpine}
     config:
-      - name: startup
+      - group: startup
         template: []
       - file: names.txt
         template:

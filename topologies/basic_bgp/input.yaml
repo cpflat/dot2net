@@ -60,7 +60,7 @@ nodeclass:
       - file: vtysh.conf
         sourcefile: ./vtysh.conf
         raw: true
-      - name: startup
+      - group: startup
         depends: [frr_cmds]
         blocks:
           before: ["self_frr_cmds", "interfaces_frr_cmds"]
