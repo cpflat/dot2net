@@ -1,1 +1,1 @@
-{{ .self_startup }}
+{{ .self_tn_startup }}

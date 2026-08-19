@@ -1,0 +1,5 @@
+  # Nothing is given to containerlab if the machine could not be made ready: a
+  # bridge that was not created is a lab that comes up wrong rather than one that
+  # fails, and this is where that is still cheap to say.
+  report
+  $SUDO containerlab deploy -t "$TOPO" "$@" || note_failure "deploy"

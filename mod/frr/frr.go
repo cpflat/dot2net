@@ -77,7 +77,15 @@ func (m *FRRModule) UpdateConfig(cfg *types.Config) error {
 			LogLevelParamName: DefaultLogLevel,
 		},
 		ConfigTemplates: []*types.ConfigTemplate{
-			{Name: "startup", Template: []string{string(bytes)}},
+			// Into the hook's own group, and before whatever the topology
+			// writes there: the log file has to exist before anything is asked
+			// to write to it. Nothing here names a platform, so it is the bare
+			// group and every platform's files gather it.
+			{
+				Group:    "startup",
+				Priority: types.ModuleHookPriority,
+				Template: []string{string(bytes)},
+			},
 		},
 	})
 	return nil

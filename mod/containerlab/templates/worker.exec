@@ -1,0 +1,3 @@
+  report
+  $SUDO docker exec "$cid" "$@"
+  status=$?

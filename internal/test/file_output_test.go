@@ -883,9 +883,10 @@ networkclass:
 // is not decided by the kind, so a topology that provisions its bridges
 // differently names neither class and writes its own template.
 //
-// What they write is worker_deploy, the hook every platform's entry script
-// runs on the machine - the classes are containerlab's because the kinds are,
-// not because the hook is.
+// What they write into is worker_deploy, the group every platform's entry
+// script gathers - the classes are containerlab's because the kinds are, not
+// because the hook is. A topology writing into the same group says which side
+// of the platform's own command it goes, by naming it.
 func TestClabBridgeSetupClasses(t *testing.T) {
 	const dot = `digraph {
 		r1 [xlabel="router"];
@@ -952,7 +953,8 @@ interfaceclass:
 			name: "a topology adds to the class, and the class goes first",
 			yaml: head(`    use: [clabOvsBridgeSetup]
     config:
-      - name: worker_deploy
+      - group: worker_deploy
+        before: worker_deploy
         template:
           - "ovs-vsctl add-port {{ .clab_bridge }} eth9"
 `),
@@ -964,35 +966,36 @@ interfaceclass:
 			name: "the class goes last where the hook undoes something",
 			yaml: head(`    use: [clabOvsBridgeSetup]
     config:
-      - name: worker_destroy
+      - group: worker_destroy
+        after: worker_destroy
         template:
           - "ovs-vsctl del-port {{ .clab_bridge }} eth9"
 `),
-			block: "run_worker_destroy_post() {\n  :\n",
-			want:  []string{"ovs-vsctl del-port", "ovs-vsctl --if-exists del-br"},
+			block: "run_worker_destroy() {\n  :\n",
+			want:  []string{"containerlab destroy", "ovs-vsctl del-port", "ovs-vsctl --if-exists del-br"},
 		},
 		{
 			// Opting out is the point: nothing is chosen from the kind.
 			name: "a topology can write its own instead",
 			yaml: head(`    config:
-      - name: worker_deploy
+      - group: worker_deploy
+        before: worker_deploy
         template:
           - "ansible-playbook provision-bridge.yml -e name={{ .name }}"
 `),
 			want: []string{"ansible-playbook provision-bridge.yml -e name=sw"},
 		},
 		{
-			// A block that has to wait for the platform: priority says so, and
-			// it lands in the other half of the script.
+			// A block that has to wait for the platform can say so with a
+			// number as well, the command being the origin of the axis.
 			name: "a positive priority puts the block after the platform's command",
 			yaml: head(`    config:
-      - name: worker_deploy
+      - group: worker_deploy
         priority: 10
         template:
           - "tc qdisc add dev {{ .clab_bridge }} root netem delay 1ms"
 `),
-			block: "run_worker_deploy_post() {\n  :\n",
-			want:  []string{"tc qdisc add dev"},
+			want: []string{"containerlab deploy", "tc qdisc add dev"},
 		},
 	}
 
@@ -1008,7 +1011,7 @@ interfaceclass:
 			}
 			opening := tt.block
 			if opening == "" {
-				opening = "run_worker_deploy_pre() {\n  :\n"
+				opening = "run_worker_deploy() {\n  :\n"
 			}
 			body := between(string(got), opening, "\n}\n")
 			at := 0

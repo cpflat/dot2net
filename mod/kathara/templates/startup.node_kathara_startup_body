@@ -1,1 +1,1 @@
-{{ .self_kathara_copies }}{{ .self_startup }}
+{{ .self_kathara_copies }}{{ .self_kathara_startup }}

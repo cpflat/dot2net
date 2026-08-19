@@ -1,0 +1,1 @@
+  $SUDO kathara lclean || note_failure "destroy"

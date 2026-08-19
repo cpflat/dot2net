@@ -13,6 +13,11 @@ const ModuleName = "tinet"
 const TinetOutputFile = "spec.yaml"
 const ScriptFile = "tinet.sh"
 
+// HookPrefix names this module's own hook groups and the gathering points the
+// entry script reads, so that its blocks stay out of the other platforms'
+// scripts.
+const HookPrefix = "tn"
+
 const TinetNetworkNameParamName = "_tn_networkName"
 const TinetImageParamName = "image"
 const TinetBindMountsParamName = "_tn_bindMounts"
@@ -160,9 +165,14 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 		if err != nil {
 			return err
 		}
-		slots, names := cfg.MachineHookSlots("tn")
+		slots, names := cfg.MachineHookSlots(HookPrefix)
 		entry.Depends = names
 		owns = append(owns, slots...)
+		commands, err := machineCommands()
+		if err != nil {
+			return err
+		}
+		owns = append(owns, commands...)
 		owns = append(owns, entry)
 	}
 
@@ -185,8 +195,8 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	ct1 = &types.ConfigTemplate{
 		Name:           "tn_cmds",
 		Format:         SpecCmdFormatName,
-		Depends:        []string{"startup"},
-		RequiredParams: []string{"self_startup"},
+		Depends:        []string{"tn_startup"},
+		RequiredParams: []string{"self_tn_startup"},
 	}
 	bytes, err = templates.ReadFile("templates/spec.yaml.node_tn_cmd")
 	if err != nil {
@@ -231,9 +241,9 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	// commands, and the files to copy out. Both are aggregated by the script,
 	// which is the module's own file - a topology never names these blocks.
 	ctTeardown, err := readEntryTemplate("templates/teardown.node_tn_teardown", &types.ConfigTemplate{
-		Name:           "tn_teardown",
-		Depends:        []string{"teardown"},
-		RequiredParams: []string{"self_teardown"},
+		Name:           "tn_teardown_body",
+		Depends:        []string{"tn_teardown"},
+		RequiredParams: []string{"self_tn_teardown"},
 	})
 	if err != nil {
 		return err
@@ -262,7 +272,12 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
 		Parameters:      []string{"tinet_binds", "tinet_copies", "tn_collects"},
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ctCopies, ctTeardown, ctCollect},
+		ConfigTemplates: append([]*types.ConfigTemplate{
+			// Where the lab's own commands are gathered - see the containerlab
+			// module for what the pair is.
+			types.HookSorter(HookPrefix, "startup"),
+			types.HookSorter(HookPrefix, "teardown"),
+		}, ct1, ct2, ct3, ctCopies, ctTeardown, ctCollect),
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: ClassifyObjects picks between this class and
@@ -542,19 +557,6 @@ func (m TinetModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 		}
 	}
 
-	// node config templates named startup
-	flag := false
-	for _, nc := range cfg.NodeClasses {
-		for _, ct := range nc.ConfigTemplates {
-			if ct.Name == "startup" {
-				flag = true
-			}
-		}
-	}
-	if !flag {
-		return fmt.Errorf("node config templates named startup is required")
-	}
-
 	// parameter {{ .image }}
 	for _, node := range nm.Nodes {
 		// A switch is realized by TiNET itself as an OVS bridge, so it has no
@@ -631,6 +633,31 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 }
 
 // readEntryTemplate fills a config template in from the module's own files.
+// machineCommands are TiNET's own commands, one per machine-side hook, as
+// blocks of the columns the entry script reads - see the containerlab module
+// for what makes them blocks rather than something the list wraps around.
+func machineCommands() ([]*types.ConfigTemplate, error) {
+	files := map[string]string{
+		"worker_deploy":  "templates/worker.deploy",
+		"worker_exec":    "templates/worker.exec",
+		"worker_collect": "templates/worker.collect",
+		"worker_destroy": "templates/worker.destroy",
+	}
+	cts := make([]*types.ConfigTemplate, 0, len(types.MachineHookOrder))
+	for _, hook := range types.MachineHookOrder {
+		ct, err := readEntryTemplate(files[hook], &types.ConfigTemplate{
+			Group:    HookPrefix + "/" + hook,
+			Priority: types.PlatformCommandPriority,
+			Anchor:   hook,
+		})
+		if err != nil {
+			return nil, err
+		}
+		cts = append(cts, ct)
+	}
+	return cts, nil
+}
+
 func readEntryTemplate(path string, ct *types.ConfigTemplate) (*types.ConfigTemplate, error) {
 	bytes, err := templates.ReadFile(path)
 	if err != nil {

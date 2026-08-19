@@ -1257,12 +1257,9 @@ func applyPolicies(t *tieredValues, cfg *Config, set func(*Layer, *IPPolicy)) {
 // template under the same name. Left to config generation, the clash surfaces
 // as a duplicated namespace parameter that names neither class - hard to trace
 // when one of them arrived through use:.
-// configNameOrigin remembers who defined a config template name on an object,
-// and whether that was a module - which is what decides if a second definition
-// of the same name is a meeting or a collision.
+// configNameOrigin remembers who defined a config template name on an object.
 type configNameOrigin struct {
-	className      string
-	moduleProvided bool
+	className string
 }
 
 func recordConfigNames(seen map[string]configNameOrigin, objType, objName, className string, cts []*ConfigTemplate) error {
@@ -1272,19 +1269,7 @@ func recordConfigNames(seen map[string]configNameOrigin, objType, objName, class
 		}
 		prev, ok := seen[ct.Name]
 		if !ok {
-			seen[ct.Name] = configNameOrigin{className: className, moduleProvided: ct.ModuleProvided}
-			continue
-		}
-		// A hook name is the one place a module and the topology are meant to
-		// meet: the module adds what it has to do, the topology says what it
-		// wants, and the two are merged around each other. Two topology classes
-		// naming one hook is still the accident this check is here for.
-		if _, isHook := HookConfigNames[ct.Name]; isHook && (ct.ModuleProvided || prev.moduleProvided) {
-			// Keep the topology's own class in the record, so that a third
-			// definition from the topology is still reported against it.
-			if prev.moduleProvided && !ct.ModuleProvided {
-				seen[ct.Name] = configNameOrigin{className: className}
-			}
+			seen[ct.Name] = configNameOrigin{className: className}
 			continue
 		}
 		other := prev.className

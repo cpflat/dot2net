@@ -115,7 +115,7 @@ func (ca *ConfigAggregator) addConfigBlock(ns types.NameSpacer, group string, bl
 // order. The groups are concatenated in the order the sorter names them and
 // then sorted by priority, stably, so blocks of equal priority keep that order:
 // which group a block came from decides nothing on its own.
-func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, groups []string, verbose bool) ([]string, error) {
+func (ca *ConfigAggregator) getConfigBlocks(cfg *types.Config, ns types.NameSpacer, groups []string, verbose bool) ([]string, error) {
 	var blocks []*ConfigBlock
 	for _, group := range groups {
 		blocks = append(blocks, ca.groups[sorterKey{sorter: ns, group: group}]...)
@@ -155,11 +155,74 @@ func (ca *ConfigAggregator) getConfigBlocks(ns types.NameSpacer, groups []string
 		}
 	}
 
+	if err := checkParamLifetimes(cfg, blocks); err != nil {
+		return nil, fmt.Errorf("group %s of %s: %w", group, ns.StringForMessage(), err)
+	}
+
 	ret := make([]string, 0, len(blocks))
 	for _, cb := range blocks {
 		ret = append(ret, cb.Block)
 	}
 	return ret, nil
+}
+
+// checkParamLifetimes reports a block that reads a parameter naming something
+// that is not there when the block runs.
+//
+// What such a parameter names has a life: the bridge is made by the module's
+// own block and taken away by another, and the veth reaching it is made by the
+// platform as it brings the lab up and gone when it takes it down. A module
+// says which block puts the thing in place and which one removes it, and the
+// answer here is a comparison of positions in the column that is already in
+// order.
+//
+// Neither end has to be in this column. The block that makes a thing is in the
+// deploy column and the one that removes it in the destroy column, so each
+// check finds at most one of them; the other says nothing, exactly as an
+// after: naming a block that is not here says nothing.
+func checkParamLifetimes(cfg *types.Config, blocks []*ConfigBlock) error {
+	pos := map[string]int{}
+	for i, cb := range blocks {
+		if cb.Anchor == "" {
+			continue
+		}
+		if _, seen := pos[cb.Anchor]; !seen {
+			pos[cb.Anchor] = i
+		}
+	}
+	if len(pos) == 0 {
+		return nil
+	}
+	for i, cb := range blocks {
+		for _, ref := range cb.Refs {
+			if anchor, ok := cfg.ParamMadeBy(ref); ok {
+				if at, here := pos[anchor]; here && i < at {
+					return fmt.Errorf(
+						"%s reads %s, which names something %q puts in place, and the block "+
+							"runs before it. Write `after: %s` on it",
+						cb.Origin, ref, anchor, anchor)
+				}
+			}
+			if anchor, ok := cfg.ParamGoneBy(ref); ok {
+				if at, here := pos[anchor]; here && i > at {
+					return fmt.Errorf(
+						"%s reads %s, which names something %q takes away, and the block runs "+
+							"after it. Write `before: %s` on it",
+						cb.Origin, ref, anchor, anchor)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// describeOrigin says which class a block came from, for messages.
+func describeOrigin(ct *types.ConfigTemplate) string {
+	classType, className := ct.GetClassInfo()
+	if className == "" {
+		return fmt.Sprintf("a block of %s", classType)
+	}
+	return fmt.Sprintf("the block of %s class %s", classType, className)
 }
 
 // checkAnchorTies reports a block that sits at exactly the priority of an
@@ -357,6 +420,11 @@ type ConfigBlock struct {
 	Priority int
 	// Anchor is the label others are placed relative to, empty on most blocks.
 	Anchor string
+	// Refs is what the block reads, for the check that a block does not name
+	// something that is not there yet or is gone already.
+	Refs []string
+	// Origin says which class wrote the block, for messages.
+	Origin string
 	// After and Before name blocks this one is placed relative to. They are
 	// resolved within the column, so an anchor that is not there does nothing.
 	After  string
@@ -877,36 +945,15 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 			conf = EmptyOutput
 		}
 
-		// A machine-side hook is gathered by the entry script rather than merged
-		// into one block per node. The script puts the platform's own command
-		// between what runs before it and what runs after, so the blocks have to
-		// reach it apart, each carrying where it sits.
-		if met && types.MachineHooks[ct.Name] {
-			p := types.HookPriority(ct)
-			groups := cfg.HookGroups(ct, p)
-			if len(groups) == 0 && strings.TrimSpace(conf) != "" && conf != EmptyOutput {
-				return fmt.Errorf(
-					"%s writes a %s block, but nothing is generated that would run it: a "+
-						"machine-side hook is run by an entry script, and none is being "+
-						"written%s. Turn on module_config.<module>.generate_scripts, or take "+
-						"the block out",
-					ns.StringForMessage(), ct.Name, types.HookScopeNote(ct))
-			}
-			for _, group := range groups {
-				ca.addConfigBlock(ns, group, &ConfigBlock{Block: conf, Priority: p}, false)
-				if verbose {
-					fmt.Fprintf(os.Stderr, " store hook %s at %d to group %s (%q)\n",
-						ct.Name, p, group, headN(conf, NChars))
-				}
-			}
-		}
-
-		// Store config block for grouping (Group accumulation)
-		// Note: For sort style, this is already handled in processConfigTemplateWithBlocks
-		if met && ct.Group != "" && ct.Style != types.ConfigTemplateStyleSort {
+		// Store config block for grouping (Group accumulation). A sorter may
+		// write into a group as well: what it gathered becomes one block of the
+		// column outside it, which is how a topology hands a column of its own
+		// to a hook.
+		if met && ct.Group != "" {
 			ca.addConfigBlock(ns, ct.Group, &ConfigBlock{
 				Block: conf, Priority: ct.Priority,
 				Anchor: ct.Anchor, After: ct.After, Before: ct.Before,
+				Refs: ct.ParamRefs(), Origin: describeOrigin(ct),
 			}, false)
 			if verbose {
 				fmt.Fprintf(os.Stderr, " store config to group %s (%q)\n", ct.Group, headN(conf, NChars))
@@ -999,7 +1046,7 @@ func processConfigTemplateWithBlocks(cfg *types.Config, ca *ConfigAggregator, ns
 		ca.addConfigBlock(ns, groups[0], &ConfigBlock{
 			Block: selfConf, Priority: ct.Priority,
 		}, true)
-		sortedBlocks, err := ca.getConfigBlocks(ns, groups, verbose)
+		sortedBlocks, err := ca.getConfigBlocks(cfg, ns, groups, verbose)
 		if err != nil {
 			return "", err
 		}
@@ -1075,13 +1122,6 @@ func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf strin
 	return formattedConf, nil
 }
 
-// joinHookBlocks puts one hook block after another on a line of its own. The
-// seam is trimmed because each block already stands on its own: leaving their
-// edges in place would put an empty command between them.
-func joinHookBlocks(first, second string) string {
-	return strings.TrimRight(first, "\n") + "\n" + strings.TrimLeft(second, "\n")
-}
-
 func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, ct *types.ConfigTemplate, verbose bool) error {
 	if new == EmptyOutput {
 		// if new config is empty, set "" only when no previous parameter
@@ -1096,22 +1136,6 @@ func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, ct
 		if ns.HasRelativeParam(name) {
 			prev, _ := ns.GetParamValue(name)
 			if prev != "" {
-				// A hook name carries both a module's part and the topology's,
-				// and a module's part wraps the topology's: laid down first
-				// where the hook sets something up, taken up last where it
-				// takes something apart. Whichever of the two is rendered first
-				// gets the same result.
-				hook := strings.TrimPrefix(name, types.SelfConfigHeader)
-				if order, isHook := types.HookConfigNames[hook]; ct != nil && isHook {
-					moduleGoesFirst := order == types.ModuleOutside
-					// This one goes first if its side is the side that leads.
-					if goesFirst := ct.ModuleProvided == moduleGoesFirst; goesFirst {
-						ns.SetRelativeParam(name, joinHookBlocks(new, prev))
-					} else {
-						ns.SetRelativeParam(name, joinHookBlocks(prev, new))
-					}
-					return nil
-				}
 				// if neither is empty (duplicated configuration), raise error
 				return fmt.Errorf(
 					// "parameter name %s of object %s duplicated (existing parameter: %s)",

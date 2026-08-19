@@ -56,6 +56,14 @@ const ClabBridgeParamName = "clab_bridge"
 // reads it as {{ .opp_clab_host_port }}.
 const ClabHostPortParamName = "clab_host_port"
 
+// The anchors of the module's own blocks in the machine-side columns. A
+// topology places its own blocks against these by name, and the check that a
+// block does not read something that is not there yet works out where they sit.
+const (
+	BridgeSetupAnchor   = "clab_bridge_setup"
+	BridgeCleanupAnchor = "clab_bridge_cleanup"
+)
+
 // WorkerGroupClassName carries the topology file when the topology declares
 // placement units, so that each machine gets one it can deploy on its own.
 const WorkerGroupClassName = "_clabWorkerGroup"
@@ -215,8 +223,10 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	// reading one too early is caught rather than left to fail on the machine.
 	// The bridge is made by the module's own worker_deploy; the veth reaching it
 	// is made by containerlab as it brings the lab up.
-	cfg.DeclareParamAvailability(ClabBridgeParamName, types.ModuleHookPriority)
-	cfg.DeclareParamAvailability(ClabHostPortParamName, types.PlatformCommandPriority)
+	cfg.DeclareParamMadeBy(ClabBridgeParamName, BridgeSetupAnchor)
+	cfg.DeclareParamGoneBy(ClabBridgeParamName, BridgeCleanupAnchor)
+	cfg.DeclareParamMadeBy(ClabHostPortParamName, "worker_deploy")
+	cfg.DeclareParamGoneBy(ClabHostPortParamName, "worker_destroy")
 
 	if opts.GenerateScripts {
 		entry, err := entryScriptTemplate(cfg, scope, subdir, perWorker)
@@ -225,6 +235,11 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		}
 		slots, names := cfg.MachineHookSlots(HookPrefix)
 		owns = append(owns, slots...)
+		commands, err := machineCommands()
+		if err != nil {
+			return err
+		}
+		owns = append(owns, commands...)
 		entry.Depends = names
 		owns = append(owns, entry)
 	}
@@ -264,8 +279,8 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	ct1 = &types.ConfigTemplate{
 		Name:           "clab_cmds",
 		Format:         ClabCmdFormatName,
-		Depends:        []string{"startup"},
-		RequiredParams: []string{"self_startup"},
+		Depends:        []string{"clab_startup"},
+		RequiredParams: []string{"self_clab_startup"},
 	}
 	bytes, err = templates.ReadFile("templates/topo.yaml.node_clab_cmd")
 	if err != nil {
@@ -284,7 +299,7 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 	ct2.Template = []string{string(bytes)}
 
-	// exec section - only output if startup exists (matches original {{ if .self_startup }})
+	// exec section - only output if there are commands to run
 	// The two blocks that can fill the section, joined into one. Either alone is
 	// reason enough to write the section, and whether either has anything to say
 	// is known only once both are rendered - so the section asks whether this
@@ -336,9 +351,9 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	// commands, and the files to copy out. Both are aggregated by the script,
 	// which is the module's own file - a topology never names these blocks.
 	ctTeardown, err := readTemplate("templates/teardown.node_clab_teardown", &types.ConfigTemplate{
-		Name:           "clab_teardown",
-		Depends:        []string{"teardown"},
-		RequiredParams: []string{"self_teardown"},
+		Name:           "clab_teardown_body",
+		Depends:        []string{"clab_teardown"},
+		RequiredParams: []string{"self_clab_teardown"},
 	})
 	if err != nil {
 		return err
@@ -354,7 +369,14 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	nodeClass := &types.NodeClass{
 		Name:            NodeClassName,
 		Parameters:      []string{"clab_binds", "clab_copies", "clab_collects"},
-		ConfigTemplates: []*types.ConfigTemplate{ct1, ct2, ct3, ct4, ctCopies, ctExecBody, ctTeardown, ctCollect},
+		ConfigTemplates: append([]*types.ConfigTemplate{
+			// Where the lab's own commands are gathered: the topology writes
+			// into startup and teardown, and this module's own files read the
+			// result. Each platform has a pair of these, and a block written
+			// once reaches all of them.
+			types.HookSorter(HookPrefix, "startup"),
+			types.HookSorter(HookPrefix, "teardown"),
+		}, ct1, ct2, ct3, ct4, ctCopies, ctExecBody, ctTeardown, ctCollect),
 	}
 	cfg.AddNodeClass(nodeClass)
 	// Not AddModuleNodeClassLabel: which of the two node classes a node gets is
@@ -378,10 +400,17 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	// A bridge the module made is a bridge the module takes away: the setup
 	// script had no counterpart, so a lab that was destroyed left its bridges
 	// behind.
+	//
+	// Both are blocks of the entry script's columns, so they are written when
+	// there is a script to run them and not otherwise. Without one, the bridges
+	// are the machine's own business and dot2net has nowhere to say so.
 	for _, setup := range []struct{ className, file, cleanupFile string }{
 		{OvsBridgeSetupClassName, "templates/setup.node_clab_ovs_bridge", "templates/setup.node_clab_ovs_bridge_cleanup"},
 		{LinuxBridgeSetupClassName, "templates/setup.node_clab_linux_bridge", "templates/setup.node_clab_linux_bridge_cleanup"},
 	} {
+		if !opts.GenerateScripts {
+			break
+		}
 		bytes, err = templates.ReadFile(setup.file)
 		if err != nil {
 			return err
@@ -393,8 +422,17 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 		cfg.AddNodeClass(&types.NodeClass{
 			Name: setup.className,
 			ConfigTemplates: []*types.ConfigTemplate{
-				{Name: "worker_deploy", HookScope: HookPrefix, Template: []string{string(bytes)}},
-				{Name: "worker_destroy", HookScope: HookPrefix, Template: []string{string(cleanup)}},
+				// The module's own groups, which only this module's script
+				// gathers: the commands name a bridge under a name only
+				// containerlab's files use.
+				{
+					Group: HookPrefix + "/worker_deploy", Priority: types.ModuleHookPriority,
+					Anchor: BridgeSetupAnchor, Template: []string{string(bytes)},
+				},
+				{
+					Group: HookPrefix + "/worker_destroy", Priority: types.ModuleUndoPriority,
+					Anchor: BridgeCleanupAnchor, Template: []string{string(cleanup)},
+				},
 			},
 		})
 	}
@@ -826,19 +864,6 @@ func (m *ClabModule) CheckModuleRequirements(cfg *types.Config, nm *types.Networ
 		}
 	}
 
-	// node config templates named startup
-	flag := false
-	for _, nc := range cfg.NodeClasses {
-		for _, ct := range nc.ConfigTemplates {
-			if ct.Name == "startup" {
-				flag = true
-			}
-		}
-	}
-	if !flag {
-		return fmt.Errorf("node config templates named startup is required")
-	}
-
 	// parameter {{ .image }} and {{ .kind }}
 	for _, node := range nm.Nodes {
 		if !node.IsMaterialised() {
@@ -916,6 +941,35 @@ func copyFileParams(target types.ValueOwner, cfg *types.Config) ([]map[string]st
 }
 
 // readTemplate fills a config template in from the module's own files.
+// machineCommands are containerlab's own commands, one per machine-side hook,
+// as blocks of the columns the entry script reads.
+//
+// They are blocks like any other, which is what lets a topology say `after:
+// worker_deploy` and have its commands run once the lab is up. Each carries the
+// hook's name as its anchor: that name is dot2net's, so the same line works
+// whichever platform is writing the script.
+func machineCommands() ([]*types.ConfigTemplate, error) {
+	files := map[string]string{
+		"worker_deploy":  "templates/worker.deploy",
+		"worker_exec":    "templates/worker.exec",
+		"worker_collect": "templates/worker.collect",
+		"worker_destroy": "templates/worker.destroy",
+	}
+	cts := make([]*types.ConfigTemplate, 0, len(types.MachineHookOrder))
+	for _, hook := range types.MachineHookOrder {
+		ct, err := readTemplate(files[hook], &types.ConfigTemplate{
+			Group:    HookPrefix + "/" + hook,
+			Priority: types.PlatformCommandPriority,
+			Anchor:   hook,
+		})
+		if err != nil {
+			return nil, err
+		}
+		cts = append(cts, ct)
+	}
+	return cts, nil
+}
+
 func readTemplate(path string, ct *types.ConfigTemplate) (*types.ConfigTemplate, error) {
 	bytes, err := templates.ReadFile(path)
 	if err != nil {

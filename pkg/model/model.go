@@ -43,6 +43,11 @@ func BuildNetworkModelForFileList(cfg *types.Config, d *Diagram) (nm *types.Netw
 		return nil, err
 	}
 
+	// Before the classes are checked over: a hook written the old way is a
+	// config template name until this has run, and two classes writing into one
+	// hook would be read as two classes claiming one name.
+	types.NormalizeHookNames(cfg)
+
 	// build topology skeleton with class labels
 	nm, err = buildSkeleton(cfg, d)
 	if err != nil {
@@ -100,6 +105,11 @@ func BuildNetworkModel(cfg *types.Config, d *Diagram, verbose bool) (nm *types.N
 	if err != nil {
 		return nil, err
 	}
+
+	// Before the classes are checked over: a hook written the old way is a
+	// config template name until this has run, and two classes writing into one
+	// hook would be read as two classes claiming one name.
+	types.NormalizeHookNames(cfg)
 
 	// build topology
 	nm, err = buildSkeleton(cfg, d)

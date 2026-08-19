@@ -16,9 +16,11 @@ const hookDot = `graph {
 }`
 
 // TestModuleAndTopologyShareAHook is the line between a module and a topology:
-// a module adds what it has to do to a hook, the topology says what it wants
-// there, and neither has to know the other's names. What is pinned here is the
-// order - a topology's commands run on ground the module has prepared.
+// a module writes what it has to do into the hook's group, the topology writes
+// what it wants there, and neither has to know the other's names. What is
+// pinned here is the order - a topology's commands run on ground the module has
+// prepared - and that it takes a priority on the module's own block to say so,
+// not a rule about hooks anywhere in the core.
 func TestModuleAndTopologyShareAHook(t *testing.T) {
 	cfg, nm := buildFullModel(t, `
 name: hook_merge
@@ -30,15 +32,14 @@ nodeclass:
   - name: router
     use: [frrLogFile]
     config:
-      - name: startup
+      - group: startup
         template: ["topology-command"]
       - file: out
-        depends: [startup]
-        template: ["{{ .self_startup }}"]
+        style: sort
+        sort_group: startup
 file:
   - name: out
 `, hookDot)
-	_ = nm
 
 	out := generateFor(t, cfg, nm, "r1", "out")
 	moduleAt := strings.Index(out, "touch")
@@ -51,30 +52,36 @@ file:
 	}
 }
 
-// TestTwoTopologyClassesCannotShareAHook keeps the relaxation narrow: two
-// classes of the topology's own naming one hook is still the accident the
-// duplicate check exists for, since nothing says which of them wins.
-func TestTwoTopologyClassesCannotShareAHook(t *testing.T) {
-	_, err := buildForProvideErr(t, `
-name: hook_clash
+// TestTwoTopologyClassesMayShareAHook is what the rework was for. Naming one
+// hook from two classes used to be reported as two classes claiming one name,
+// though wanting to add commands from both is ordinary - a class per role, each
+// with something to run. A group is written into by whoever has something to
+// say.
+func TestTwoTopologyClassesMayShareAHook(t *testing.T) {
+	cfg, nm := buildFullModel(t, `
+name: hook_share
 global:
   path: local
 nodeclass:
   - name: router
     use: [extra]
     config:
-      - name: startup
-        template: ["a"]
+      - group: startup
+        template: ["from-router"]
+      - file: out
+        style: sort
+        sort_group: startup
   - name: extra
     config:
-      - name: startup
-        template: ["b"]
-`, hookDot)
-	if err == nil {
-		t.Fatal("two topology classes naming one hook must be rejected")
-	}
-	if !strings.Contains(err.Error(), "startup") {
-		t.Errorf("the message should name the hook: %v", err)
+      - group: startup
+        template: ["from-extra"]
+`+"file:\n  - name: out\n", hookDot)
+
+	out := generateFor(t, cfg, nm, "r1", "out")
+	for _, want := range []string{"from-router", "from-extra"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("%s belongs in the hook, got:\n%s", want, out)
+		}
 	}
 }
 

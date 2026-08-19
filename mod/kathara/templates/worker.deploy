@@ -1,0 +1,2 @@
+  report
+  $SUDO kathara lstart --noterminals "$@" || note_failure "deploy"

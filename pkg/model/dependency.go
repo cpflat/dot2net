@@ -220,13 +220,6 @@ func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
 			}
 			continue
 		}
-		// A hook is where a topology says what it wants, and saying nothing is
-		// an answer: a module reading one depends on it being rendered first if
-		// it is there at all, which is not the same as naming a template that
-		// does not exist.
-		if _, isHook := types.HookConfigNames[depName]; isHook {
-			continue
-		}
 		return nil, fmt.Errorf("dependency %s not found for template %v", depName, ct)
 	}
 

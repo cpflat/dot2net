@@ -1,1 +1,1 @@
-{{ .self_startup }}
+{{ .self_clab_startup }}

@@ -19,6 +19,10 @@ const KatharaOutputFile = "lab.conf"
 // is the key config entries reference; the file itself is <device>.startup and
 // sits beside lab.conf, which is where Kathara looks for it.
 const StartupFile = "kathara_startup"
+
+// HookPrefix names this module's own hook groups and the gathering points its
+// files read, so that its blocks stay out of the other platforms' scripts.
+const HookPrefix = "kathara"
 const StartupFileSuffix = ".startup"
 
 const VolumeParamRuleName = "kathara_volumes"
@@ -150,9 +154,14 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		if err != nil {
 			return err
 		}
-		slots, names := cfg.MachineHookSlots("kathara")
+		slots, names := cfg.MachineHookSlots(HookPrefix)
 		entry.Depends = names
 		labOwned = append(labOwned, slots...)
+		commands, err := machineCommands()
+		if err != nil {
+			return err
+		}
+		labOwned = append(labOwned, commands...)
 		labOwned = append(labOwned, entry)
 	}
 
@@ -196,17 +205,6 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 		Output:     "root",
 		Subdir:     ModuleName,
 	})
-	// containerlab and TiNET both refuse a topology without a startup template;
-	// Kathara has no reason to, so the dependency is named only when there is
-	// one to depend on.
-	var startupDepends []string
-	for _, nc := range cfg.NodeClasses {
-		for _, t := range nc.ConfigTemplates {
-			if t.Name == "startup" {
-				startupDepends = []string{"startup"}
-			}
-		}
-	}
 	// The copies come first: a command the author wrote may use a file that is
 	// only there once it has been copied.
 	ctCopies, err := templateFrom(cfg, "templates/startup.node_kathara_copies", &types.ConfigTemplate{
@@ -222,7 +220,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// commands are reason enough to write it, and neither alone can say so.
 	ctStartupBody, err := templateFrom(cfg, "templates/startup.node_kathara_startup_body", &types.ConfigTemplate{
 		Name:    "kathara_startup_body",
-		Depends: append([]string{"kathara_copies"}, startupDepends...),
+		Depends: []string{"kathara_copies", HookPrefix + "_startup"},
 	})
 	if err != nil {
 		return err
@@ -231,7 +229,7 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// in it: Kathara reads an empty startup file without complaint, and a file
 	// that appears only sometimes is one that dot2net files cannot promise.
 	ctStartup, err := templateFrom(cfg, "templates/startup.node_kathara_startup", &types.ConfigTemplate{
-		Name:    "kathara_startup",
+		Name:    "kathara_startup_file",
 		File:    StartupFile,
 		Depends: []string{"kathara_startup_body"},
 	})
@@ -269,9 +267,9 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	// commands, and the files to copy out. Both are aggregated by the script,
 	// which is the module's own file - a topology never names these blocks.
 	ctTeardown, err := readEntryTemplate("templates/teardown.node_kathara_teardown", &types.ConfigTemplate{
-		Name:           "kathara_teardown",
-		Depends:        []string{"teardown"},
-		RequiredParams: []string{"self_teardown"},
+		Name:           "kathara_teardown_body",
+		Depends:        []string{HookPrefix + "_teardown"},
+		RequiredParams: []string{"self_" + HookPrefix + "_teardown"},
 	})
 	if err != nil {
 		return err
@@ -300,7 +298,12 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	cfg.AddNodeClass(&types.NodeClass{
 		Name:            NodeClassName,
 		Parameters:      []string{VolumeParamRuleName, CopyParamRuleName, "kathara_collects"},
-		ConfigTemplates: []*types.ConfigTemplate{ct, ctImage, ctStartup, ctStartupBody, ctCopies, ctVolumes, ctTeardown, ctCollect},
+		ConfigTemplates: append([]*types.ConfigTemplate{
+			// Where the lab's own commands are gathered - see the containerlab
+			// module for what the pair is.
+			types.HookSorter(HookPrefix, "startup"),
+			types.HookSorter(HookPrefix, "teardown"),
+		}, ct, ctImage, ctStartup, ctStartupBody, ctCopies, ctVolumes, ctTeardown, ctCollect),
 	})
 
 	entry, err := templateFrom(cfg, "templates/lab.conf.value_kathara_volume_entry", &types.ConfigTemplate{
@@ -729,6 +732,31 @@ func checkMountDirsUsed(cfg *types.Config, nm *types.NetworkModel) error {
 }
 
 // readEntryTemplate fills a config template in from the module's own files.
+// machineCommands are Kathara's own commands, one per machine-side hook, as
+// blocks of the columns the entry script reads - see the containerlab module
+// for what makes them blocks rather than something the list wraps around.
+func machineCommands() ([]*types.ConfigTemplate, error) {
+	files := map[string]string{
+		"worker_deploy":  "templates/worker.deploy",
+		"worker_exec":    "templates/worker.exec",
+		"worker_collect": "templates/worker.collect",
+		"worker_destroy": "templates/worker.destroy",
+	}
+	cts := make([]*types.ConfigTemplate, 0, len(types.MachineHookOrder))
+	for _, hook := range types.MachineHookOrder {
+		ct, err := readEntryTemplate(files[hook], &types.ConfigTemplate{
+			Group:    HookPrefix + "/" + hook,
+			Priority: types.PlatformCommandPriority,
+			Anchor:   hook,
+		})
+		if err != nil {
+			return nil, err
+		}
+		cts = append(cts, ct)
+	}
+	return cts, nil
+}
+
 func readEntryTemplate(path string, ct *types.ConfigTemplate) (*types.ConfigTemplate, error) {
 	bytes, err := templates.ReadFile(path)
 	if err != nil {

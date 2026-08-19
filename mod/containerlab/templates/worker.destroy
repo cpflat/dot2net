@@ -1,0 +1,1 @@
+  $SUDO containerlab destroy -t "$TOPO" --cleanup || note_failure "destroy"
