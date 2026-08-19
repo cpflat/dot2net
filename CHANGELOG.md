@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A block can be put next to a named block instead of at a number.** A config
+  that writes into a group may say `after: <name>` or `before: <name>`, naming
+  another block of the same sorted column; the block is placed there and the
+  numbers of everything around it stop mattering.
+
+  A priority is a poor contract between a topology and a module: it holds only
+  while both agree what the numbers mean, and the module cannot move its own
+  blocks afterwards without breaking the topology. A name is the module's to
+  keep.
+
+  Where it would mean something else, it is refused: on a config that writes
+  into no group, together with `priority:` on the same config, and on a name no
+  config template carries. An anchor that is not in this particular column
+  places nothing rather than failing — a block cannot know which objects its
+  anchor is generated for. Blocks placed in a circle are reported.
+
+  Three things now order config, and they are not interchangeable: `depends:`
+  says what has to be generated first, `blocks: before/after` merges other
+  blocks into this template's output, and `after:`/`before:` place a block
+  within a sorted column. The last only reads on a config with `group:`.
+
+- **One sorter can gather several groups.** A sort-style config may say
+  `sort_groups: [private, common]` in place of `sort_group:`. The blocks of
+  every group named are put in one column and ordered together, so a group is
+  where blocks are written from rather than a section of the result.
+
+  Who may write a block and where the block ends up are different questions: a
+  group only its own writer knows the name of and a group anything may write
+  into can feed one file, which a single name cannot express.
+
+### Fixed
+
+- **A `group:` no sorter collects is now an error instead of a block that
+  disappears.** The block was generated and then dropped, because the blocks are
+  kept per sorter and a group with no sorter has nothing to hand them to. A
+  typo in either name took a section out of a generated file with nothing said;
+  the message now names the group written and the ones that are sorted.
+
 ### Removed
 
 - **`topologies/kathara_basic`.** It was written when the Kathara module was, to
