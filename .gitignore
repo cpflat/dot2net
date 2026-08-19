@@ -13,6 +13,7 @@ data/
 
 # Build artifacts
 /dot2net
+/fieldreport
 
 # Generated PDFs
 *.pdf
