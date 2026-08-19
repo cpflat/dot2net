@@ -27,8 +27,23 @@ import (
 //
 // knownUnread are the ones already found and not yet decided. The list is a
 // debt, not an exemption: it must only shrink. See doc/ROADMAP.md TODO 93.
-var knownUnread = map[string]string{
-	"platformSet": "TODO 93: decide whether ConfigTemplate.Platform lives or goes",
+var knownUnread = map[string]string{}
+
+// isIgnoredTag reports a tag that keeps the field out of serialisation
+// altogether - `yaml:"-"` and its kin. Such a field is not read by the loader,
+// so having a tag says nothing about it being alive: HookScope carried one and
+// was dead.
+func isIgnoredTag(tag string) bool {
+	if !strings.Contains(tag, `:"-"`) {
+		return false
+	}
+	// A field kept out of one encoding may still be carried by another.
+	for _, key := range []string{"yaml", "mapstructure", "json"} {
+		if strings.Contains(tag, key+`:"`) && !strings.Contains(tag, key+`:"-"`) {
+			return false
+		}
+	}
+	return true
 }
 
 // fieldUse counts, for every struct field name in the repository, the places
@@ -94,7 +109,7 @@ func TestNoWriteOnlyFields(t *testing.T) {
 					for _, nm := range fl.Names {
 						u := at(nm.Name)
 						u.structs[ts.Name.Name] = true
-						if fl.Tag != nil {
+						if fl.Tag != nil && !isIgnoredTag(fl.Tag.Value) {
 							u.tagged = true
 						}
 						if mapKeyStructs[ts.Name.Name] {

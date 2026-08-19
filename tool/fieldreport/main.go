@@ -9,11 +9,12 @@
 // Read from the source rather than maintained by hand, because a hand-written
 // list drifts: the count in .claude/rules/topologies.md was wrong within days.
 //
-// What it does not do: follow a value once it leaves the field. Platform is read
-// twice here and still does nothing, because both readers only copy it into a
-// set nobody looks at. Seeing that needs to follow the value through a local
-// variable, which is a different kind of tool - a linter. So READS = 0 means
-// dead, but READS > 0 does not mean alive.
+// What it does not do: follow a value once it leaves the field. Platform, which
+// this was written after and which is gone now, was read twice and still did
+// nothing, because both readers only copied it into a set nobody looked at.
+// Seeing that needs to follow the value through a local variable, which is a
+// different kind of tool - a linter. So READS = 0 means dead, but READS > 0
+// does not mean alive.
 package main
 
 import (
@@ -163,9 +164,9 @@ func countUses(roots []string, key string) int {
 // that is what SetBy is for.
 //
 // A field nobody reads does nothing, whatever else the numbers say. That is the
-// column this report exists for: Platform was declared, documented, and read by
-// no one, and a second field was written to do the same job because nothing said
-// so.
+// column this report exists for: Platform was declared and read by no one, and a
+// second field was written to do the same job because nothing said so. It was
+// deleted in 0.8.1, which is the answer this column is meant to lead to.
 //
 // Names are matched without resolving types, so a name carried by more than one
 // struct pools their reads. Such names are marked ambiguous rather than

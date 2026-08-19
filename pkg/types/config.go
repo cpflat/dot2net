@@ -458,14 +458,6 @@ const IPPrefixLengthReplacerFooter string = "plen"
 const IPPolicyTypeDefault string = "ip"
 const IPPolicyTypeLoopback string = "loopback"
 
-const OutputTinet string = "tinet"
-const OutputClab string = "clab"
-const OutputAsis string = "command"
-
-func AllOutput() []string {
-	return []string{OutputTinet, OutputClab, OutputAsis}
-}
-
 // config elements
 
 type Config struct {
@@ -1688,10 +1680,6 @@ type ConfigTemplate struct {
 	// topology both contribute to one of the hook names below: what the module
 	// has to do comes first.
 	ModuleProvided bool `yaml:"-" mapstructure:"-"`
-	// HookScope keeps a machine-side hook block out of the other platforms'
-	// scripts. Set by a module whose block names something only its own files
-	// use; empty on anything a topology wrote, which every script runs.
-	HookScope string `yaml:"-" mapstructure:"-"`
 	// Group is used for sort config templates
 	// A sort config template will aggregate all config blocks generated in child (or grandchild) objects of the same group
 	Group string `yaml:"group" mapstructure:"group"`
@@ -1781,9 +1769,6 @@ type ConfigTemplate struct {
 	// Set by modules on their own; users never write it.
 	PlatformEntry bool `yaml:"-" mapstructure:"-"`
 
-	// This option is valid only on InterfaceClass or ConnectionClass
-	// If specified, add config only for included output (e.g., tinet only, clab only, etc)
-	Platform []string `yaml:"platform,flow" mapstructure:"platform,flow"`
 	Format   string   `yaml:"format" mapstructure:"format"`
 	Formats  []string `yaml:"formats" mapstructure:"formats"`
 	// Load config template
@@ -1811,7 +1796,6 @@ type ConfigTemplate struct {
 	ParsedTemplate *template.Template
 	rawContent     *string
 	paramRefs      []string
-	platformSet    mapset.Set[string]
 	className      string
 	classType      string
 }
@@ -2228,17 +2212,6 @@ func loadTemplate(tpl []string, path string, delims []string) (*template.Templat
 }
 
 func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
-	var outputs []string
-	ct.platformSet = mapset.NewSet[string]()
-	if len(ct.Platform) == 0 {
-		outputs = AllOutput()
-	} else {
-		outputs = ct.Platform
-	}
-	for _, output := range outputs {
-		ct.platformSet.Add(output)
-	}
-
 	// check if the config template is sort-style
 	if ct.Style == ConfigTemplateStyleSort {
 		if ct.SortGroup != "" && len(ct.SortGroups) > 0 {
