@@ -132,3 +132,48 @@ func generateFor(t *testing.T, cfg *types.Config, nm *types.NetworkModel, node, 
 	}
 	return string(content)
 }
+
+// TestHookWrittenAsANameIsReadAsAGroup covers the way every topology wrote a
+// hook before 0.8.1, and most of the ones in the wild still do. The name is
+// read as the group it means, early enough that nothing downstream sees a name
+// - including the check that two classes do not claim one.
+//
+// Other tests here happen to use the old form as well, but none of them says
+// that is what is being tested, so cleaning them up would take the coverage
+// with it.
+func TestHookWrittenAsANameIsReadAsAGroup(t *testing.T) {
+	cfg, nm := buildFullModel(t, `
+name: hook_shim
+global:
+  path: local
+module:
+  - frr
+nodeclass:
+  - name: router
+    use: [frrLogFile]
+    config:
+      - name: startup
+        template: ["topology-command"]
+      - file: out
+        style: sort
+        sort_group: startup
+file:
+  - name: out
+`, hookDot)
+
+	for _, ct := range cfg.NodeClasses[0].ConfigTemplates {
+		if ct.Name == "startup" {
+			t.Error("the name should have become a group before anything read it")
+		}
+	}
+
+	out := generateFor(t, cfg, nm, "r1", "out")
+	moduleAt := strings.Index(out, "touch")
+	topologyAt := strings.Index(out, "topology-command")
+	if moduleAt < 0 || topologyAt < 0 {
+		t.Fatalf("a hook written the old way still reaches the column, got:\n%s", out)
+	}
+	if moduleAt > topologyAt {
+		t.Errorf("the module's part comes first, got:\n%s", out)
+	}
+}
