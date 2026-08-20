@@ -27,83 +27,20 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/cpflat/dot2net/internal/configsurface"
 )
 
 type field struct {
-	Struct  string
-	Name    string
-	YAML    string // "" when the field is not written in YAML at all
-	Comment string
-	Uses    int  // bundled topologies that write this key
-	SetBy   int  // places in mod/ that set this field from Go
-	Reads   int  // places that read the field back
-	Ambig   bool // the same field name is on more than one struct
+	configsurface.Field
+	Uses  int  // bundled topologies that write this key
+	SetBy int  // places in mod/ that set this field from Go
+	Reads int  // places that read the field back
+	Ambig bool // the same field name is on more than one struct
 	// AmbigKey marks a yaml key more than one struct declares. The topologies
 	// are searched for the key alone, so the count is the two keys together:
 	// `after` is both a config's anchor and an entry of blocks:.
 	AmbigKey bool
-}
-
-// yamlKey pulls the key out of a struct tag, dropping ",flow" and friends.
-// A tag of "-" means the field is set in Go and never written by a topology.
-func yamlKey(tag string) (string, bool) {
-	m := regexp.MustCompile(`yaml:"([^"]*)"`).FindStringSubmatch(tag)
-	if m == nil {
-		return "", false
-	}
-	key := strings.Split(m[1], ",")[0]
-	return key, true
-}
-
-// firstLine is the field's own comment, trimmed to one line: enough to tell
-// what it is, short enough for a table.
-func firstLine(doc *ast.CommentGroup) string {
-	if doc == nil {
-		return ""
-	}
-	for _, c := range doc.List {
-		s := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
-		if s != "" {
-			return s
-		}
-	}
-	return ""
-}
-
-func collect(path string) ([]field, error) {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
-	if err != nil {
-		return nil, err
-	}
-	var out []field
-	ast.Inspect(f, func(n ast.Node) bool {
-		ts, ok := n.(*ast.TypeSpec)
-		if !ok {
-			return true
-		}
-		st, ok := ts.Type.(*ast.StructType)
-		if !ok {
-			return true
-		}
-		for _, fl := range st.Fields.List {
-			if fl.Tag == nil || len(fl.Names) == 0 {
-				continue
-			}
-			key, ok := yamlKey(fl.Tag.Value)
-			if !ok {
-				continue
-			}
-			out = append(out, field{
-				Struct:  ts.Name.Name,
-				Name:    fl.Names[0].Name,
-				YAML:    key,
-				Comment: firstLine(fl.Doc),
-			})
-		}
-		return true
-	})
-	return out, nil
 }
 
 // countSetBy is how many places under mod/ assign the field. A field no
@@ -211,10 +148,14 @@ func countReads(dirs []string, name string) int {
 }
 
 func main() {
-	fields, err := collect("pkg/types/config.go")
+	declared, err := configsurface.Collect("pkg/types/config.go")
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	fields := make([]field, 0, len(declared))
+	for _, d := range declared {
+		fields = append(fields, field{Field: d})
 	}
 	roots := []string{"topologies", "example"}
 	for i := range fields {
