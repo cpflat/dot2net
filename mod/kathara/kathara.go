@@ -296,8 +296,8 @@ func (m *KatharaModule) UpdateConfig(cfg *types.Config) error {
 	})
 
 	cfg.AddNodeClass(&types.NodeClass{
-		Name:            NodeClassName,
-		Parameters:      []string{VolumeParamRuleName, CopyParamRuleName, "kathara_collects"},
+		Name:       NodeClassName,
+		Parameters: []string{VolumeParamRuleName, CopyParamRuleName, "kathara_collects"},
 		ConfigTemplates: append([]*types.ConfigTemplate{
 			// Where the lab's own commands are gathered - see the containerlab
 			// module for what the pair is.

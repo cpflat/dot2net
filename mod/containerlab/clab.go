@@ -367,8 +367,8 @@ func (m *ClabModule) UpdateConfig(cfg *types.Config) error {
 	}
 
 	nodeClass := &types.NodeClass{
-		Name:            NodeClassName,
-		Parameters:      []string{"clab_binds", "clab_copies", "clab_collects"},
+		Name:       NodeClassName,
+		Parameters: []string{"clab_binds", "clab_copies", "clab_collects"},
 		ConfigTemplates: append([]*types.ConfigTemplate{
 			// Where the lab's own commands are gathered: the topology writes
 			// into startup and teardown, and this module's own files read the

@@ -270,8 +270,8 @@ func (m *TinetModule) UpdateConfig(cfg *types.Config) error {
 	})
 
 	nodeClass := &types.NodeClass{
-		Name:            NodeClassName,
-		Parameters:      []string{"tinet_binds", "tinet_copies", "tn_collects"},
+		Name:       NodeClassName,
+		Parameters: []string{"tinet_binds", "tinet_copies", "tn_collects"},
 		ConfigTemplates: append([]*types.ConfigTemplate{
 			// Where the lab's own commands are gathered - see the containerlab
 			// module for what the pair is.
