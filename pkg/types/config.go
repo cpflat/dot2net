@@ -1769,8 +1769,8 @@ type ConfigTemplate struct {
 	// Set by modules on their own; users never write it.
 	PlatformEntry bool `yaml:"-" mapstructure:"-"`
 
-	Format   string   `yaml:"format" mapstructure:"format"`
-	Formats  []string `yaml:"formats" mapstructure:"formats"`
+	Format  string   `yaml:"format" mapstructure:"format"`
+	Formats []string `yaml:"formats" mapstructure:"formats"`
 	// Load config template
 	Template []string `yaml:"template" mapstructure:"template"`
 	// Load config template from external file

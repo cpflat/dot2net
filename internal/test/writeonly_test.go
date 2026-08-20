@@ -25,6 +25,12 @@ import (
 // this, so removing the end brings the next one into view. Platform is two
 // steps away - take platformSet out and Platform's only two readers go with it.
 //
+// scannedDirs are the directories holding this repository's Go source. tool/
+// belongs among them: a field declared for a tool and read only there is alive,
+// and leaving the directory out made two of internal/configsurface's fields
+// read as dead.
+var scannedDirs = []string{"pkg", "mod", "internal", "tool"}
+
 // knownUnread are the ones already found and not yet decided. The list is a
 // debt, not an exemption: it must only shrink. See doc/ROADMAP.md TODO 93.
 var knownUnread = map[string]string{}
@@ -80,7 +86,7 @@ func TestNoWriteOnlyFields(t *testing.T) {
 	// Structs that appear as a map's key type: their fields are read by the
 	// comparison the map does, which leaves no mention behind.
 	mapKeyStructs := map[string]bool{}
-	for _, dir := range []string{"pkg", "mod", "internal"} {
+	for _, dir := range scannedDirs {
 		walkGoFiles(t, filepath.Join(root, dir), func(path string, f *ast.File) {
 			ast.Inspect(f, func(n ast.Node) bool {
 				if mt, ok := n.(*ast.MapType); ok {
@@ -93,7 +99,7 @@ func TestNoWriteOnlyFields(t *testing.T) {
 		})
 	}
 
-	for _, dir := range []string{"pkg", "mod", "internal"} {
+	for _, dir := range scannedDirs {
 		walkGoFiles(t, filepath.Join(root, dir), func(path string, f *ast.File) {
 			// Declarations: which names are struct fields at all, and where.
 			ast.Inspect(f, func(n ast.Node) bool {
