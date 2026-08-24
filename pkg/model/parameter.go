@@ -172,20 +172,43 @@ func assignNodeParameters(cfg *types.Config, nm *types.NetworkModel) error {
 	return assignDistributeParamsToObjects(cfg, nodesForParams)
 }
 
+// addComposedParam writes a parameter whose name was joined from a prefix and
+// another name, and reports when it lands on one the object already carries
+// with a different value. Equal values are not reported: nothing is lost when
+// the two agree.
+func addComposedParam(iface *types.Interface, key, value, from string) error {
+	if prev, exists := iface.GetParams()[key]; exists && prev != value {
+		return types.ComposedNameError(iface.StringForMessage(), key, from,
+			fmt.Sprintf("a parameter of the interface itself, called %q", key), prev)
+	}
+	iface.AddParam(key, value)
+	return nil
+}
+
 func assignInterfaceParameters(cfg *types.Config, nm *types.NetworkModel) error {
 
 	interfacesForParams := map[string][]*types.Interface{}
 	for _, node := range nm.Nodes {
 		for _, iface := range node.Interfaces {
 			iface.AddParam(types.ReservedParamName, iface.Name)
-			// Add node reference parameters with node_ prefix
+			// Add node reference parameters with node_ prefix, and the
+			// connection's with conn_. Both are built by joining a prefix and a
+			// name, so a value the topology wrote under the composed spelling -
+			// node_name on an interface - lands on the same parameter. Whichever
+			// was written second used to win, and what the topology wrote was
+			// gone with the build still succeeding.
 			for key, value := range node.GetParams() {
-				iface.AddParam(types.NumberPrefixNode+key, value)
+				if err := addComposedParam(iface, types.NumberPrefixNode+key, value,
+					fmt.Sprintf("the node parameter %q", key)); err != nil {
+					return err
+				}
 			}
-			// Add connection reference parameters with conn_ prefix
 			if iface.Connection != nil {
 				for key, value := range iface.Connection.GetParams() {
-					iface.AddParam(types.NumberPrefixConnection+key, value)
+					if err := addComposedParam(iface, types.NumberPrefixConnection+key, value,
+						fmt.Sprintf("the connection parameter %q", key)); err != nil {
+						return err
+					}
 				}
 			}
 			for key := range iface.IterateFlaggedParams() {

@@ -2208,6 +2208,38 @@ func (iface *Interface) GivenIPAddress(layer Layerer) (string, bool) {
 // 	}
 // }
 
+// setComposedParam writes a parameter whose name was built by joining a prefix
+// and a name, and reports when that lands on a name something else already
+// wrote with a different value.
+//
+// The separator is "_" and "_" is also an ordinary character in a name, so the
+// two cannot be told apart: an interface value called node_name composes to the
+// same parameter as the node's own name. Whichever was written second used to
+// win, and what the topology wrote disappeared without a word - the worst way
+// to lose it, because the build succeeds.
+//
+// Equal values are not reported: nothing is lost when the two agree.
+func setComposedParam(ns NameSpacer, key, val, from, clash string) error {
+	if ns.HasRelativeParam(key) {
+		if prev, err := ns.GetParamValue(key); err == nil && prev != val {
+			return ComposedNameError(ns.StringForMessage(), key, from, clash, prev)
+		}
+	}
+	ns.SetRelativeParam(key, val)
+	return nil
+}
+
+// ComposedNameError says that a name built by joining a prefix and another name
+// landed on one that something else had already written. The wording lives here
+// so that every place composing a name reports it the same way.
+func ComposedNameError(where, key, from, clash, prev string) error {
+	return fmt.Errorf(
+		"%s reaches %s as %q, where %s already put %q. The two cannot be told apart: "+
+			"%q separates the prefix from the name and is also an ordinary character in a name. "+
+			"Rename %s",
+		from, where, key, clash, prev, NumberSeparator, clash)
+}
+
 func (iface *Interface) ClassDefinition(cfg *Config, cls string) (interface{}, error) {
 	ic, ok := cfg.interfaceClassMap[cls]
 	if !ok {
@@ -2227,7 +2259,11 @@ func (iface *Interface) setInterfaceBaseRelativeNameSpace(
 	// node params
 	for k, val := range iface.Node.GetParams() {
 		key := header + NumberPrefixNode + k
-		ns.SetRelativeParam(key, val)
+		if err := setComposedParam(ns, key, val,
+			fmt.Sprintf("the node parameter %q", k),
+			fmt.Sprintf("a parameter of the interface itself, called %q", NumberPrefixNode+k)); err != nil {
+			return err
+		}
 	}
 
 	// node group params
@@ -3006,7 +3042,11 @@ func (m *Member) BuildRelativeNameSpace(globalParams map[string]map[string]strin
 	if m.ClassType == ClassTypeInterface {
 		for nodekey, val := range m.Referrer.(*Interface).Node.GetParams() {
 			key := NumberPrefixNode + nodekey
-			m.SetRelativeParam(key, val)
+			if err := setComposedParam(m, key, val,
+				fmt.Sprintf("the node parameter %q", nodekey),
+				fmt.Sprintf("a parameter of the interface itself, called %q", NumberPrefixNode+nodekey)); err != nil {
+				return err
+			}
 		}
 	}
 

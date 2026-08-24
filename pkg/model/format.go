@@ -1144,6 +1144,29 @@ func addSelfConfigToNameSpace(cfg *types.Config, ns types.NameSpacer, conf strin
 	return formattedConf, nil
 }
 
+// separatorNote explains a duplicate that two differently written things
+// produced, which reads as a puzzle without it: the name was built by joining
+// several names with "_", and "_" is also an ordinary character in a name, so
+// class "a" with config "b_c" and class "a_b" with config "c" arrive here as
+// one name. Only the names built from more than one part can do this.
+func separatorNote(name string) string {
+	for _, header := range []string{
+		types.ChildMembersConfigHeader,
+		types.ChildSegmentsConfigHeader,
+		types.ChildNeighborsConfigHeader,
+	} {
+		if strings.HasPrefix(name, header) {
+			return fmt.Sprintf(
+				". This name is %s followed by several names joined with %q, and %q is also an "+
+					"ordinary character in a name, so two different sets of names can arrive as "+
+					"one - a class called \"a\" with a config called \"b_c\" reaches the same "+
+					"name as a class called \"a_b\" with a config called \"c\". Rename one of them",
+				header, types.NumberSeparator, types.NumberSeparator)
+		}
+	}
+	return ""
+}
+
 func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, ct *types.ConfigTemplate, verbose bool) error {
 	if new == EmptyOutput {
 		// if new config is empty, set "" only when no previous parameter
@@ -1160,10 +1183,9 @@ func setConfigParamForNameSpace(ns types.NameSpacer, name string, new string, ct
 			if prev != "" {
 				// if neither is empty (duplicated configuration), raise error
 				return fmt.Errorf(
-					// "parameter name %s of object %s duplicated (existing parameter: %s)",
-					// relativeName, parent.StringForMessage(), values,
-					"parameter name %s of object %s duplicated (existing parameter: %q, new parameter: %q)",
+					"parameter name %s of object %s duplicated (existing parameter: %q, new parameter: %q)%s",
 					name, ns.StringForMessage(), headN(prev, NChars), headN(new, NChars),
+					separatorNote(name),
 				)
 			}
 			// if previous parameter is empty, just overwrite

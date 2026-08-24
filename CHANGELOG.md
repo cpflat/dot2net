@@ -160,6 +160,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A value the topology wrote is no longer overwritten in silence.** Parameter
+  names are built by joining a prefix and another name with `_`, and `_` is also
+  an ordinary character in a name: an interface value called `node_name` reaches
+  the same parameter as the node's own `name`. The node's won, the value the
+  topology wrote was gone, and the build succeeded. It is reported now, naming
+  both and saying what made them one.
+
+  The same explanation is added to the duplicate reported when two differently
+  written pairs arrive as one name - a class `a` with a config `b_c` and a class
+  `a_b` with a config `c` both compose to `members_node_a_b_c`. That was already
+  an error; it now says why, which it has to, because the author knows they
+  wrote two different names.
+
 - **`include_self` works again.** A `classmembers:` entry iterates the members
   of the classes it names, and the object doing the referring is one of them:
   without the flag being read, a node writing a line per peer wrote one naming

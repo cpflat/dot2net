@@ -249,3 +249,111 @@ file:
 		t.Errorf("the message should name both, got: %v", err)
 	}
 }
+
+// TestValueCollidingWithAComposedNameIsReported is the loss that has no other
+// sign: a value the topology wrote is overwritten by a parameter whose name was
+// composed from a prefix and another name, and the build succeeds without it.
+func TestValueCollidingWithAComposedNameIsReported(t *testing.T) {
+	cfgPath, dotPath := writeTempInput(t, `
+name: shadow
+global:
+  path: local
+class_policy:
+  interface:
+    default: [default]
+nodeclass:
+  - name: router
+    interface_policy: [ip]
+    config:
+      - file: out
+        template: ["[{{ .interfaces_show }}]"]
+interfaceclass:
+  - name: default
+    values:
+      node_name: SHADOW
+    config:
+      - name: show
+        template: ["{{ .node_name }}"]
+layer:
+  - name: ip
+    default_connect: true
+    policy:
+      - name: ip
+        range: 10.0.0.0/16
+        prefix: 24
+file:
+  - name: out
+`, hookDot)
+	cfg, err := types.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	d, err := DiagramFromDotFile(dotPath)
+	if err != nil {
+		t.Fatalf("dot: %v", err)
+	}
+	_, err = BuildNetworkModel(cfg, d, false)
+	if err == nil {
+		t.Fatal("a value the composed name overwrites must be reported")
+	}
+	for _, want := range []string{"node_name", "SHADOW", "cannot be told apart"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the message should contain %q, got: %v", want, err)
+		}
+	}
+}
+
+// TestComposedDuplicateSaysWhy: two differently written pairs that arrive as
+// one name have always been reported, but as a plain duplicate - which reads as
+// a puzzle when the author knows they wrote two different names.
+func TestComposedDuplicateSaysWhy(t *testing.T) {
+	const dot = `graph {
+  r1 [class="referrer"];
+  r2 [class="a"];
+  r3 [class="a_b"];
+  r1 -- r2;
+  r1 -- r3;
+}`
+	cfgPath, dotPath := writeTempInput(t, `
+name: collide
+global:
+  path: local
+nodeclass:
+  - name: referrer
+    classmembers:
+      - node: a
+        config:
+          - name: b_c
+            template: ["from-a"]
+      - node: a_b
+        config:
+          - name: c
+            template: ["from-a_b"]
+    config:
+      - file: out
+        template: ["[{{ .members_node_a_b_c }}]"]
+  - name: a
+  - name: a_b
+file:
+  - name: out
+`, dot)
+	cfg, err := types.LoadConfig(cfgPath)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	d, err := DiagramFromDotFile(dotPath)
+	if err != nil {
+		t.Fatalf("dot: %v", err)
+	}
+	nm, err := BuildNetworkModel(cfg, d, false)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	err = buildConfigFilesErr(t, cfg, nm)
+	if err == nil {
+		t.Fatal("two names arriving as one must be reported")
+	}
+	if !strings.Contains(err.Error(), "ordinary character in a name") {
+		t.Errorf("the message should say what made them one, got: %v", err)
+	}
+}
