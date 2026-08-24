@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`depends:` is worked out from what the template reads.** A config that
+  embeds `{{ .self_frr_cmds }}`, or merges `self_frr_cmds` with `blocks:`,
+  needs that block rendered first - and says so by reading it. Writing
+  `depends: [frr_cmds]` as well was the same statement made twice, and the
+  bundled topologies no longer do: every `depends:` in them has been removed
+  and the generated files are unchanged, byte for byte.
+
+  The key still works and is still checked, for a reference no reading of the
+  text can find - a name built at render time, `{{ index . "self_x" }}`. It is
+  rarely needed.
+
+  Only `self_` counts. A reference to another object - `interfaces_`, `node_`,
+  `opp_` - is not an order among one object's templates, and `depends:` never
+  expressed one.
+
 - **A hook is a group now, not a name.** What used to be written as
 
       - name: startup

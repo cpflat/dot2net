@@ -71,7 +71,6 @@ nodeclass:
         sourcefile: ./vtysh.conf
         raw: true
       - group: startup
-        depends: [ospf_startup]
         template:
           - "{{ .self_ospf_startup }}"
   - name: bgp

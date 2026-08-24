@@ -114,7 +114,6 @@ nodeclass:
           - "route-map testmap-out permit 999"
           - "!"
       - file: bgpd.conf
-        depends: [bgp_header, bgp_af_header, bgp_footer]
         blocks:
           after: [self_bgp_header, interfaces_ibgp_nbconf, interfaces_ebgp_nbconf, self_bgp_af_header, interfaces_ibgp_afconf, interfaces_ebgp_afconf, self_bgp_footer]
         template: []

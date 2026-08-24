@@ -48,7 +48,6 @@ nodeclass:
   - name: router
     config:
       - group: startup
-        depends: [frr_cmds]
         template:
           - /usr/lib/frr/frr start
         blocks:
@@ -56,7 +55,6 @@ nodeclass:
   - name: server
     config:
       - group: startup
-        depends: [frr_cmds]
         template:
           - /usr/lib/frr/frr start
         blocks:

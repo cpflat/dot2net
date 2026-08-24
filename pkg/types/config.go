@@ -206,12 +206,48 @@ func (ct *ConfigTemplate) ParamRefs() []string {
 	return ct.paramRefs
 }
 
-// setParamRefs works ParamRefs out once, while the template is being parsed.
+// SelfRefs is every config template of the same object whose output this one
+// reads: the self_ references in its text and in the blocks it merges.
+//
+// It is what depends: has always been written to say. A template that embeds
+// {{ .self_frr_cmds }} needs frr_cmds rendered first, and that is visible in
+// the template, so the topology does not have to say it again.
+//
+// Only self_ counts. A reference to another object - interfaces_, node_, opp_ -
+// is not an order among one object's templates, and depends: never expressed
+// one: every use of it in the bundled topologies names exactly the self_
+// references of the same entry.
+func (ct *ConfigTemplate) SelfRefs() []string {
+	return ct.selfRefs
+}
+
+// setParamRefs works ParamRefs and SelfRefs out once, while the template is
+// being parsed.
 func (ct *ConfigTemplate) setParamRefs() {
+	seen := map[string]bool{}
+	addSelf := func(ref string) {
+		if !strings.HasPrefix(ref, SelfConfigHeader) {
+			return
+		}
+		name := strings.TrimPrefix(ref, SelfConfigHeader)
+		if name == "" || seen[name] {
+			return
+		}
+		seen[name] = true
+		ct.selfRefs = append(ct.selfRefs, name)
+	}
+	// The blocks a template merges are named the same way its text names them,
+	// and reading one is the same reason to want it rendered first.
+	for _, ref := range append(append([]string{}, ct.Blocks.Before...), ct.Blocks.After...) {
+		addSelf(ref)
+	}
 	if ct.ParsedTemplate == nil {
 		return
 	}
 	refs := templateFields(ct.ParsedTemplate)
+	for _, ref := range refs {
+		addSelf(ref)
+	}
 	out := make([]string, 0, len(refs))
 	for _, ref := range refs {
 		name := ref
@@ -1814,6 +1850,7 @@ type ConfigTemplate struct {
 	ParsedTemplate *template.Template
 	rawContent     *string
 	paramRefs      []string
+	selfRefs       []string
 	className      string
 	classType      string
 }

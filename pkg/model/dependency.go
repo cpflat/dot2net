@@ -212,6 +212,18 @@ func (ctdn *ConfigTemplateDependencyNode) GetDependencies() ([]string, error) {
 		}
 	}
 
+	// What the template reads of its own object has to be rendered first, and
+	// the template says so by reading it. depends: is the same statement made
+	// twice; it is still accepted, for a reference no reading of the text can
+	// see.
+	for _, name := range ct.SelfRefs() {
+		if indices, exists := ctdn.ctmap[name]; exists {
+			for _, idx := range indices {
+				deps = append(deps, templateID(idx))
+			}
+		}
+	}
+
 	// explicit dependencies
 	for _, depName := range ct.Depends {
 		if indices, exists := ctdn.ctmap[depName]; exists {

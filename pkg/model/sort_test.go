@@ -445,3 +445,31 @@ file:
 		t.Errorf("the block comes after both anchors, got:\n%s", out)
 	}
 }
+
+// TestOrderIsTakenFromWhatTheTemplateReads: a template that embeds another's
+// output needs it rendered first, and it says so by embedding it. depends: was
+// the same statement written a second time.
+//
+// The template that does the reading is declared first here, so nothing but the
+// reference itself can put them in order.
+func TestOrderIsTakenFromWhatTheTemplateReads(t *testing.T) {
+	cfg, nm := buildFullModel(t, `
+name: derived_order
+global:
+  path: local
+nodeclass:
+  - name: router
+    config:
+      - file: out
+        template: ["<{{ .self_inner }}>"]
+      - name: inner
+        template: ["inner-text"]
+file:
+  - name: out
+`, hookDot)
+
+	out := generateFor(t, cfg, nm, "r1", "out")
+	if !strings.Contains(out, "<inner-text>") {
+		t.Errorf("the embedded block should have been rendered first, got:\n%s", out)
+	}
+}
