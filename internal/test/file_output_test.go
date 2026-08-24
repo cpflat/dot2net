@@ -954,7 +954,8 @@ interfaceclass:
 			yaml: head(`    use: [clabOvsBridgeSetup]
     config:
       - group: worker_deploy
-        before: worker_deploy
+        placed:
+          before: [worker_deploy]
         template:
           - "ovs-vsctl add-port {{ .clab_bridge }} eth9"
 `),
@@ -967,7 +968,8 @@ interfaceclass:
 			yaml: head(`    use: [clabOvsBridgeSetup]
     config:
       - group: worker_destroy
-        after: worker_destroy
+        placed:
+          after: [worker_destroy]
         template:
           - "ovs-vsctl del-port {{ .clab_bridge }} eth9"
 `),
@@ -979,7 +981,8 @@ interfaceclass:
 			name: "a topology can write its own instead",
 			yaml: head(`    config:
       - group: worker_deploy
-        before: worker_deploy
+        placed:
+          before: [worker_deploy]
         template:
           - "ansible-playbook provision-bridge.yml -e name={{ .name }}"
 `),

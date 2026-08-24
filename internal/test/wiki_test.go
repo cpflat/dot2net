@@ -17,6 +17,7 @@ import (
 // that gets written up has to come off it, which the test enforces.
 var knownUndocumented = map[string]string{
 	"anchor":              "0.8.1: to be written up with the sort chapter",
+	"placed":              "0.8.1: to be written up with the sort chapter",
 	"sort_groups":         "0.8.1: to be written up with the sort chapter",
 	"generator":           "predates the ledger; module-facing, but a topology can write it",
 	"mgmt_interfaceclass": "predates the ledger; one bundled topology uses it",

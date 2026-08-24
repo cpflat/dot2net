@@ -41,10 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   in the list at the position everything else is placed against, carrying the
   hook's name as its anchor.
 
-  A block that has to run after the lab is up says `after: worker_deploy`; one
-  that has to run before says `before: worker_deploy`, and a number still works
-  for saying the same thing. A block left level with the command is refused
-  rather than placed by the order its class happened to be declared in.
+  A block that has to run after the lab is up says `placed: {after:
+  [worker_deploy]}`; one that has to run before names the same anchor under
+  `before:`, and a number still works for saying the same thing. A block left
+  level with the command is refused rather than placed by the order its class
+  happened to be declared in.
 
   A module says where its own blocks go with a priority on the block, which is
   the ordinary mechanism; the core no longer has a rule about which side of a
@@ -71,14 +72,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A block can be put next to a labelled block instead of at a number.** A
   config that writes into a group may carry `anchor: <label>`, and another may
-  say `after: <label>` or `before: <label>`; the block is placed there and the
-  numbers of everything around it stop mattering.
+  say where it goes with `placed:`:
+
+      - group: worker_deploy
+        placed:
+          after: [worker_deploy]
+
+  The block is placed there and the numbers of everything around it stop
+  mattering. Several anchors on either side are ordinary - a column can carry
+  more than one thing worth sitting next to - and the block goes after all of
+  the first and before all of the second.
+
+  `placed:` and `blocks:` read alike and are told apart by voice: `blocks:`
+  lists what is put around this one, `placed:` says where this one is put.
 
   A label is not a name. A name makes a namespace parameter and has to be
   unique on the object; a label is read only within the column it appears in,
   so several columns can carry the same one - which is what lets a topology
   write `after: worker_deploy` without knowing which platform's script is being
   written.
+
+  An anchor no block in the column carries is nothing to sit next to, and the
+  block keeps its place - the same silence as a `depends:` on a hook nobody
+  wrote. Blocks placed in a circle are reported.
 
   A block level with an anchor is refused: being at the same number as a fixed
   point says nothing, and what decides it then is the order the classes were
@@ -90,15 +106,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keep.
 
   Where it would mean something else, it is refused: on a config that writes
-  into no group, together with `priority:` on the same config, and on a name no
-  config template carries. An anchor that is not in this particular column
-  places nothing rather than failing — a block cannot know which objects its
-  anchor is generated for. Blocks placed in a circle are reported.
+  into no group, together with `priority:` on the same config, and on a label no
+  config template carries.
 
   Three things now order config, and they are not interchangeable: `depends:`
-  says what has to be generated first, `blocks: before/after` merges other
-  blocks into this template's output, and `after:`/`before:` place a block
-  within a sorted column. The last only reads on a config with `group:`.
+  says what has to be generated first, `blocks:` merges other blocks into this
+  template's output, and `placed:` puts a block within a sorted column. The last
+  only reads on a config with `group:`.
 
 - **One sorter can gather several groups.** A sort-style config may say
   `sort_groups: [private, common]` in place of `sort_group:`. The blocks of

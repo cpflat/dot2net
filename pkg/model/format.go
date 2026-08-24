@@ -253,7 +253,7 @@ func checkAnchorTies(blocks []*ConfigBlock) error {
 			if other.Block == "" || other.Block == EmptyOutput {
 				continue
 			}
-			if other.After == anchor.Anchor || other.Before == anchor.Anchor {
+			if names(other.After, anchor.Anchor) || names(other.Before, anchor.Anchor) {
 				continue
 			}
 			return fmt.Errorf(
@@ -276,7 +276,7 @@ func checkAnchorTies(blocks []*ConfigBlock) error {
 func orderByAnchors(blocks []*ConfigBlock) ([]*ConfigBlock, error) {
 	anchored := false
 	for _, cb := range blocks {
-		if cb.After != "" || cb.Before != "" {
+		if len(cb.After) > 0 || len(cb.Before) > 0 {
 			anchored = true
 			break
 		}
@@ -305,11 +305,15 @@ func orderByAnchors(blocks []*ConfigBlock) ([]*ConfigBlock, error) {
 		waiting[second]++
 	}
 	for i, cb := range blocks {
-		for _, j := range byAnchor[cb.After] {
-			addEdge(j, i)
+		for _, anchor := range cb.After {
+			for _, j := range byAnchor[anchor] {
+				addEdge(j, i)
+			}
 		}
-		for _, j := range byAnchor[cb.Before] {
-			addEdge(i, j)
+		for _, anchor := range cb.Before {
+			for _, j := range byAnchor[anchor] {
+				addEdge(i, j)
+			}
 		}
 	}
 
@@ -349,14 +353,25 @@ func describeBlock(cb *ConfigBlock) string {
 		name = fmt.Sprintf("%q", headN(cb.Block, NChars))
 	}
 	switch {
-	case cb.After != "" && cb.Before != "":
-		return fmt.Sprintf("%s (after %s, before %s)", name, cb.After, cb.Before)
-	case cb.After != "":
-		return fmt.Sprintf("%s (after %s)", name, cb.After)
-	case cb.Before != "":
-		return fmt.Sprintf("%s (before %s)", name, cb.Before)
+	case len(cb.After) > 0 && len(cb.Before) > 0:
+		return fmt.Sprintf("%s (after %s, before %s)",
+			name, strings.Join(cb.After, ", "), strings.Join(cb.Before, ", "))
+	case len(cb.After) > 0:
+		return fmt.Sprintf("%s (after %s)", name, strings.Join(cb.After, ", "))
+	case len(cb.Before) > 0:
+		return fmt.Sprintf("%s (before %s)", name, strings.Join(cb.Before, ", "))
 	}
 	return name
+}
+
+// names reports whether the anchor is among those a block was placed against.
+func names(anchors []string, anchor string) bool {
+	for _, a := range anchors {
+		if a == anchor {
+			return true
+		}
+	}
+	return false
 }
 
 // Parent-child config block management methods
@@ -431,10 +446,11 @@ type ConfigBlock struct {
 	Refs []string
 	// Origin says which class wrote the block, for messages.
 	Origin string
-	// After and Before name blocks this one is placed relative to. They are
-	// resolved within the column, so an anchor that is not there does nothing.
-	After  string
-	Before string
+	// After and Before name the anchors this one is placed relative to. They
+	// are resolved within the column, so an anchor that is not there does
+	// nothing.
+	After  []string
+	Before []string
 }
 
 // style
@@ -958,7 +974,7 @@ func generateIndividualConfigs(cfg *types.Config, ca *ConfigAggregator, ns types
 		if met && ct.Group != "" {
 			ca.addConfigBlock(ns, ct.Group, &ConfigBlock{
 				Block: conf, Priority: ct.Priority,
-				Anchor: ct.Anchor, After: ct.After, Before: ct.Before,
+				Anchor: ct.Anchor, After: ct.Placed.After, Before: ct.Placed.Before,
 				Refs: ct.ParamRefs(), Origin: describeOrigin(ct),
 			}, false)
 			if verbose {

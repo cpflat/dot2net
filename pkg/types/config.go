@@ -1653,6 +1653,25 @@ type BlocksConfig struct {
 	After  []string `yaml:"after" mapstructure:"after"`
 }
 
+// PlacementConfig is where a block sits among the others of its column, given
+// as the anchors it comes after and the ones it comes before. Several of either
+// is ordinary - a column can carry more than one thing worth sitting next to -
+// and the block goes after all of the first and before all of the second.
+type PlacementConfig struct {
+	Before []string `yaml:"before" mapstructure:"before"`
+	After  []string `yaml:"after" mapstructure:"after"`
+}
+
+// Given reports whether this config says where it goes.
+func (p PlacementConfig) Given() bool {
+	return len(p.Before) > 0 || len(p.After) > 0
+}
+
+// anchors is every label named, whichever side it was named on.
+func (p PlacementConfig) anchors() []string {
+	return append(append([]string{}, p.After...), p.Before...)
+}
+
 type ConfigTemplate struct {
 	// Config block aggregation styles
 	// hierarchy (default): specify child config templates in the template description as parameter
@@ -1689,25 +1708,24 @@ type ConfigTemplate struct {
 	// unique among everything written on the object, and two platforms writing
 	// the block that stands for "the platform's own command" would collide over
 	// it. A label is only read within the column it appears in, so each of them
-	// can carry the same one and a topology can say `after: worker_deploy`
+	// can carry the same one and a topology can say `placed: {after: [...]}`
 	// without knowing which platform is being written.
 	Anchor string `yaml:"anchor" mapstructure:"anchor"`
-	// After and Before place this block relative to an anchor of the same
-	// column, instead of at a number on the priority axis. If no block carries
-	// that label in the column, there is nothing to sit next to and the block
-	// keeps its place.
+	// Placed puts this block relative to the anchors of the same column,
+	// instead of at a number on the priority axis. An anchor no block in the
+	// column carries is nothing to sit next to, and the block keeps its place.
 	//
 	// A number is a poor contract between a topology and a module: it only
 	// works while both agree on what the numbers mean, and the module cannot
-	// move its own blocks afterwards without breaking the topology. A name is
+	// move its own blocks afterwards without breaking the topology. A label is
 	// the module's to keep.
 	//
-	// These are not blocks: before/after, which merge other blocks into this
-	// template's output, nor depends:, which says what has to be generated
-	// first. This pair only says where in a sorted column the block goes, and
-	// is refused on a config that writes into no group.
-	After  string `yaml:"after" mapstructure:"after"`
-	Before string `yaml:"before" mapstructure:"before"`
+	// This is not blocks:, which merges other blocks into this template's
+	// output, nor depends:, which says what has to be generated first. The two
+	// read alike and are told apart by voice: blocks: lists what is put around
+	// this one, placed: says where this one is put. It is refused on a config
+	// that writes into no group.
+	Placed PlacementConfig `yaml:"placed" mapstructure:"placed"`
 	// Priority orders config blocks that are gathered into one place. Smaller is
 	// earlier, so a negative value puts a block at the top of a file its group
 	// is sorted into.
@@ -2263,21 +2281,26 @@ func initConfigTemplate(cfg *Config, ct *ConfigTemplate) error {
 				"but the config writes into no group", ct, ct.Anchor)
 	}
 
-	if ct.After != "" || ct.Before != "" {
+	if ct.Placed.Given() {
 		if ct.Group == "" {
 			return fmt.Errorf(
-				"config %s says after/before, which places a block among the others of a "+
-					"sorted column, but the config writes into no group. To order the "+
-					"generation of templates instead, use depends:; to merge other blocks "+
-					"into this one, use blocks:", ct)
+				"config %s says placed:, which puts a block among the others of a sorted "+
+					"column, but the config writes into no group. To order the generation of "+
+					"templates instead, use depends:; to merge other blocks into this one, "+
+					"use blocks:", ct)
 		}
 		if ct.Priority != 0 {
 			return fmt.Errorf(
-				"config %s says both a priority and after/before; a block is placed either "+
-					"at a number or next to a named block, not both", ct)
+				"config %s says both a priority and placed:; a block sits either at a number "+
+					"or next to an anchor, not both", ct)
 		}
-		if ct.Anchor != "" && (ct.After == ct.Anchor || ct.Before == ct.Anchor) {
-			return fmt.Errorf("config %s is placed relative to itself", ct)
+		for _, anchor := range ct.Placed.anchors() {
+			if anchor == "" {
+				return fmt.Errorf("config %s has an empty anchor name in placed:", ct)
+			}
+			if anchor == ct.Anchor {
+				return fmt.Errorf("config %s is placed relative to itself", ct)
+			}
 		}
 	}
 
@@ -2528,8 +2551,8 @@ func checkSortGroups(cfg *Config) error {
 	}
 
 	for _, ct := range cfg.groupContributions {
-		for _, anchor := range []string{ct.After, ct.Before} {
-			if anchor == "" || cfg.configTemplateAnchors[anchor] {
+		for _, anchor := range ct.Placed.anchors() {
+			if cfg.configTemplateAnchors[anchor] {
 				continue
 			}
 			return fmt.Errorf(

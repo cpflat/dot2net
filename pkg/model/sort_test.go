@@ -126,10 +126,12 @@ nodeclass:
   - name: topology
     config:
       - group: column
-        after: deploy
+        placed:
+          after: [deploy]
         template: ["after-deploy"]
       - group: column
-        before: deploy
+        placed:
+          before: [deploy]
         template: ["before-deploy"]
 file:
   - name: out
@@ -164,7 +166,8 @@ nodeclass:
   - name: topology
     config:
       - group: column
-        after: deploy
+        placed:
+          after: [deploy]
         template: ["lonely"]
   - name: elsewhere
     config:
@@ -199,11 +202,13 @@ nodeclass:
     config:
       - group: column
         anchor: first
-        after: second
+        placed:
+          after: [second]
         template: ["a"]
       - group: column
         anchor: second
-        after: first
+        placed:
+          after: [first]
         template: ["b"]
 file:
   - name: out
@@ -228,14 +233,16 @@ func TestAnchorIsRefusedOutsideAColumn(t *testing.T) {
 	}{
 		{"no group", `
       - file: out
-        after: deploy
+        placed:
+          after: [deploy]
         template: ["x"]
       - group: column
         anchor: deploy
         template: ["y"]`, "writes into no group"},
 		{"with priority", `
       - group: column
-        after: deploy
+        placed:
+          after: [deploy]
         priority: 5
         template: ["x"]
       - group: column
@@ -243,7 +250,8 @@ func TestAnchorIsRefusedOutsideAColumn(t *testing.T) {
         template: ["y"]`, "not both"},
 		{"unknown anchor", `
       - group: column
-        after: deployy
+        placed:
+          after: [deployy]
         template: ["x"]
       - group: column
         anchor: deploy
@@ -390,5 +398,50 @@ file:
 	}
 	if !strings.Contains(err.Error(), "deploy") {
 		t.Errorf("the message should name the anchor: %v", err)
+	}
+}
+
+// TestPlacedAfterSeveralAnchors: a column can carry more than one thing worth
+// sitting next to, and a block that has to follow both says so in one list.
+func TestPlacedAfterSeveralAnchors(t *testing.T) {
+	cfg, nm := buildFullModel(t, `
+name: placed_many
+global:
+  path: local
+nodeclass:
+  - name: router
+    use: [platform, topology]
+    config:
+      - file: out
+        style: sort
+        sort_group: column
+  - name: platform
+    config:
+      - group: column
+        anchor: bridge
+        priority: -100
+        template: ["make-bridge"]
+      - group: column
+        anchor: deploy
+        template: ["deploy-command"]
+  - name: topology
+    config:
+      - group: column
+        placed:
+          after: [bridge, deploy]
+        template: ["needs-both"]
+file:
+  - name: out
+`, hookDot)
+
+	out := generateFor(t, cfg, nm, "r1", "out")
+	bridge := strings.Index(out, "make-bridge")
+	deploy := strings.Index(out, "deploy-command")
+	both := strings.Index(out, "needs-both")
+	if bridge < 0 || deploy < 0 || both < 0 {
+		t.Fatalf("all three blocks belong in the column, got:\n%s", out)
+	}
+	if both < bridge || both < deploy {
+		t.Errorf("the block comes after both anchors, got:\n%s", out)
 	}
 }
