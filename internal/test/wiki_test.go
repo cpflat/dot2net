@@ -16,14 +16,12 @@ import (
 // explains. The list is a debt, not an exemption: it must only shrink. A key
 // that gets written up has to come off it, which the test enforces.
 var knownUndocumented = map[string]string{
-	"anchor":              "0.8.1: to be written up with the sort chapter",
-	"placed":              "0.8.1: to be written up with the sort chapter",
-	"sort_groups":         "0.8.1: to be written up with the sort chapter",
-	"generator":           "predates the ledger; module-facing, but a topology can write it",
-	"mgmt_interfaceclass": "predates the ledger; one bundled topology uses it",
-	"mountsourcepath":     "predates the ledger",
-	"namespace_format":    "predates the ledger; part of the FormatStyle surface",
-	"namespace_formats":   "predates the ledger; part of the FormatStyle surface",
+	// Deliberately not written up: the setting does nothing. Config.MountSourcePath
+	// has no caller, so local/abs changes nothing, and the wiki's description was
+	// taken out in 0.8.0 rather than describe a setting that has no effect.
+	// TODO 79 decides whether it is implemented or removed; documenting it before
+	// that would be describing behaviour that does not exist.
+	"mountsourcepath": "dead setting, deliberately undocumented (ROADMAP TODO 79)",
 }
 
 // TestEveryKeyIsInTheWiki reports a key a topology may write that appears
