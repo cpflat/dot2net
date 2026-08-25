@@ -1363,7 +1363,7 @@ type ParameterRule struct {
 	// === attach mode fields ===
 	// Source defines how to generate Value list (for attach mode)
 	Source *ParameterRuleSource `yaml:"source" mapstructure:"source"`
-	// Generator specifies a module-provided generator (e.g., "clab.bindmounts")
+	// Generator specifies a module-provided generator (e.g., "clab.filemounts")
 	Generator string `yaml:"generator" mapstructure:"generator"`
 	// ParamFormat defines how to format source values into Value parameters
 	ParamFormat map[string]string `yaml:"param_format" mapstructure:"param_format"`
